@@ -47,9 +47,15 @@ def _word_gap(draw, font):
     return max(12.0, font.size * WORD_GAP_EM)
 
 
-def _word_width(draw, word, font):
-    return (sum(draw.textlength(ch, font=font) for ch in word)
+@lru_cache(maxsize=16384)
+def _cached_word_width(word, font):
+    # Fonts are cached above; individual word metrics are reused across
+    # every possible wrap candidate and font size.
+    return (sum(font.getlength(ch) for ch in word)
             + max(0, len(word) - 1) * _letter_tracking(font))
+
+def _word_width(draw, word, font):
+    return _cached_word_width(word, font)
 
 
 def line_tokens(words):

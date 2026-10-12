@@ -64,8 +64,10 @@ def test_identical_badge_pixels_for_four_and_five_line_posts(tmp_path):
 
 
 def test_original_photo_top_region_is_not_reinvented(tmp_path):
-    photo=ROOT/'assets'/'preview_photo_from_owner_reference.jpg'
-    assert photo.exists()
+    # No owner media is required in CI. Test the no-artificial-photo rule
+    # using a deterministic synthetic input image.
+    photo=tmp_path/'reference.jpg'
+    Image.new('RGB',(1080,1350),(60,90,125)).save(photo,quality=100)
     out=tmp_path/'preview.jpg'
     render(photo,HEADLINES[0],out,accent_words=['TANGAN','TUHAN'])
     from PIL import ImageChops
