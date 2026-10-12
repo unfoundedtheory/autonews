@@ -55,11 +55,17 @@ def cron_auth(request: Request):
     if CONFIG.database_url.startswith('sqlite'):
         raise HTTPException(503, 'Persistent database is required for scheduled jobs')
 
-@app.get('/cron/research', dependencies=[Depends(cron_auth)])
-def cron_research():
-    """Daily research/prepare at ~01 WIB; posting requires approval."""
-    from .runner import do_discover, do_prepare
-    return {'discovery':do_discover(), 'prepared':do_prepare(), 'publication':False}
+@app.get('/cron/discover', dependencies=[Depends(cron_auth)])
+def cron_discover():
+    """Discover candidates at approximately 01:00 WIB."""
+    from .runner import do_discover
+    return {'discovery':do_discover()}
+
+@app.get('/cron/prepare', dependencies=[Depends(cron_auth)])
+def cron_prepare():
+    """Prepare a small editorial batch at approximately 03:00 WIB."""
+    from .runner import do_prepare
+    return {'prepared':do_prepare()}
 
 @app.get('/cron/tick/{slot}', dependencies=[Depends(cron_auth)])
 def cron_tick(slot: str):
@@ -67,8 +73,11 @@ def cron_tick(slot: str):
     if slot not in ('morning','noon','evening'):
         raise HTTPException(404,'Invalid slot')
     from .runner import do_reschedule, do_publish
+    # Publish overdue-approved items before rebuilding future slots; Hobby cron
+    # can arrive up to 59 minutes after a slot begins.
+    publication=do_publish()
     scheduled=do_reschedule()
-    return {'queued':len(scheduled),'publication':do_publish()}
+    return {'queued':len(scheduled),'publication':publication}
 
 @app.get('/health')
 def health():return {'status':'ok','live_publish':CONFIG.live_publish}

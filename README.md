@@ -1,7 +1,7 @@
 ## Vercel serverless deployment (v0.8 staging)
 
-- Vercel serves `api/index.py` at `/api/*`; no always-on worker.
-- `vercel.json` schedules research ~01:00 WIB, publishing checks ~06:00, 12:00, 18:00 WIB (expressions in UTC). Four distinct daily cron entries comply with current Vercel Hobby rules, but may run up to 59 minutes late.
+- Vercel serves the root `app.py` entrypoint, which mounts the newsroom under `/api/*`; no always-on worker.
+- `vercel.json` schedules discovery ~01:00 WIB, draft preparation ~03:00 WIB, and publishing checks ~06:00, 12:00, 18:00 WIB (expressions in UTC). Four distinct daily cron entries comply with current Vercel Hobby rules, but may run up to 59 minutes late.
 - Use persistent Postgres `DATABASE_URL`; Vercel rejects SQLite in scheduled jobs.
 - Configure `CRON_SECRET`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_ADMIN_USER_IDS`, `TELEGRAM_CHAT_ID`, provider API keys and Instagram Professional API secrets as Vercel environment variables, never in Git.
 - For Vercel, images render in `/tmp`, then immediately upload to immutable Supabase Storage object paths. Sources may be fetched again when an editor revises a headline.

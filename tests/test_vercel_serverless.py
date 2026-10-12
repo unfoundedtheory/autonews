@@ -10,7 +10,8 @@ from utbot.models import make_engine
 def test_cron_schedules_wib():
     crons=json.loads((Path(__file__).parents[1]/'vercel.json').read_text())['crons']
     assert [(c['path'],c['schedule']) for c in crons] == [
-      ('/api/cron/research','0 18 * * *'),
+      ('/api/cron/discover','0 18 * * *'),
+      ('/api/cron/prepare','0 20 * * *'),
       ('/api/cron/tick/morning','0 23 * * *'),
       ('/api/cron/tick/noon','0 5 * * *'),
       ('/api/cron/tick/evening','0 11 * * *')]
@@ -35,5 +36,13 @@ def test_postgres_url_driver(monkeypatch):
     assert make_url(seen[0]).drivername=='postgresql+psycopg'
 
 def test_vercel_imports_fastapi():
-    from api.index import app
+    from app import app
     assert app.title=='Unfounded Theory Automation'
+
+def test_mounted_routes():
+    from app import app
+    from fastapi.testclient import TestClient
+    with TestClient(app) as client:
+        assert client.get('/api/health').status_code==200
+        assert client.get('/api/cron/tick/morning').status_code==403
+        assert client.post('/api/telegram/webhook',json={}).status_code==403
