@@ -1,3 +1,13 @@
+## Vercel serverless deployment (v0.8 staging)
+
+- Vercel serves `api/index.py` at `/api/*`; no always-on worker.
+- `vercel.json` schedules research ~01:00 WIB, publishing checks ~06:00, 12:00, 18:00 WIB (expressions in UTC). Four distinct daily cron entries comply with current Vercel Hobby rules, but may run up to 59 minutes late.
+- Use persistent Postgres `DATABASE_URL`; Vercel rejects SQLite in scheduled jobs.
+- Configure `CRON_SECRET`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_ADMIN_USER_IDS`, `TELEGRAM_CHAT_ID`, provider API keys and Instagram Professional API secrets as Vercel environment variables, never in Git.
+- For Vercel, images render in `/tmp`, then immediately upload to immutable Supabase Storage object paths. Sources may be fetched again when an editor revises a headline.
+- Register Telegram webhook: `https://your-production-domain/api/telegram/webhook` with secret token.
+- `ENABLE_LIVE_PUBLISH=false` until all APIs, database, photo-license review and approval work in a real end-to-end test. Vercel Cron is a time window, not an exact-minute SLA.
+
 # Unfounded Theory News Automation
 
 Sistem redaksi semi-otonom untuk mencari berita sains, memeriksa kutipan sumber primer, menulis highlight dan caption sesuai [panduan resmi](docs/editorial-guide.md), mencari kandidat foto dari Wikimedia Commons, membuat post 1080×1350, meminta persetujuan via Telegram, mengantre, lalu memublikasikan ke Instagram **hanya jika telah disetujui**.

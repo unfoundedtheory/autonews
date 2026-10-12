@@ -22,13 +22,18 @@ from .media import find_photos,intake_image,render_draft,upload_public_jpeg
 @asynccontextmanager
 async def lifespan(app):
     # Staging only. Real deployment uses schema migrations for production changes.
-    init_db()
+    # Never initialize disposable SQLite storage in a serverless environment.
+    if not (__import__('os').environ.get('VERCEL') and CONFIG.database_url.startswith('sqlite')):
+        init_db()
     yield
 
 app=FastAPI(title='Unfounded Theory Automation',version='0.7.0',lifespan=lifespan)
 
 def session():
-    with Session() as db:yield db
+    if __import__('os').environ.get('VERCEL') and CONFIG.database_url.startswith('sqlite'):
+        raise HTTPException(503, 'Persistent PostgreSQL DATABASE_URL is required on Vercel')
+    with Session() as db:
+        yield db
 
 def worker_auth(request:Request):
     provided=request.headers.get('x-worker-secret','')
@@ -39,6 +44,31 @@ def telegram_auth(request:Request):
     provided=request.headers.get('x-telegram-bot-api-secret-token','')
     if not CONFIG.telegram_secret or not compare_digest(provided,CONFIG.telegram_secret):
         raise HTTPException(403,'Invalid webhook secret')
+
+def cron_auth(request: Request):
+    """Vercel cron sends Authorization: Bearer CRON_SECRET."""
+    import os
+    token=os.getenv('CRON_SECRET', '')
+    provided=request.headers.get('authorization', '')
+    if not token or not compare_digest(provided, 'Bearer '+token):
+        raise HTTPException(403, 'Invalid Vercel cron authorization')
+    if CONFIG.database_url.startswith('sqlite'):
+        raise HTTPException(503, 'Persistent database is required for scheduled jobs')
+
+@app.get('/cron/research', dependencies=[Depends(cron_auth)])
+def cron_research():
+    """Daily research/prepare at ~01 WIB; posting requires approval."""
+    from .runner import do_discover, do_prepare
+    return {'discovery':do_discover(), 'prepared':do_prepare(), 'publication':False}
+
+@app.get('/cron/tick/{slot}', dependencies=[Depends(cron_auth)])
+def cron_tick(slot: str):
+    """Publish only pre-approved eligible drafts around 06/12/18 WIB."""
+    if slot not in ('morning','noon','evening'):
+        raise HTTPException(404,'Invalid slot')
+    from .runner import do_reschedule, do_publish
+    scheduled=do_reschedule()
+    return {'queued':len(scheduled),'publication':do_publish()}
 
 @app.get('/health')
 def health():return {'status':'ok','live_publish':CONFIG.live_publish}

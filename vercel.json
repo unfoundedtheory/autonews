@@ -1,0 +1,26 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/research",
+      "schedule": "0 18 * * *"
+    },
+    {
+      "path": "/api/cron/tick/morning",
+      "schedule": "0 23 * * *"
+    },
+    {
+      "path": "/api/cron/tick/noon",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/tick/evening",
+      "schedule": "0 11 * * *"
+    }
+  ],
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 300
+    }
+  }
+}

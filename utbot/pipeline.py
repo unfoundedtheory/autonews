@@ -142,7 +142,7 @@ def prepare_batch(db,limit=3,notifier=None):
         try:
             d=prepare_story(db,st)
             db.commit()
-            outcome.append({'story_id':st.id,'draft_id':d.id,'status':'prepared','has_photo':bool(d.image_local_path)})
+            outcome.append({'story_id':st.id,'draft_id':d.id,'status':'prepared','has_photo':bool(d.image_local_path or d.image_url)})
             if notifier:
                 try:notifier(d)
                 except Exception as exc:

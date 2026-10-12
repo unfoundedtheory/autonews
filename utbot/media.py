@@ -94,11 +94,25 @@ def intake_image(url,output_path,transport=None):
 def render_draft(draft,source_path=None):
     from .renderer import render
     src=source_path or draft.source_image_path
-    if not src or not Path(src).is_file():raise ValueError('File foto sumber tidak tersedia')
+    if not src or not Path(src).is_file():
+        # On Vercel, previous /tmp files vanish; re-acquire approved source.
+        src=str(Path(CONFIG.media_dir)/draft.id/f'source_v{draft.version}.jpg')
+        origin=draft.source_image_url or ''
+        if origin.startswith('https://'):
+            intake_image(origin,src)
+        elif origin.startswith('telegram-upload:') and CONFIG.telegram_token:
+            from .telegram import TelegramClient
+            TelegramClient(CONFIG.telegram_token).download_photo(origin.split(':',1)[1],src)
+        else:
+            raise ValueError('File foto sumber tidak tersedia; pilih foto lagi')
     out=Path(CONFIG.media_dir)/draft.id/f'v{draft.version}.jpg'
     draft.image_local_path=render(src,draft.highlight,out,accent_words=draft.accent_words or [],
                       logo_path=CONFIG.brand_logo,font_path=CONFIG.font_path)
-    draft.image_url=None  # force a new upload for the new version
+    if __import__('os').environ.get('VERCEL'):
+        # Persist the immutable final render before returning from this invocation.
+        draft.image_url=upload_public_jpeg(draft.image_local_path, f'{draft.id}/v{draft.version}.jpg')
+    else:
+        draft.image_url=None
     return draft.image_local_path
 
 def upload_public_jpeg(local_path,object_key,transport=None):

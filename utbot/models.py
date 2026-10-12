@@ -76,6 +76,10 @@ class TelegramSession(Base):
 
 def make_engine(url=None):
     url=url or CONFIG.database_url
+    if url.startswith('postgres://'):
+        url='postgresql+psycopg://' + url[len('postgres://'):]
+    elif url.startswith('postgresql://'):
+        url='postgresql+psycopg://' + url[len('postgresql://'):]
     return create_engine(url, connect_args={"check_same_thread":False} if url.startswith("sqlite") else {}, pool_pre_ping=True)
 
 engine=make_engine()
