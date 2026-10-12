@@ -21,7 +21,7 @@ class Config:
     daily_limit: int = int(os.getenv('DAILY_PUBLISH_LIMIT','2'))
     ai_provider: str = os.getenv('AI_PROVIDER','gemini')
     model: str = os.getenv('GEMINI_MODEL','gemini-2.5-flash-lite')
-    media_dir: str = os.getenv('MEDIA_DIR', '/tmp/unfounded-media' if os.getenv('VERCEL') else './media')
+    media_dir: str = '/tmp/unfounded-media' if os.getenv('VERCEL') else os.getenv('MEDIA_DIR', './media')
     brand_logo: str = os.getenv('BRAND_LOGO_PATH','')
     font_path: str = os.getenv('BRAND_FONT_PATH','')
     supabase_url: str = os.getenv('SUPABASE_URL','')

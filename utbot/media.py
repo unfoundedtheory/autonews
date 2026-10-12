@@ -128,7 +128,7 @@ def upload_public_jpeg(local_path,object_key,transport=None):
     bucket=urllib.parse.quote(CONFIG.media_bucket,safe='')
     endpoint=f'{host}/storage/v1/object/{bucket}/{key}'
     with httpx.Client(timeout=40,transport=transport) as client:
-        r=client.put(endpoint,content=p.read_bytes(),headers={'Authorization':'Bearer '+CONFIG.supabase_key,
+        r=client.post(endpoint,content=p.read_bytes(),headers={'Authorization':'Bearer '+CONFIG.supabase_key,
                      'apikey':CONFIG.supabase_key,'Content-Type':'image/jpeg','x-upsert':'false'})
         r.raise_for_status()
     return f'{host}/storage/v1/object/public/{bucket}/{key}'
