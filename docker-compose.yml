@@ -1,0 +1,23 @@
+# Standalone always-on deployment. Set DATABASE_URL to PostgreSQL for public hosting.
+# Do NOT scale worker above 1, and leave ENABLE_LIVE_PUBLISH=false until approved E2E.
+services:
+  api:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - '127.0.0.1:8000:8000'
+    volumes:
+      - ut_media:/app/media
+      - ut_state:/app/state
+  worker:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    command: ['python', '-m', 'utbot.runner', 'loop']
+    volumes:
+      - ut_media:/app/media
+      - ut_state:/app/state
+volumes:
+  ut_media:
+  ut_state:

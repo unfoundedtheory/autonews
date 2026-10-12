@@ -1,0 +1,92 @@
+from datetime import datetime,timezone,timedelta
+from dataclasses import replace
+from sqlalchemy.orm import sessionmaker
+import pytest
+import httpx
+from utbot.models import Base,make_engine,Story,Draft
+from utbot.research import fingerprint
+from utbot.editorial import approve
+from utbot import web
+
+@pytest.fixture
+def db():
+    eng=make_engine('sqlite://')
+    Base.metadata.create_all(eng)
+    with sessionmaker(bind=eng,expire_on_commit=False)() as ses:yield ses
+
+def seeded(db):
+    url='https://nasa.gov/test'
+    s=Story(fingerprint=fingerprint(url),title='Test',source_url=url,source_name='NASA',
+            topic='astronomy',verification_status='verified',evidence=[{'claim':'real','url':url,'evidence_checked':True}])
+    db.add(s);db.flush()
+    d=Draft(story_id=s.id,highlight='Ilmuwan Mengamati Fenomena Langit Yang Belum Terjelaskan Oleh Penelitian',
+        caption='Satu pengamatan menjadi perhatian.\n\nNASA melaporkan hasilnya.\n\nNamun, hasilnya masih diuji.\n\nApa yang mungkin ditemukan berikutnya?',
+        hashtags=['#NASA','#Astronomi','#Sains','#Langit','#UnfoundedTheory'],
+        image_url='https://example.org/rendered.jpg',source_image_url='https://example.org/source.jpg',
+        photo_license='CC0',image_credit='Example',rights_reviewed=False)
+    db.add(d);db.commit();return d
+
+class FakeBot:
+    def __init__(self):self.sent=[]
+    def answer(self,*a,**kw):self.sent.append(('answer',a))
+    def message(self,chat,text,keyboard=None):self.sent.append(('message',chat,text))
+    def file_photo(self,*a,**kw):self.sent.append(('photo',a))
+
+def callback(d,action,user=42):
+    return {'callback_query':{'id':'c-1','from':{'id':user},'message':{'chat':{'id':100}},
+          'data':f'{action}:{d.id}:{d.version}'}}
+
+def test_admin_rights_confirmation_and_approval_flow(db,monkeypatch):
+    d=seeded(db)
+    c=replace(web.CONFIG,admin_ids=frozenset({42}),telegram_token='local-token',daily_limit=2)
+    monkeypatch.setattr(web,'CONFIG',c)
+    bot=FakeBot();monkeypatch.setattr(web,'_bot',lambda:bot)
+    assert web.telegram_webhook(callback(d,'approve',user=999),db=db)['ignored']=='not_allowlisted'
+    web.telegram_webhook(callback(d,'approve'),db=db)
+    assert d.status=='pending_approval'
+    web.telegram_webhook(callback(d,'rights'),db=db)
+    assert d.rights_reviewed
+    web.telegram_webhook(callback(d,'approve'),db=db)
+    assert d.status=='approved' and d.approved_version==d.version and d.scheduled_at
+    assert any('Disetujui' in item[2] for item in bot.sent if item[0]=='message')
+
+def test_instagram_container_waits_then_publishes_once(db,monkeypatch,tmp_path):
+    d=seeded(db);d.rights_reviewed=True
+    approve(db,d,'42')
+    d.scheduled_at=datetime.now(timezone.utc)-timedelta(minutes=1)
+    db.commit()
+    logo=tmp_path/'logo.png';logo.write_bytes(b'valid-placeholder-for-test')
+    cfg=replace(web.CONFIG,live_publish=True,brand_logo=str(logo),ig_user_id='123',ig_token='token')
+    monkeypatch.setattr(web,'CONFIG',cfg)
+    monkeypatch.setattr(web,'_bot',lambda:None)
+    class FakeIG:
+        published_calls=0
+        def __init__(self,*args):pass
+        def create_container(self,url,caption):return 'container-1'
+        def container_status(self,ident):return 'IN_PROGRESS' if self.published_calls==0 else 'FINISHED'
+        def publish(self,ident):self.__class__.published_calls+=1;return 'media-id'
+    # Initially in progress. Next run polls container and finalizes publish.
+    monkeypatch.setattr(web,'InstagramPublisher',FakeIG)
+    assert web.publish_job(db=db)['container_status']=='IN_PROGRESS'
+    assert d.publish_state=='awaiting_container'
+    FakeIG.published_calls=1
+    assert web.publish_job(db=db)['published']==[d.id]
+    assert d.publish_state=='published'
+    assert web.publish_job(db=db)['due']==0
+
+def test_uncertain_publish_never_retries(db,monkeypatch,tmp_path):
+    d=seeded(db);d.rights_reviewed=True;approve(db,d,'42')
+    d.scheduled_at=datetime.now(timezone.utc)-timedelta(minutes=1)
+    db.commit()
+    logo=tmp_path/'logo.png';logo.write_bytes(b'placeholder')
+    monkeypatch.setattr(web,'CONFIG',replace(web.CONFIG,live_publish=True,brand_logo=str(logo),ig_user_id='123',ig_token='token'))
+    monkeypatch.setattr(web,'_bot',lambda:None)
+    class BadIG:
+        def __init__(self,*args):pass
+        def create_container(self,*args):return 'container-2'
+        def container_status(self,*args):return 'FINISHED'
+        def publish(self,*args):raise httpx.TimeoutException('ambiguous request')
+    monkeypatch.setattr(web,'InstagramPublisher',BadIG)
+    assert web.publish_job(db=db)['status']=='uncertain'
+    assert d.publish_state=='uncertain'
+    assert web.publish_job(db=db)['due']==0
