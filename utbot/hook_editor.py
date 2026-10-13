@@ -7,6 +7,7 @@ from .ai_provider import generate_json
 from .quality_control import assess
 from .renderer import cover_fits
 from .config import CONFIG
+from .editorial import editorial_instructions
 
 HOOK_SYSTEM = """Anda adalah copy editor Unfounded Theory. Buat TIGA ALTERNATIF HIGHLIGHT Instagram bahasa Indonesia berdasarkan evidence yang disediakan.
 Setiap hook wajib memantik rasa ingin tahu dengan fakta spesifik, kontras yang benar-benar ada di sumber, atau pertanyaan ilmiah yang penting.
@@ -25,7 +26,7 @@ def alternatives(draft, story, *, llm=None):
              'caption':draft.caption,'verified_evidence':[
                 {'claim':e.get('claim'),'quote':e.get('quote')} for e in story.evidence[:6]]}
     if llm is None:
-        llm=lambda instruction, facts:generate_json(instruction,facts,temperature=0.45,role='draft')
+        llm=lambda instruction, facts:generate_json(instruction+editorial_instructions(),facts,temperature=0.45,role='draft')
     response=llm(HOOK_SYSTEM,payload)
     candidates=response.get('options') if isinstance(response,dict) else None
     if not isinstance(candidates,list):raise ValueError('Model tidak memberikan daftar hook.')
@@ -59,7 +60,7 @@ def cover_fit_alternative(draft,story,*,llm=None):
     if not story or len(story.evidence or []) < 2:
         raise ValueError('Tidak ada bukti yang cukup untuk mengubah hook.')
     if llm is None:
-        llm=lambda system,data:generate_json(system,data,temperature=0.28,role='draft')
+        llm=lambda system,data:generate_json(system+editorial_instructions(),data,temperature=0.28,role='draft')
     payload={'headline_source':story.title,'current_hook':draft.highlight,'caption':draft.caption,
              'verified_evidence':[{'claim':e.get('claim'),'quote':e.get('quote')} for e in story.evidence[:6]]}
     response=llm(COVER_FIT_SYSTEM,payload)
