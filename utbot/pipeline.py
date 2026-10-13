@@ -8,10 +8,13 @@ from pathlib import Path
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 import httpx,json,re,unicodedata
+from types import SimpleNamespace
 from sqlalchemy import select,case
 from .models import Story,Draft,Audit
 from .editorial import trusted_source,lint
 from .quality_control import assess
+from .renderer import cover_fits
+from .hook_editor import cover_fit_alternative
 from .config import CONFIG
 from .media import find_photos,intake_image,render_draft
 from .ai_provider import generate_json
@@ -140,24 +143,44 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
             if attempt==3:raise ValueError('Penulisan gagal setelah 3 percobaan: '+str(exc)[:180]) from exc
             continue
         qc=assess(data['highlight'],data['caption'],data['hashtags'],checked,
-                  tragedy=bool(data.get('tragedy')))
+                  tragedy=bool(data.get('tragedy')),check_cover=False)
         if qc['passed']:break
         failures.append({'attempt':attempt,'issues':qc['issues']})
     else:
         raise ValueError('Editorial QC gagal setelah 3 percobaan: '+', '.join(qc['issues']))
     data['highlight']=data['highlight'].rstrip().rstrip('.')
+    original_highlight=data['highlight']
+    cover_issue=None
+    if not cover_fits(data['highlight'],CONFIG.font_path):
+        preview=SimpleNamespace(highlight=data['highlight'],caption=data['caption'],
+                                hashtags=data['hashtags'],is_tragedy=bool(data.get('tragedy')))
+        evidence_story=SimpleNamespace(title=story.title,evidence=checked)
+        try:
+            data['highlight']=cover_fit_alternative(preview,evidence_story)
+            data['accent_words']=[]
+        except (ValueError,RuntimeError,httpx.HTTPError) as exc:
+            cover_issue='Highlight belum muat empat baris. Gunakan Perbaiki Cover Otomatis atau edit Highlight. '+str(exc)[:160]
     story.evidence=checked
     story.verification_status='verified'  # quotes matched primary text; not independent adjudication
     d=Draft(story_id=story.id,highlight=data['highlight'],caption=data['caption'],hashtags=data['hashtags'],
             accent_words=data.get('accent_words') or [],is_tragedy=bool(data.get('tragedy')),
             expires_at=datetime.fromisoformat(data['expires_at_wib']).astimezone(timezone.utc) if data.get('expires_at_wib') else None)
     db.add(d);db.flush()
+    qc_issues=['cover_four_line_overflow'] if cover_issue else []
     db.add(Audit(draft_id=d.id,event='editorial_qc',actor='worker',
-                 detail={'version':d.version,'status':'passed_automated',
-                         'passed':True,'issues':[],'attempts':attempt,
+                 detail={'version':d.version,'status':'needs_manual_review' if cover_issue else 'passed_automated',
+                         'passed':not bool(cover_issue),'issues':qc_issues,'attempts':attempt,
                          'prior_failures':failures,'manual_checks':qc['manual_checks']}))
+    if original_highlight != data['highlight']:
+        db.add(Audit(draft_id=d.id,event='cover_hook_auto_revised',actor='worker',
+                     detail={'version':d.version,'original':original_highlight,
+                             'replacement':data['highlight'],'review_required':True}))
     db.add(Audit(draft_id=d.id,event='primary_quotes_checked',actor='worker',detail={'sources':[story.source_url],
                                                                                 'claim_count':len(checked)}))
+    if cover_issue:
+        d.last_error=cover_issue
+        db.flush()
+        return d
     try:
         query=data.get('image_search') or story.title
         queries=search_queries(query,story_title=story.title)

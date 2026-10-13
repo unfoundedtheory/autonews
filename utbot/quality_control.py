@@ -1,15 +1,18 @@
 """Editorial QC gate. Conservative automated checks, not a substitute for fact checking."""
 import re
 from .editorial import lint, evidence_ready
+from .renderer import cover_fits
+from .config import CONFIG
 
 FILLERS=('di sinilah ceritanya jadi penting','menariknya lagi,','tentu saja,','tak bisa dimungkiri')
 SENSATIONAL=('anda tidak akan percaya','fakta mengejutkan','dijamin viral','bikin geger')
 
-def assess(highlight, caption, hashtags, evidence, *, tragedy=False, image=None, audio=None):
+def assess(highlight, caption, hashtags, evidence, *, tragedy=False, image=None, audio=None, check_cover=True):
     issues=list(lint(highlight,caption,hashtags,tragedy=tragedy))
     h=highlight.casefold()
     c=caption.casefold()
     if any(s in h for s in SENSATIONAL): issues.append('hook_clickbait')
+    if check_cover and not cover_fits(highlight,CONFIG.font_path): issues.append('cover_four_line_overflow')
     if len(highlight) > 140: issues.append('hook_too_long')
     if re.match(r'(?i)^(?:misi|wahana|satelit)\b',highlight.strip()):
         issues.append('hook_factual_summary_not_curiosity_gap')

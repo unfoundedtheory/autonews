@@ -282,6 +282,8 @@ def _revision_text(field,text,d,st):
 
 def _replace_photo(db,d,url,uid,*,details=None):
     from .media import render_draft
+    from .renderer import require_cover_fit
+    require_cover_fit(d.highlight,CONFIG.font_path)
     src=Path(CONFIG.media_dir)/d.id/f'source_v{d.version+1}.jpg'
     photo_path=intake_image(url,str(src))
     revise(db,d,'source_image_url',url,uid)
@@ -296,6 +298,8 @@ def _replace_photo(db,d,url,uid,*,details=None):
 def _replace_telegram_photo(db,d,file_id,uid,bot):
     """Editor-supplied Telegram photo; license review and attribution still required."""
     from .media import render_draft
+    from .renderer import require_cover_fit
+    require_cover_fit(d.highlight,CONFIG.font_path)
     src=Path(CONFIG.media_dir)/d.id/f'source_v{d.version+1}.jpg'
     photo_path=bot.download_photo(file_id,str(src))
     revise(db,d,'source_image_url','telegram-upload:'+file_id,uid)
@@ -393,9 +397,38 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     '\\n\\n'+'\\n\\n'.join(f'{i+1}. {h}' for i,h in enumerate(ideas))+
                     '\\n\\nPilih salah satu. Semua tetap perlu pemeriksaan editorial.',
                     {'inline_keyboard':rows})
+            elif action=='autofit':
+                if d.status!='pending_approval' or d.publish_state in ('publishing','uncertain','published'):
+                    raise ValueError('Hanya draf pending yang boleh diperbaiki.')
+                from .hook_editor import cover_fit_alternative
+                from .renderer import require_cover_fit
+                if bot:bot.answer(cb_id,'Mencari hook yang muat empat baris')
+                replacement=cover_fit_alternative(d,st)
+                require_cover_fit(replacement,CONFIG.font_path)
+                original=d.highlight
+                revise(db,d,'highlight',replacement,uid)
+                d.accent_words=[]
+                d.last_error=None
+                db.add(Audit(draft_id=d.id,event='cover_hook_auto_revised',actor=str(uid),
+                             detail={'version':d.version,'original':original,
+                                     'replacement':replacement,'review_required':True}))
+                if d.source_image_url or d.source_image_path:
+                    try:
+                        render_draft(d)
+                    except (ValueError,RuntimeError,httpx.HTTPError,OSError) as exc:
+                        d.image_url=None
+                        d.image_local_path=None
+                        d.last_error='Cover belum tersedia: '+str(exc)[:160]
+                db.commit()
+                if bot:send_preview(bot,chat_id,d,st)
+                send('✨ Highlight telah diperbaiki dan tetap memerlukan persetujuan Anda. '+
+                     ('Cover siap diperiksa.' if d.image_url or d.image_local_path else
+                      'Pilih Cari Ulang Cover untuk melengkapi gambarnya.'))
             elif action=='retrycover':
                 if d.status!='pending_approval' or d.publish_state in ('publishing','uncertain','published'):
                     raise ValueError('Hanya draf yang belum disetujui dapat mencari ulang cover.')
+                from .renderer import require_cover_fit
+                require_cover_fit(d.highlight,CONFIG.font_path)
                 if bot:bot.answer(cb_id,'Mencari kandidat Wikimedia')
                 from .photo_relevance import search_queries,likely_same_subject
                 from .media import find_photos
@@ -433,6 +466,8 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                             Audit.event=='hook_candidates').order_by(Audit.id.desc()).first()
                 choices=(report.detail or {}).get('options',[]) if report and (report.detail or {}).get('version')==d.version else []
                 if index>=len(choices):raise ValueError('Opsi hook kedaluwarsa. Buat ulang alternatif.')
+                from .renderer import require_cover_fit
+                require_cover_fit(choices[index],CONFIG.font_path)
                 revise(db,d,'highlight',choices[index],uid)
                 d.accent_words=[]
                 db.add(Audit(draft_id=d.id,event='hook_selected',actor=str(uid),
@@ -491,7 +526,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 db.commit();send_preview(bot,chat_id,d,st) if bot else None
                 send('Foto diganti. Tinjau lisensi sebelum Approve; approval lama sudah batal.')
             else:raise ValueError('Pilihan tidak dikenali.')
-            if bot and action not in ('hookideas','retrycover'):bot.answer(cb_id,'Diterima')
+            if bot and action not in ('hookideas','retrycover','autofit'):bot.answer(cb_id,'Diterima')
         except (ValueError,RuntimeError,httpx.HTTPError,OSError) as exc:
             db.rollback()
             if bot:bot.answer(cb_id,'Permintaan perlu diperbaiki')
@@ -557,6 +592,9 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         # Review button still required, never self-certify permission.
                     elif sess.mode in ('highlight','caption'):
                         value=_revision_text(sess.mode,txt,d,st)
+                        if sess.mode=='highlight':
+                            from .renderer import require_cover_fit
+                            require_cover_fit(value,CONFIG.font_path)
                         revise(db,d,sess.mode,value,uid)
                         if sess.mode=='highlight' and d.source_image_path:render_draft(d)
                     elif sess.mode=='photo':

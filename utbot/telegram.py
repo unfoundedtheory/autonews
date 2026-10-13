@@ -15,6 +15,8 @@ def keyboard(draft):
          {'text':'🔎 Sumber','callback_data':f'sources:{ref}:{v}'}],
         [{'text':'📋 Hasil QC','callback_data':f'qc:{ref}:{v}'}]]
     if not draft.image_url and not draft.image_local_path and draft.status=='pending_approval':
+        if 'empat baris' in (draft.last_error or '').lower():
+            rows.append([{'text':'✨ Perbaiki Cover Otomatis','callback_data':f'autofit:{ref}:{v}'}])
         rows.append([{'text':'🔎 Cari Ulang Cover','callback_data':f'retrycover:{ref}:{v}'}])
     if draft.photo_license and not draft.rights_reviewed:
         rows.append([{'text':'📄 Verifikasi Hak Foto','callback_data':f'rights:{ref}:{v}'}])

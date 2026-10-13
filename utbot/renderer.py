@@ -135,6 +135,24 @@ def _headline_layout(draw, highlight, font_path=None, max_width=WIDTH-2*MARGIN):
     raise ValueError('Highlight tidak muat dalam tepat empat baris; minta revisi melalui Telegram')
 
 
+@lru_cache(maxsize=256)
+def require_cover_fit(highlight: str, font_path: str | None = None):
+    """Use the exact same four-line geometry as render, without downloading photos."""
+    if not highlight or len(highlight.strip()) > 245:
+        raise ValueError("Highlight kosong atau terlalu panjang")
+    draw = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    _, lines, _ = _headline_layout(draw, highlight, font_path)
+    return tuple(lines)
+
+
+def cover_fits(highlight: str, font_path: str | None = None):
+    try:
+        require_cover_fit(highlight, font_path)
+        return True
+    except ValueError:
+        return False
+
+
 def _accent_check(word: str, accent: set[str]):
     normalized = re.sub(r"[^\w-]", "", word.upper(), flags=re.UNICODE)
     return normalized in accent

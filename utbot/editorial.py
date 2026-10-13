@@ -66,6 +66,7 @@ def revise(db,draft,field,value,actor):
     setattr(draft,field,value)
     if field in {"highlight","source_image_url"}:
         draft.image_url=None  # prior image belongs to old version
+        draft.image_local_path=None  # prior render belongs to old version
     draft.version+=1
     draft.approved_version=None
     draft.approved_by=None

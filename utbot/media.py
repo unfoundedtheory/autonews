@@ -94,6 +94,8 @@ def intake_image(url,output_path,transport=None):
 
 def render_draft(draft,source_path=None):
     from .renderer import render
+    from .renderer import require_cover_fit
+    require_cover_fit(draft.highlight, CONFIG.font_path)
     src=source_path or draft.source_image_path
     if not src or not Path(src).is_file():
         # On Vercel, previous /tmp files vanish; re-acquire approved source.
