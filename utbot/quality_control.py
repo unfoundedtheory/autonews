@@ -11,7 +11,6 @@ def assess(highlight, caption, hashtags, evidence, *, tragedy=False, image=None,
     c=caption.casefold()
     if any(s in h for s in SENSATIONAL): issues.append('hook_clickbait')
     if any(s in c for s in FILLERS): issues.append('caption_filler')
-    if len(caption.strip()) < 200: issues.append('caption_too_short_for_context')
     if re.search(r'(?i)\\b(?:breaking|hari ini|malam ini)\\b',highlight) and not evidence:
         issues.append('urgent_hook_missing_evidence')
     if not isinstance(evidence,list) or len(evidence)<2:
