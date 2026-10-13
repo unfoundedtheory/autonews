@@ -177,17 +177,30 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
         if opts and not matching:
             d.last_error='Tidak ada kandidat foto yang cukup cocok dengan subjek berita; editor harus memilih.'
         if matching:
-            item=matching[0]
-            src=Path(CONFIG.media_dir)/d.id/'source.jpg'
-            d.source_image_path=image_intake(item['image_url'],str(src))
-            d.source_image_url=item['image_url']
-            d.media_page_url=item['page_url']
-            d.image_credit=item['credit']
-            d.photo_license=item['license']
-            d.image_license_url=item['license_url']
-            d.rights_reviewed=False  # approval is deliberate, not implicit license verification
-            render_draft(d)
-    except (httpx.HTTPError,ValueError,OSError) as exc:
+            errors=[]
+            for item in matching:
+                try:
+                    src=Path(CONFIG.media_dir)/d.id/'source.jpg'
+                    d.source_image_path=image_intake(item['image_url'],str(src))
+                    d.source_image_url=item['image_url']
+                    d.media_page_url=item['page_url']
+                    d.image_credit=item['credit']
+                    d.photo_license=item['license']
+                    d.image_license_url=item['license_url']
+                    d.rights_reviewed=False
+                    render_draft(d)
+                    d.last_error=None
+                    break
+                except (httpx.HTTPError,ValueError,OSError,RuntimeError) as exc:
+                    errors.append(type(exc).__name__+': '+str(exc)[:100])
+                    d.image_url=None
+                    d.image_local_path=None
+            if not d.image_url and not d.image_local_path:
+                d.last_error='Cover gagal setelah '+str(len(errors))+' kandidat: '+' | '.join(errors)[:350]
+        else:
+            d.last_error='Foto relevan belum ditemukan; kata kunci: '+str(query)[:140]
+
+    except (httpx.HTTPError,ValueError,OSError,RuntimeError) as exc:
         d.last_error='Foto memerlukan pemeriksaan editor: '+str(exc)[:250]
     db.flush()
     return d
@@ -206,7 +219,7 @@ def prepare_batch(db,limit=3,notifier=None):
         try:
             d=prepare_story(db,st)
             db.commit()
-            outcome.append({'story_id':st.id,'draft_id':d.id,'status':'prepared','has_photo':bool(d.image_local_path or d.image_url)})
+            outcome.append({'story_id':st.id,'draft_id':d.id,'status':'prepared','has_photo':bool(d.image_local_path or d.image_url),'photo_error':d.last_error})
             if notifier:
                 try:notifier(d)
                 except Exception as exc:

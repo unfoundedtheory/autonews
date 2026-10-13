@@ -197,7 +197,7 @@ def generate_test_news(db, bot, chat_id):
     if result.get('status')=='prepared':
         return ('✅ Satu draf dibuat dan dikirim untuk review manual. Tidak ada posting Instagram.'
                 if result.get('has_photo') else
-                '⚠️ Satu draf dibuat, tetapi cover 4:5 belum tersedia. Pilih foto yang relevan sebelum approval.')
+                '⚠️ Satu draf dibuat, tetapi cover 4:5 belum tersedia. Diagnostik: '+str(result.get('photo_error') or 'Tidak ada rincian')[:450])
     return '⚠️ Test news perlu review manual: '+str(result.get('reason','Unknown'))[:600]
 
 class DraftInput(BaseModel):
