@@ -93,7 +93,7 @@ Referensi gateway: [Gemini](https://ai.google.dev/gemini-api/docs), [DeepSeek](h
 
 | Modul | Fungsi |
 |---|---|
-| `utbot/research.py` | Feed resmi NASA, ESA dan MIT → kandidat baru tanpa duplikasi URL |
+| `utbot/research.py` | Feed resmi NASA, ESA, ESO, EMBL, dan Google DeepMind → kandidat baru tanpa duplikasi URL |
 | `utbot/pipeline.py` | HTML primer → draft berbasis kutipan dengan pemeriksaan literal lewat gateway AI |
 | `utbot/media.py` | Wikimedia Commons + metadata lisensi → download aman → upload JPEG final ke Supabase Storage |
 | `utbot/renderer.py` | Desain deterministik 1080×1350: gradien hitam, logo, putih dan neon `#95F21E` |
