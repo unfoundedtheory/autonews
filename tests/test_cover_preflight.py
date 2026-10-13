@@ -15,9 +15,9 @@ TOO_LONG=('Mengapa Para Ilmuwan Menemukan Sinyal Misterius Yang Sangat Tidak Bia
           'Secara Mendalam Di Seluruh Dunia')
 TEXT=normalize('The telescope took careful observations across several nights. '
                'Scientists must still analyze the results before making claims. ' * 9)
-CAPTION=('Para ilmuwan mengamati sesuatu yang tidak biasa dari data pengamatan.\\n\\n'
-         'Temuan ini masih membutuhkan konfirmasi dari pengamatan tambahan.\\n\\n'
-         'Beberapa hasil awal belum cukup untuk menarik kesimpulan.\\n\\n'
+CAPTION=('Para ilmuwan mengamati sesuatu yang tidak biasa dari data pengamatan.\n\n'
+         'Temuan ini masih membutuhkan konfirmasi dari pengamatan tambahan.\n\n'
+         'Beberapa hasil awal belum cukup untuk menarik kesimpulan.\n\n'
          'Apa yang bisa dipelajari dari pengamatan berikutnya?')
 TAGS=['#Astronomi','#NASA','#Sains','#Riset','#UnfoundedTheory']
 
