@@ -69,6 +69,31 @@ Aturan:
 Kembalikan JSON object: highlight, caption, hashtags, evidence, image_search, accent_words, tragedy (boolean), expires_at_wib (ISO 8601 atau null).
 '''
 
+def repair_hashtags(value, caption, topic):
+    """Normalize formatting without inventing facts or changing article claims."""
+    if isinstance(value,str):
+        raw=re.findall(r'#[A-Za-z0-9_]+',value)
+    elif isinstance(value,list):
+        raw=[str(x).strip() for x in value]
+    else:
+        raw=[]
+    tags=[]
+    for item in raw:
+        candidate=item.strip().lstrip('#')
+        candidate=re.sub(r'[^A-Za-z0-9_]','',candidate)
+        if candidate and candidate.casefold()!='unfoundedtheory':
+            tag='#'+candidate
+            if tag.casefold() not in {x.casefold() for x in tags}:
+                tags.append(tag)
+    defaults={'space':['#Antariksa','#Astronomi','#Sains','#Eksplorasi'],
+              'astronomy':['#Astronomi','#Bulan','#Antariksa','#Sains'],
+              'biology':['#Biologi','#Sains','#Penelitian','#Penemuan']}
+    for fallback in defaults.get(topic,['#Sains','#Penelitian','#Penemuan','#IlmuPengetahuan']):
+        if len(tags)>=4:break
+        if fallback.casefold() not in {x.casefold() for x in tags}:
+            tags.append(fallback)
+    return tags[:4]+['#UnfoundedTheory']
+
 def author_from_source(story,source_text,llm=None):
     if not source_text or len(source_text)<350:raise ValueError('Sumber primer kosong')
     if llm is None:
@@ -78,7 +103,8 @@ def author_from_source(story,source_text,llm=None):
                   'topic':story.topic,'source_text':source_text},ensure_ascii=False)
     data=llm(query)
     verified=check_evidence(data,story.source_url,source_text)
-    hashtags=data.get('hashtags') or []
+    hashtags=repair_hashtags(data.get('hashtags'),data.get('caption',''),story.topic)
+    data['hashtags']=hashtags
     highlight=(data.get('highlight') or '').strip()
     caption=(data.get('caption') or '').strip()
     issues=lint(highlight,caption,hashtags,tragedy=bool(data.get('tragedy')))
@@ -107,7 +133,12 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
     # Retry at most three complete drafts; never mark an unverified result as passed.
     failures=[]
     for attempt in range(1,4):
-        data,checked=writer(story,article)
+        try:
+            data,checked=writer(story,article)
+        except ValueError as exc:
+            failures.append({'attempt':attempt,'issues':[str(exc)[:160]]})
+            if attempt==3:raise ValueError('Penulisan gagal setelah 3 percobaan: '+str(exc)[:180]) from exc
+            continue
         qc=assess(data['highlight'],data['caption'],data['hashtags'],checked,
                   tragedy=bool(data.get('tragedy')))
         if qc['passed']:break
