@@ -174,6 +174,36 @@ def gemini_test_message():
         log.warning('Gemini Telegram test failed: %s', type(exc).__name__)
         return '❌ Gemini gagal. Model: '+model+'\\nError: '+type(exc).__name__
 
+def generate_test_news(db, bot, chat_id):
+    """Run a single safe editorial test without Instagram publication."""
+    from .pipeline import prepare_batch
+    from .research import discover
+    from .models import Story
+    from sqlalchemy import select
+    from .telegram import send_preview
+    import os
+    if os.getenv('ENABLE_LIVE_PUBLISH', 'false').lower() != 'false':
+        return '⚠️ Pengujian dibatalkan: ENABLE_LIVE_PUBLISH harus false.'
+    def notify(d):
+        if bot:
+            send_preview(bot, chat_id, d, db.get(Story, d.story_id))
+    existing=db.execute(select(Story.id).where(
+        Story.verification_status=='needs_fact_check').limit(1)).first()
+    if not existing:
+        feeds=list(discover(db))
+        db.commit()
+        existing=db.execute(select(Story.id).where(
+            Story.verification_status=='needs_fact_check').limit(1)).first()
+        if not existing:
+            return '⚠️ Belum ada kandidat berita. Hasil sumber: '+str(feeds)[:900]
+    results=prepare_batch(db,limit=1,notifier=notify)
+    if not results:
+        return '⚠️ Tidak ada kandidat yang dapat diproses.'
+    result=results[0]
+    if result.get('status')=='prepared':
+        return '✅ Test news selesai. Preview dikirim untuk review manual. Tidak ada posting Instagram.'
+    return '⚠️ Test news perlu review manual: '+str(result.get('reason','Unknown'))[:600]
+
 class DraftInput(BaseModel):
     source_url:str;source_name:str;title:str;topic:str='astronomy'
     evidence:list[dict];highlight:str;caption:str;hashtags:list[str]
@@ -273,10 +303,13 @@ def telegram_webhook(payload:dict,db=Depends(session)):
         if bot:bot.message(chat_id,s,main_menu() if menu else None)
     if cb and str(cb.get('data','')).startswith('nav:'):
         action=cb['data'][4:]
-        if action not in ('home','pending','queue','status','test_gemini'):
+        if action not in ('home','pending','queue','status','test_gemini','test_news'):
             if bot:bot.answer(cb.get('id'),'Menu tidak valid')
             return {'ok':True}
-        if action=='test_gemini':
+        if action=='test_news':
+            send('📰 Memproses satu berita percobaan...')
+            send(generate_test_news(db,bot,chat_id),True)
+        elif action=='test_gemini':
             send(gemini_test_message(),True)
         elif action=='home':
             send('🛰 Unfounded Theory Newsroom\\nPilih menu di bawah.',True)
@@ -364,6 +397,10 @@ def telegram_webhook(payload:dict,db=Depends(session)):
     if msg:
         txt=(msg.get('text') or msg.get('caption') or '').strip()
         sess=db.get(TelegramSession,str(uid))
+        if txt=='/testnews' and not sess:
+            send('📰 Memproses satu berita percobaan...')
+            send(generate_test_news(db,bot,chat_id),True)
+            return {'ok':True,'command':'testnews'}
         if txt=='/testgemini' and not sess:
             send(gemini_test_message(),True)
             return {'ok':True,'command':'testgemini'}
