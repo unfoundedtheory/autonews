@@ -6,9 +6,9 @@ from utbot.quality_control import assess
 def make_draft():
     return SimpleNamespace(
         highlight='Fisikawan Temukan Sinyal Aneh Dalam Pencarian Partikel Dark Matter',
-        caption=('Para ilmuwan menemukan petunjuk baru dalam data pengamatan.\\n\\n'
-                 'Temuan itu belum cukup untuk menjadi bukti.\\n\\n'
-                 'Namun, pengujian tambahan dibutuhkan untuk memperkuat hasilnya.\\n\\n'
+        caption=('Para ilmuwan menemukan petunjuk baru dalam data pengamatan.\n\n'
+                 'Temuan itu belum cukup untuk menjadi bukti.\n\n'
+                 'Namun, pengujian tambahan dibutuhkan untuk memperkuat hasilnya.\n\n'
                  'Apa yang akan terungkap pada analisis berikutnya?'),
         hashtags=['#Sains','#Fisika','#Astronomi','#Riset','#UnfoundedTheory'],
         is_tragedy=False)

@@ -173,10 +173,14 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
                 continue
             for item in discovered:
                 key=item.get('page_url') or item.get('image_url')
-                if not key or key in seen:continue
-                seen.add(key)
-                opts.append(item)
-                if likely_same_subject(variant,item):
+                if not key:continue
+                if key not in seen:
+                    seen.add(key)
+                    opts.append(item)
+                # The same file may be irrelevant to a broad variant but relevant
+                # to the later, correct mission-specific query.
+                if likely_same_subject(variant,item) and not any(
+                        (m.get('page_url') or m.get('image_url'))==key for m in matching):
                     matching.append(item)
             if matching:break
         # A search failure should never produce a random filler photo.
