@@ -44,7 +44,7 @@ def parse_items(xml):
         raise ValueError('Respons feed kosong.')
     if len(payload)>2_000_000:
         raise ValueError('Feed RSS terlalu besar.')
-    if re.search(br'<!\\s*(?:DOCTYPE|ENTITY)\\b',payload,re.IGNORECASE):
+    if re.search(br'<!\s*(?:DOCTYPE|ENTITY)\b',payload,re.IGNORECASE):
         raise ValueError('Feed dengan DTD/entity eksternal tidak diizinkan.')
     try:
         root=ElementTree.fromstring(payload)

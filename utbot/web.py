@@ -213,7 +213,7 @@ def generate_test_news(db, bot, chat_id):
                         ' feed bermasalah: '+details[:400])
             seen=sum(item.get('seen',0) for item in healthy)
             duplicates=sum(item.get('duplicates',0) for item in healthy)
-            return ('ℹ️ Belum ada kandidat baru. '+str(seen)+' artikel diperiksa, '+
+            return ('ℹ️ Belum ada berita baru yang memenuhi kriteria. '+str(seen)+' artikel diperiksa, '+
                     str(duplicates)+' sudah tersimpan; lainnya mungkin terlalu lama '+
                     'atau tidak memenuhi kriteria sumber resmi.')
 
