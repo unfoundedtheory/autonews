@@ -79,7 +79,7 @@ def _headline_tokens(highlight):
     return re.findall(r"""['\"“‘][^'\"”’]+['\"”’][,;.!?]?|\S+""", highlight.upper())
 
 
-def _balanced_wrap(draw, words, font, max_width, max_lines=5):
+def _balanced_wrap(draw, words, font, max_width, max_lines=5, exact_lines=None):
     """Dynamic programming for 3–5 coherent lines, measured with actual tracking."""
     words = line_tokens(words)
     n = len(words)
@@ -108,7 +108,8 @@ def _balanced_wrap(draw, words, font, max_width, max_lines=5):
             if choices:
                 states[(end, count)] = min(choices, key=lambda v:v[0])
     candidates = [(score+count*.10, path) for (end,count),(score,path) in states.items()
-                  if end == n and 3 <= count <= max_lines]
+                  if end == n and 3 <= count <= max_lines
+                  and (exact_lines is None or count == exact_lines)]
     if not candidates:
         return []
     return [' '.join(line) for line in min(candidates, key=lambda x:x[0])[1]]
@@ -125,7 +126,7 @@ def _headline_layout(draw, highlight, font_path=None, max_width=WIDTH-2*MARGIN):
     words = _headline_tokens(highlight)
     for size in range(104, 57, -2):
         font = _font(size, font_path)
-        lines = _balanced_wrap(draw, words, font, max_width, max_lines=4)
+        lines = _balanced_wrap(draw, words, font, max_width, max_lines=4, exact_lines=4)
         pitch = round(size * .985)
         if (len(lines) == 4 and
             HEADLINE_TOP + (len(lines)-1)*pitch + _ink_height(font) <= HEADLINE_BOTTOM
