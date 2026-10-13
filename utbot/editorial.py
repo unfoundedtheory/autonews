@@ -16,6 +16,7 @@ def lint(highlight, caption, hashtags, *, tragedy=False):
     issues=[]
     if not 45 <= len(highlight) <= 210: issues.append("highlight_length")
     if "—" in highlight or "—" in caption: issues.append("em_dash")
+    if highlight.rstrip().endswith("."): issues.append("highlight_final_period")
     if highlight == highlight.upper(): issues.append("highlight_not_title_case")
     if "\n" in highlight: issues.append("multiline_highlight")
     content_paragraphs=[p.strip() for p in caption.strip().split("\n\n") if p.strip()]

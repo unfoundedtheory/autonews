@@ -21,13 +21,11 @@ class InstagramPublisher:
 
 
 def caption_text(draft):
-    """Include the required image credit in the published post, not only in Telegram."""
+    """Publish caption and hashtags only; retain image credit in draft metadata."""
     credit=(draft.image_credit or '').strip()
     license_name=(draft.photo_license or '').strip()
     photo_line=('Foto: '+credit+(f' ({license_name})' if license_name else '')) if credit else ''
     parts=[draft.caption.strip()]
-    if photo_line:
-        parts.append(photo_line)
     parts.append(' '.join(draft.hashtags))
     content='\n\n'.join(parts)
     if len(content)>2200:

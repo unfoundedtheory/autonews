@@ -177,7 +177,6 @@ def gemini_test_message():
 def generate_test_news(db, bot, chat_id):
     """Run a single safe editorial test without Instagram publication."""
     from .pipeline import prepare_batch
-    from .research import discover
     from .models import Story
     from sqlalchemy import select
     from .telegram import send_preview
@@ -190,18 +189,15 @@ def generate_test_news(db, bot, chat_id):
     existing=db.execute(select(Story.id).where(
         Story.verification_status=='needs_fact_check').limit(1)).first()
     if not existing:
-        feeds=list(discover(db))
-        db.commit()
-        existing=db.execute(select(Story.id).where(
-            Story.verification_status=='needs_fact_check').limit(1)).first()
-        if not existing:
-            return '⚠️ Belum ada kandidat berita. Hasil sumber: '+str(feeds)[:900]
+        return '⚠️ Belum ada kandidat berita. Discovery terjadwal akan mengumpulkan berita resmi.'
     results=prepare_batch(db,limit=1,notifier=notify)
     if not results:
         return '⚠️ Tidak ada kandidat yang dapat diproses.'
     result=results[0]
     if result.get('status')=='prepared':
-        return '✅ Test news selesai. Preview dikirim untuk review manual. Tidak ada posting Instagram.'
+        return ('✅ Satu draf dibuat dan dikirim untuk review manual. Tidak ada posting Instagram.'
+                if result.get('has_photo') else
+                '⚠️ Satu draf dibuat, tetapi cover 4:5 belum tersedia. Pilih foto yang relevan sebelum approval.')
     return '⚠️ Test news perlu review manual: '+str(result.get('reason','Unknown'))[:600]
 
 class DraftInput(BaseModel):
@@ -308,7 +304,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
             return {'ok':True}
         if action=='test_news':
             send('📰 Memproses satu berita percobaan...')
-            send(generate_test_news(db,bot,chat_id),True)
+            send(generate_test_news(db,bot,chat_id))
         elif action=='test_gemini':
             send(gemini_test_message(),True)
         elif action=='home':

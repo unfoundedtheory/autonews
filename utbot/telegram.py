@@ -4,12 +4,17 @@ import httpx
 
 def keyboard(draft):
     ref=draft.id;v=draft.version
-    return {'inline_keyboard':[
-        [{'text':'✅ Approve','callback_data':f'approve:{ref}:{v}'}, {'text':'❌ Tolak','callback_data':f'reject:{ref}:{v}'}],
-        [{'text':'✏️ Highlight','callback_data':f'highlight:{ref}:{v}'}, {'text':'📝 Caption','callback_data':f'caption:{ref}:{v}'}],
-        [{'text':'🖼 Ganti Foto','callback_data':f'photo:{ref}:{v}'}, {'text':'🔎 Sumber','callback_data':f'sources:{ref}:{v}'}],
-        [{'text':'📄 Konfirmasi Lisensi Foto','callback_data':f'rights:{ref}:{v}'},
-         {'text':'📋 Hasil QC','callback_data':f'qc:{ref}:{v}'}]]}
+    rows=[
+        [{'text':'✅ Approve','callback_data':f'approve:{ref}:{v}'},
+         {'text':'❌ Tolak','callback_data':f'reject:{ref}:{v}'}],
+        [{'text':'✏️ Highlight','callback_data':f'highlight:{ref}:{v}'},
+         {'text':'📝 Caption','callback_data':f'caption:{ref}:{v}'}],
+        [{'text':'🖼 Ganti Foto','callback_data':f'photo:{ref}:{v}'},
+         {'text':'🔎 Sumber','callback_data':f'sources:{ref}:{v}'}],
+        [{'text':'📋 Hasil QC','callback_data':f'qc:{ref}:{v}'}]]
+    if draft.photo_license and not draft.rights_reviewed:
+        rows.append([{'text':'📄 Verifikasi Hak Foto','callback_data':f'rights:{ref}:{v}'}])
+    return {'inline_keyboard':rows}
 
 def main_menu():
     return {'inline_keyboard':[
