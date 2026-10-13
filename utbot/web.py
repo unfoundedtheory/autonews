@@ -132,6 +132,28 @@ def ai_providers_status():
         'note': 'Key configured is not an API connectivity or quota check. Ollama requires a locally running model.'
     }
 
+@app.post('/internal/ai/test', dependencies=[Depends(worker_auth)])
+def ai_connectivity_test():
+    """Authenticated, non-persistent Gemini probe; never publishes."""
+    import os
+    from .ai_provider import generate_json
+    if not os.getenv('GEMINI_API_KEY'):
+        raise HTTPException(503, 'Gemini key not configured')
+    try:
+        result = generate_json(
+            'Return a JSON object with ok=true and label=UT_TEST.',
+            {'purpose': 'connectivity check only'},
+            provider='gemini', temperature=0.0)
+    except httpx.HTTPStatusError as exc:
+        log.warning('Gemini test upstream status %s', exc.response.status_code)
+        raise HTTPException(502, {'connected': False, 'upstream_status': exc.response.status_code}) from None
+    except (httpx.HTTPError, ValueError, RuntimeError, KeyError, TypeError) as exc:
+        log.warning('Gemini test failed: %s', type(exc).__name__)
+        raise HTTPException(502, {'connected': False, 'error_type': type(exc).__name__}) from None
+    if result.get('ok') is not True or result.get('label') != 'UT_TEST':
+        raise HTTPException(502, {'connected': False, 'error_type': 'UnexpectedResponse'})
+    return {'provider': 'gemini', 'connected': True, 'persisted': False, 'published': False}
+
 class DraftInput(BaseModel):
     source_url:str;source_name:str;title:str;topic:str='astronomy'
     evidence:list[dict];highlight:str;caption:str;hashtags:list[str]
