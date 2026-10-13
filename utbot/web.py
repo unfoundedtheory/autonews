@@ -327,6 +327,17 @@ def telegram_webhook(payload:dict,db=Depends(session)):
             return {'ok':True,'ignored':'duplicate_telegram_update'}
     def send(s,menu=False):
         if bot:bot.message(chat_id,s,main_menu() if menu else None)
+    def show_pending():
+        pending=db.execute(select(Draft).where(Draft.status=='pending_approval')
+                  .order_by(Draft.created_at.desc()).limit(10)).scalars().all()
+        lines=[f'{draft.id[:8]} v{draft.version}: {draft.highlight}' for draft in pending]
+        body='📝 Pending Approval\\n'+('\\n'.join(lines) or 'Tidak ada draf menunggu approval')
+        if bot:
+            actions=[[{'text':f'👁 Buka {draft.id[:8]}: {draft.highlight[:25]}',
+                       'callback_data':f'open:{draft.id}:{draft.version}'}]
+                     for draft in pending]
+            actions.append([{'text':'🏠 Menu Utama','callback_data':'nav:home'}])
+            bot.message(chat_id,body,{'inline_keyboard':actions})
     if cb and str(cb.get('data','')).startswith('nav:'):
         action=cb['data'][4:]
         if action not in ('home','pending','queue','status','test_gemini','test_news'):
@@ -345,8 +356,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
             groups=db.execute(select(Draft.status,func.count(Draft.id)).group_by(Draft.status)).all()
             send('📊 Status redaksi\\n'+('\\n'.join(f'{s}: {n}' for s,n in groups) or 'Belum ada berita'),True)
         elif action=='pending':
-            rows=db.execute(select(Draft).where(Draft.status=='pending_approval').order_by(Draft.created_at.desc()).limit(10)).scalars().all()
-            send('📝 Pending Approval\\n'+('\\n'.join(f'{d.id[:8]}: {d.highlight}' for d in rows) or 'Tidak ada'),True)
+            show_pending()
         else:
             rows=db.execute(select(Draft).where(Draft.status=='approved',Draft.scheduled_at.is_not(None)).order_by(Draft.scheduled_at).limit(15)).scalars().all()
             send('📅 Jadwal WIB\\n'+('\\n'.join(f'{d.scheduled_at.astimezone(WIB):%d/%m %H:%M} - {d.highlight}' for d in rows) or 'Belum ada antrean'),True)
@@ -366,7 +376,9 @@ def telegram_webhook(payload:dict,db=Depends(session)):
             return {'ok':True,'stale':True}
         st=db.get(Story,d.story_id)
         try:
-            if action=='hookideas':
+            if action=='open':
+                if bot:send_preview(bot,chat_id,d,st)
+            elif action=='hookideas':
                 if d.status in ('published','rejected') or d.publish_state in ('publishing','published','uncertain'):
                     raise ValueError('Draf ini tidak boleh direvisi.')
                 if bot:bot.answer(cb_id,'Menyusun alternatif hook')
@@ -504,8 +516,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 groups=db.execute(select(Draft.status,func.count(Draft.id)).group_by(Draft.status)).all()
                 send('📊 Status redaksi\n'+('\n'.join(f'{status}: {qty}' for status,qty in groups) or 'Belum ada berita'))
             elif txt=='/pending':
-                pending=db.execute(select(Draft).where(Draft.status=='pending_approval').order_by(Draft.created_at.desc()).limit(10)).scalars().all()
-                send('📝 Menunggu approval\n'+('\n'.join(f'{d.id[:8]} v{d.version}: {d.highlight}' for d in pending) or 'Tidak ada'))
+                show_pending()
             else:
                 rows=db.execute(select(Draft).where(Draft.status=='approved',Draft.scheduled_at.is_not(None)).order_by(Draft.scheduled_at).limit(15)).scalars().all()
                 def row(d):
