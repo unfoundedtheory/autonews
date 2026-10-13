@@ -5,6 +5,7 @@ still require editor review of both topic relevance and usage rights.
 """
 import re
 
+
 STOP = {
     'nasa','esa','new','latest','study','research','researchers','scientists','scientific',
     'telescope','astronomy','science','space','planet','photo','image','picture','shot',
@@ -31,3 +32,33 @@ def likely_same_subject(search_query, item):
     needle = re.sub(r'[^a-z0-9]', '', search_query.casefold())
     fused = re.sub(r'[^a-z0-9]', '', haystack.casefold())
     return bool(len(needle) >= 7 and needle in fused)
+
+def search_queries(query, *, story_title=''):
+    """Shorten over-specific search phrases without losing mission identity.
+
+    Commons full-text search performs poorly with dozens of ANDed keywords.
+    Search an identifiable subject first, then broaden cautiously; each result
+    must separately pass the subject-matching gate.
+    """
+    words=re.findall(r'[A-Za-z0-9-]+', (query or '').strip())
+    anchor=[w for w in words if len(w)>=4 and w.casefold() not in
+            {'mission','space','nasa','spacecraft','satellite','solar','wind',
+             'magnetosphere','ionosphere','link','explorer','science','earth','esa','cas'}]
+    choices=[]
+    def add(value):
+        value=' '.join(value.split()).strip()
+        if value and value.casefold() not in {x.casefold() for x in choices}:
+            choices.append(value[:100])
+    if words:
+        # Prioritise the full proper mission name when available, not 8+ generic terms.
+        first=words[0]
+        if len(first)>=4 and first.casefold() not in {'solar','space','earth','science'}:
+            add(first+' spacecraft')
+            add(first+' mission')
+        add(' '.join(words[:3]))
+    if anchor:
+        add(anchor[0]+' spacecraft')
+    for w in re.findall(r'\b[A-Z][A-Z0-9]{2,}\b',story_title or '')[:2]:
+        add(w+' spacecraft')
+    add(query or story_title)
+    return choices[:4]

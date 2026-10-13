@@ -15,7 +15,7 @@ from .quality_control import assess
 from .config import CONFIG
 from .media import find_photos,intake_image,render_draft
 from .ai_provider import generate_json
-from .photo_relevance import likely_same_subject
+from .photo_relevance import likely_same_subject,search_queries
 
 EXTRACT_MAX=16000
 
@@ -160,19 +160,28 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
                                                                                 'claim_count':len(checked)}))
     try:
         query=data.get('image_search') or story.title
-        opts=image_search(query,limit=8)
-        matching=[item for item in opts if likely_same_subject(query,item)]
-        # Wikimedia search may fail on long AI-generated phrases. Retry with
-        # compact scientific terms, but never silently accept unrelated imagery.
-        if not matching:
-            from .photo_relevance import _terms
-            terms=sorted(_terms(query),key=len,reverse=True)[:3]
-            if terms:
-                fallback=' '.join(terms)
-                extra=image_search(fallback,limit=8)
-                known={item.get('image_url') for item in opts}
-                opts.extend(item for item in extra if item.get('image_url') not in known)
-                matching=[item for item in opts if likely_same_subject(fallback,item)]
+        queries=search_queries(query,story_title=story.title)
+        opts=[]
+        matching=[]
+        seen=set()
+        search_errors=[]
+        for variant in queries:
+            try:
+                discovered=image_search(variant,limit=8)
+            except (httpx.HTTPError,ValueError,OSError) as exc:
+                search_errors.append(type(exc).__name__)
+                continue
+            for item in discovered:
+                key=item.get('page_url') or item.get('image_url')
+                if not key or key in seen:continue
+                seen.add(key)
+                opts.append(item)
+                if likely_same_subject(variant,item):
+                    matching.append(item)
+            if matching:break
+        # A search failure should never produce a random filler photo.
+        if not opts and search_errors:
+            raise ValueError('Pencarian Wikimedia gagal: '+', '.join(search_errors))
         d.photo_candidates=opts
         if opts and not matching:
             d.last_error='Tidak ada kandidat foto yang cukup cocok dengan subjek berita; editor harus memilih.'
@@ -211,7 +220,7 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
             if not d.image_url and not d.image_local_path:
                 d.last_error='Cover gagal setelah '+str(len(errors))+' kandidat: '+' | '.join(errors)[:350]
         else:
-            d.last_error='Foto relevan belum ditemukan; kata kunci: '+str(query)[:140]
+            d.last_error='Foto relevan berlisensi belum ditemukan. Pencarian: '+', '.join(queries)[:190]
 
     except (httpx.HTTPError,ValueError,OSError,RuntimeError) as exc:
         d.last_error='Foto memerlukan pemeriksaan editor: '+str(exc)[:250]
