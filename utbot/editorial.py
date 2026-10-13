@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 from datetime import datetime, timezone
 from .models import Audit, utcnow
 
-TRUSTED_PRIMARY=("nasa.gov","esa.int","noaa.gov","usgs.gov","bmkg.go.id","nature.com","science.org","mit.edu","nih.gov","caltech.edu","cern.ch")
+TRUSTED_PRIMARY=("nasa.gov","esa.int","eso.org","embl.org","deepmind.google","noaa.gov","usgs.gov","bmkg.go.id","nature.com","science.org","mit.edu","nih.gov","caltech.edu","cern.ch")
 ALLOWED_TOPICS={"astronomy","space","science","life","biology","archaeology","ai"}
 
 def trusted_source(url):

@@ -8,8 +8,9 @@ from uuid import UUID
 from fastapi import FastAPI,Request,HTTPException,Depends
 import httpx
 from pydantic import BaseModel
-from sqlalchemy import select
-from .models import Session,init_db,Story,Draft,Audit,TelegramSession
+from sqlalchemy import select,delete
+from sqlalchemy.exc import IntegrityError
+from .models import Session,init_db,Story,Draft,Audit,TelegramSession,TelegramUpdateReceipt
 from .config import CONFIG
 from .editorial import approve,revise,lint,evidence_ready
 from .scheduler import schedule_approved,due,WIB
@@ -175,30 +176,49 @@ def gemini_test_message():
         return '❌ Gemini gagal. Model: '+model+'\\nError: '+type(exc).__name__
 
 def generate_test_news(db, bot, chat_id):
-    """Run a single safe editorial test without Instagram publication."""
-    from .pipeline import prepare_batch
-    from .models import Story
-    from sqlalchemy import select
-    from .telegram import send_preview
+    """One admin request produces at most one verified editorial draft, never publishes."""
+    from .research import discover, SOURCES
     import os
     if os.getenv('ENABLE_LIVE_PUBLISH', 'false').lower() != 'false':
-        return '⚠️ Pengujian dibatalkan: ENABLE_LIVE_PUBLISH harus false.'
+        return '⚠️ Tes dibatalkan: ENABLE_LIVE_PUBLISH harus false.'
+
     def notify(d):
         if bot:
             send_preview(bot, chat_id, d, db.get(Story, d.story_id))
-    existing=db.execute(select(Story.id).where(
-        Story.verification_status=='needs_fact_check').limit(1)).first()
-    if not existing:
-        return '⚠️ Belum ada kandidat berita. Discovery terjadwal akan mengumpulkan berita resmi.'
+
+    def prepared(rows):
+        return next((r for r in rows if r.get('status')=='prepared'), None)
+
+    # First consume a previously discovered, unreviewed primary source.
     results=prepare_batch(db,limit=1,notifier=notify)
-    if not results:
-        return '⚠️ Tidak ada kandidat yang dapat diproses.'
-    result=results[0]
-    if result.get('status')=='prepared':
-        return ('✅ Satu draf dibuat dan dikirim untuk review manual. Tidak ada posting Instagram.'
-                if result.get('has_photo') else
-                '⚠️ Satu draf dibuat, tetapi cover 4:5 belum tersedia. Diagnostik: '+str(result.get('photo_error') or 'Tidak ada rincian')[:450])
-    return '⚠️ Test news perlu review manual: '+str(result.get('reason','Unknown'))[:600]
+    done=prepared(results)
+    if not done:
+        # One bounded discovery pass, never a loop or background polling.
+        # Prefer scientific NASA/ESA feeds; the full schedule handles all sources.
+        feeds=list(discover(db,sources=SOURCES[:4]))
+        db.commit()
+        count=sum(item.get('inserted',0) for item in feeds)
+        if count:
+            results=prepare_batch(db,limit=1,notifier=notify)
+            done=prepared(results)
+        else:
+            details='; '.join(f"{item['feed']}: {str(item['error'])[:70]}"
+                              for item in feeds if item.get('error'))
+            return ('⚠️ Belum ada berita baru dari sumber resmi. '
+                    'Discovery langsung sudah dijalankan (NASA/APOD/ESA). '
+                    + ('Kendala feed: '+details[:350] if details else
+                       'Berita pada feed mungkin sudah tersimpan atau melewati batas usia.'))
+
+    if done:
+        if done.get('notify_error'):
+            return '⚠️ Draf berhasil dibuat, tetapi preview Telegram gagal: '+str(done['notify_error'])[:300]
+        if done.get('has_photo'):
+            return '✅ Satu draf dan cover dibuat. Preview dikirim untuk approval; tidak ada posting Instagram.'
+        return ('⚠️ Satu draf dibuat, tetapi cover 4:5 belum tersedia. Diagnostik: '
+                +str(done.get('photo_error') or 'Tidak ada rincian')[:420])
+    if results:
+        return '⚠️ Sumber dicoba tetapi gagal QC: '+str(results[0].get('reason','Unknown'))[:300]
+    return '⚠️ Tidak ditemukan kandidat yang dapat diproses dari sumber resmi.'
 
 class DraftInput(BaseModel):
     source_url:str;source_name:str;title:str;topic:str='astronomy'
@@ -295,6 +315,16 @@ def telegram_webhook(payload:dict,db=Depends(session)):
     if uid not in CONFIG.admin_ids:return {'ok':True,'ignored':'not_allowlisted'}
     chat_id=(msg or {}).get('chat',{}).get('id') or (cb or {}).get('message',{}).get('chat',{}).get('id')
     if not chat_id:return {'ok':True}
+    # Telegram may replay the same update while Gemini/image generation is busy.
+    # A committed unique receipt prevents duplicate preparation across workers.
+    update_id=payload.get('update_id')
+    if isinstance(update_id,int):
+        try:
+            db.add(TelegramUpdateReceipt(update_id=str(update_id)))
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            return {'ok':True,'ignored':'duplicate_telegram_update'}
     def send(s,menu=False):
         if bot:bot.message(chat_id,s,main_menu() if menu else None)
     if cb and str(cb.get('data','')).startswith('nav:'):
@@ -303,6 +333,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
             if bot:bot.answer(cb.get('id'),'Menu tidak valid')
             return {'ok':True}
         if action=='test_news':
+            if bot:bot.answer(cb.get('id'),'Memproses satu draf')
             send('📰 Memproses satu berita percobaan...')
             send(generate_test_news(db,bot,chat_id))
         elif action=='test_gemini':
@@ -319,7 +350,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
         else:
             rows=db.execute(select(Draft).where(Draft.status=='approved',Draft.scheduled_at.is_not(None)).order_by(Draft.scheduled_at).limit(15)).scalars().all()
             send('📅 Jadwal WIB\\n'+('\\n'.join(f'{d.scheduled_at.astimezone(WIB):%d/%m %H:%M} - {d.highlight}' for d in rows) or 'Belum ada antrean'),True)
-        if bot:bot.answer(cb.get('id'),'Diperbarui')
+        if bot and action!='test_news':bot.answer(cb.get('id'),'Diperbarui')
         return {'ok':True,'menu':action}
     if cb:
         cb_id=cb.get('id')
@@ -395,7 +426,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
         sess=db.get(TelegramSession,str(uid))
         if txt=='/testnews' and not sess:
             send('📰 Memproses satu berita percobaan...')
-            send(generate_test_news(db,bot,chat_id),True)
+            send(generate_test_news(db,bot,chat_id))
             return {'ok':True,'command':'testnews'}
         if txt=='/testgemini' and not sess:
             send(gemini_test_message(),True)

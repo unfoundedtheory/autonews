@@ -5,9 +5,10 @@ This service never enables live Instagram publishing; ENABLE_LIVE_PUBLISH remain
 """
 import logging
 import time
-from datetime import datetime, timezone
-from .models import Session, init_db, Story
+from datetime import datetime, timezone, timedelta
+from .models import Session, init_db, Story, TelegramUpdateReceipt
 from .research import discover
+from sqlalchemy import delete
 from .pipeline import prepare_batch
 from .telegram import TelegramClient, send_preview
 from .scheduler import schedule_approved, WIB
@@ -18,6 +19,8 @@ log = logging.getLogger(__name__)
 def do_discover():
     with Session() as db:
         result = list(discover(db))
+        db.execute(delete(TelegramUpdateReceipt).where(
+            TelegramUpdateReceipt.received_at < datetime.now(timezone.utc)-timedelta(days=30)))
         db.commit()
         log.info('discovery=%s', result)
         return result

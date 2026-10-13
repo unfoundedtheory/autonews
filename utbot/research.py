@@ -7,9 +7,12 @@ from urllib.parse import urlsplit,urlunsplit,parse_qsl,urlencode
 from defusedxml import ElementTree
 import httpx
 from .models import Story
+from .editorial import trusted_source
 
 # Official feeds; verify changes to published feed URLs before going live.
 SOURCES=[
+  {"name":"NASA Astronomy Picture of the Day","url":"https://apod.nasa.gov/apod.rss","topic":"astronomy"},
+  {"name":"NASA Science","url":"https://science.nasa.gov/feed/","topic":"space"},
   {"name":"NASA News","url":"https://www.nasa.gov/news-release/feed/","topic":"space"},
   {"name":"ESA Space Science","url":"https://www.esa.int/rssfeed/Our_Activities/Space_Science","topic":"astronomy"},
   {"name":"ESO News","url":"https://www.eso.org/public/news/feed/","topic":"astronomy"},
@@ -20,7 +23,9 @@ SOURCES=[
 def canonicalize(url):
     s=urlsplit(url.strip())
     qs=urlencode([(k,v) for k,v in parse_qsl(s.query) if not k.lower().startswith("utm_") and k not in {"fbclid","gclid"}])
-    return urlunsplit((s.scheme,s.netloc.lower(),s.path.rstrip("/")+"/" if s.path else "/",qs,""))
+    path=s.path.rstrip("/") or "/"
+    if path!="/" and "." not in path.rsplit("/",1)[-1]:path+="/"
+    return urlunsplit((s.scheme,s.netloc.lower(),path,qs,""))
 
 def fingerprint(url):
     return hashlib.sha256(canonicalize(url).encode()).hexdigest()
@@ -39,6 +44,16 @@ def parse_items(xml):
         link=value("link")
         if not title or not link.startswith("https://"):continue
         out.append({"title":title,"url":canonicalize(link),"pub":pub,"summary":html.unescape(value("description"))})
+    # Atom feeds publish entries under a default XML namespace.
+    ns="{http://www.w3.org/2005/Atom}"
+    for entry in root.findall(f".//{ns}entry"):
+        title=html.unescape((entry.findtext(f"{ns}title") or "").strip())
+        link=next((a.get("href","") for a in entry.findall(f"{ns}link") if a.get("rel","alternate")=="alternate"),"")
+        if not title or not link.startswith("https://"):continue
+        raw=(entry.findtext(f"{ns}published") or entry.findtext(f"{ns}updated") or "").strip()
+        try: pub=datetime.fromisoformat(raw.replace("Z","+00:00")).astimezone(timezone.utc) if raw else None
+        except ValueError: pub=None
+        out.append({"title":title,"url":canonicalize(link),"pub":pub,"summary":html.unescape(entry.findtext(f"{ns}summary") or "")})
     return out
 
 def discover(db, sources=None, fetcher=None, now=None):
@@ -57,7 +72,8 @@ def discover(db, sources=None, fetcher=None, now=None):
                     raw=response.content
                 for entry in parse_items(raw):
                     pub=entry["pub"]
-                    if pub and pub < now-timedelta(days=7):continue
+                    if pub and pub < now-timedelta(days=14):continue
+                    if not trusted_source(entry["url"]):continue
                     ident=fingerprint(entry["url"])
                     if db.query(Story).filter_by(fingerprint=ident).first(): continue
                     story=Story(fingerprint=ident,title=entry["title"],source_url=entry["url"],source_name=source["name"],published_at=pub,topic=source["topic"],verification_status="needs_fact_check",evidence=[])

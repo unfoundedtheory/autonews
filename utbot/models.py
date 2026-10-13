@@ -83,6 +83,13 @@ class Audit(Base):
     detail=Column(JSON, default=dict)
     created_at=Column(UTCDateTime(), nullable=False, default=utcnow)
 
+class TelegramUpdateReceipt(Base):
+    """Durable Telegram webhook de-duplication across serverless retries."""
+    __tablename__="telegram_update_receipts"
+    update_id=Column(String(40), primary_key=True)
+    received_at=Column(UTCDateTime(), nullable=False, default=utcnow)
+
+
 class TelegramSession(Base):
     __tablename__="telegram_sessions"
     user_id=Column(String(50), primary_key=True)

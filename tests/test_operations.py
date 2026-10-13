@@ -80,7 +80,7 @@ def test_readiness_reports_missing_connections_without_keys(db,monkeypatch):
     assert 'worker_secret' in state['blockers']
     assert 'configured_ai' in state
 
-def test_instagram_final_caption_has_photo_credit_and_exactly_five_hashtags():
+def test_instagram_final_caption_omits_photo_credit_and_has_five_hashtags():
     from utbot.instagram import caption_text
     class D:
         caption='Sebuah penemuan baru.\n\nNASA menjelaskan hasilnya.'
@@ -88,6 +88,6 @@ def test_instagram_final_caption_has_photo_credit_and_exactly_five_hashtags():
         photo_license='Public domain'
         hashtags=['#Astronomi','#NASA','#Sains','#Antariksa','#UnfoundedTheory']
     message=caption_text(D)
-    assert 'Foto: NASA / Chandra (Public domain)' in message
+    assert 'Foto:' not in message
     assert message.endswith('#UnfoundedTheory')
     assert sum(word.startswith('#') for word in message.split())==5

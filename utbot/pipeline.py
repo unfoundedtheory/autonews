@@ -181,8 +181,21 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
             for item in matching:
                 try:
                     src=Path(CONFIG.media_dir)/d.id/'source.jpg'
-                    d.source_image_path=image_intake(item['image_url'],str(src))
-                    d.source_image_url=item['image_url']
+                    # Wikimedia thumbnail hosts sometimes respond 403. Retry the
+                    # file's canonical original URL, without bypassing rights checks.
+                    links=list(dict.fromkeys([item['image_url'], item.get('original_url')]))
+                    last_download_error=None
+                    for image_link in links:
+                        if not image_link:continue
+                        try:
+                            d.source_image_path=image_intake(image_link,str(src))
+                            d.source_image_url=image_link
+                            last_download_error=None
+                            break
+                        except httpx.HTTPStatusError as exc:
+                            last_download_error=exc
+                            if exc.response.status_code not in (403,404,429):raise
+                    if last_download_error is not None:raise last_download_error
                     d.media_page_url=item['page_url']
                     d.image_credit=item['credit']
                     d.photo_license=item['license']
@@ -212,6 +225,10 @@ def prepare_batch(db,limit=3,notifier=None):
     outcome=[]
     failures=[]
     for st in stories:
+        if not trusted_source(st.source_url):
+            st.verification_status='needs_manual_fact_check'
+            db.commit()
+            continue
         if any(term in st.title.casefold() for term in ('nfl','football','stadium','tailgate','flyover','sports fans')):
             st.verification_status='needs_manual_fact_check'
             db.commit()
