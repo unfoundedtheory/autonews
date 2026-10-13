@@ -74,3 +74,24 @@ def test_bad_cover_never_triggers_repeated_photo_fetch(monkeypatch):
         assert draft.status=='pending_approval'
         qc=db.query(Audit).filter_by(draft_id=draft.id,event='editorial_qc').first()
         assert qc.detail['status']=='needs_manual_review'
+
+def test_old_passed_qc_is_flagged_when_cover_will_not_fit():
+    from utbot.models import Draft
+    from utbot.quality_control import report_for_draft
+    engine=make_engine('sqlite://')
+    Base.metadata.create_all(engine)
+    with sessionmaker(bind=engine,expire_on_commit=False)() as db:
+        url='https://nasa.gov/legacy'
+        st=Story(fingerprint=fingerprint(url),source_url=url,source_name='NASA',
+                 title='Legacy story',topic='astronomy')
+        db.add(st);db.flush()
+        d=Draft(story_id=st.id,highlight=TOO_LONG,caption=CAPTION,hashtags=TAGS)
+        db.add(d);db.flush()
+        db.add(Audit(draft_id=d.id,event='editorial_qc',actor='worker',
+                     detail={'version':1,'status':'passed_automated',
+                             'passed':True,'issues':[],'manual_checks':[]}))
+        db.commit()
+        report=report_for_draft(db,d,st)
+        assert not report['passed']
+        assert report['status']=='needs_manual_review'
+        assert 'cover_four_line_overflow' in report['issues']

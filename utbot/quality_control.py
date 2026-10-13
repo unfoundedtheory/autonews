@@ -40,7 +40,14 @@ def report_for_draft(db,draft,story):
     reports=db.query(Audit).filter(Audit.draft_id==draft.id,Audit.event=='editorial_qc').order_by(Audit.id.desc()).all()
     for row in reports:
         if (row.detail or {}).get('version')==draft.version:
-            return row.detail
+            report=dict(row.detail)
+            # Earlier releases marked text QC as passed without testing the
+            # locked four-line cover. Never show those legacy reports as green.
+            if not cover_fits(draft.highlight,CONFIG.font_path):
+                report['passed']=False
+                report['status']='needs_manual_review'
+                report['issues']=sorted(set(report.get('issues',[])+['cover_four_line_overflow']))
+            return report
     result=assess(draft.highlight,draft.caption,draft.hashtags,story.evidence if story else [],
                   tragedy=bool(draft.is_tragedy))
     result['version']=draft.version
