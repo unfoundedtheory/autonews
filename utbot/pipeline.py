@@ -11,8 +11,8 @@ import httpx,json,re,unicodedata
 from types import SimpleNamespace
 from sqlalchemy import select,case
 from .models import Story,Draft,Audit
-from .editorial import trusted_source,lint
-from .quality_control import assess
+from .editorial import trusted_source,lint,editorial_instructions,editorial_guide_sha256
+from .quality_control import assess,review_style
 from .renderer import cover_fits
 from .hook_editor import cover_fit_alternative
 from .config import CONFIG
@@ -62,7 +62,7 @@ Aturan:
 - Sebelum menulis highlight, pertimbangkan minimal tiga angle BERBEDA dari sumber: kontras/kejutan faktual, misteri/pertanyaan, dan implikasi konkret. Pilih yang paling menciptakan curiosity gap TERBUKTI. Hindari framing generik, administratif, dan janji yang tidak didukung bukti. Highlight adalah HOOK cover Instagram, BUKAN judul koran atau ringkasan rilis pers. Tekankan apa yang mengejutkan pembaca, tanpa memanipulasi sains.
 - Hindari pembuka administratif seperti NASA Merilis, NASA Akan Melakukan, Peneliti Mengungkapkan, Misi X Menampilkan, dan judul yang dimulai nama lembaga atau nama misi. Jangan terjebak hanya karena topiknya wahana: fokus pada pertanyaan ilmiah yang ingin dipecahkan, hanya jika ada evidence. Fokus pada fenomena, bukan siapa yang menerbitkan.
 - Highlight Title Case, ideal 55-110 karakter (maksimum 140), satu kalimat, tidak membocorkan seluruh jawaban, akurat; tidak memakai em dash dan tidak diakhiri titik. Tanda tanya boleh jika bentuk pertanyaan. Contoh gaya: Mengapa Sisi Jauh Bulan Dipenuhi Kawah, Sementara Sisi Dekatnya Lebih Halus? Jangan meniru contoh jika faktanya berbeda.
-- Caption 3-5 paragraf pendek dipisah dua newline, gaya cerita natural dengan 5W1H, angka/tanggal tanpa mengarang, batas bukti atau ketidakpastian disebutkan.
+- Caption EMPAT atau LIMA paragraf pendek dipisah dua newline. Paragraf pertama langsung menjawab hook; uraikan proses, hasil dan batas bukti secara runut. Gaya natural, 5W1H dan data nyata tanpa mengarang.
 - Kecuali tragedi, akhiri dengan pertanyaan terbuka; untuk tragedi akhiri empatik.
 - Lima hashtag persis, terakhir #UnfoundedTheory; JANGAN sertakan hashtag di caption.
 - Minimal dua evidence dengan claim dalam bahasa Indonesia dan quote kutipan bahasa asli yang PERSIS muncul pada sumber. Jangan buat kutipan atau klaim baru.
@@ -101,7 +101,7 @@ def author_from_source(story,source_text,llm=None):
     if not source_text or len(source_text)<350:raise ValueError('Sumber primer kosong')
     if llm is None:
         def llm(query):
-            return generate_json(SYSTEM, json.loads(query), temperature=0.15, role="draft")
+            return generate_json(SYSTEM + editorial_instructions(), json.loads(query), temperature=0.22, role="draft")
     query=json.dumps({'title':story.title,'source_url':story.source_url,
                   'topic':story.topic,'source_text':source_text},ensure_ascii=False)
     data=llm(query)
@@ -133,6 +133,10 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
         raise ValueError('Kandidat ini sudah memiliki draf.')
     if not trusted_source(story.source_url):raise ValueError('Sumber resmi tidak didukung.')
     article=reader(story.source_url)
+    # The writer and AI style reviewer both read the CURRENT Markdown SOP.
+    guide_sha = editorial_guide_sha256()
+    # Custom writers in local tests do not incur external AI review.
+    reviewer = review_style if writer is author_from_source else None
     # Retry at most three complete drafts; never mark an unverified result as passed.
     failures=[]
     for attempt in range(1,4):
@@ -144,6 +148,18 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
             continue
         qc=assess(data['highlight'],data['caption'],data['hashtags'],checked,
                   tragedy=bool(data.get('tragedy')),check_cover=False)
+        if qc['passed'] and reviewer:
+            try:
+                style = reviewer(data['highlight'],data['caption'],checked,
+                                 tragedy=bool(data.get('tragedy')))
+            except (ValueError,RuntimeError,httpx.HTTPError) as exc:
+                failures.append({'attempt':attempt,'issues':['ai_style_qc_unavailable']})
+                if attempt==3:
+                    raise ValueError('QC gaya tidak tersedia setelah tiga percobaan.') from exc
+                continue
+            if not style['passed']:
+                qc['passed']=False
+                qc['issues']=sorted(set(qc['issues']+style['issues']))
         if qc['passed']:break
         failures.append({'attempt':attempt,'issues':qc['issues']})
     else:
@@ -170,7 +186,9 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
     db.add(Audit(draft_id=d.id,event='editorial_qc',actor='worker',
                  detail={'version':d.version,'status':'needs_manual_review' if cover_issue else 'passed_automated',
                          'passed':not bool(cover_issue),'issues':qc_issues,'attempts':attempt,
-                         'prior_failures':failures,'manual_checks':qc['manual_checks']}))
+                         'prior_failures':failures,'manual_checks':qc['manual_checks'],
+                         'guide_sha256':guide_sha,
+                         'style_review':'passed' if reviewer else 'skipped_for_mock_writer'}))
     if original_highlight != data['highlight']:
         db.add(Audit(draft_id=d.id,event='cover_hook_auto_revised',actor='worker',
                      detail={'version':d.version,'original':original_highlight,
