@@ -41,7 +41,7 @@ def find_photos(query, limit=3, transport=None):
                 continue
             if info.get('width',0)<900 or info.get('height',0)<900 or not u.startswith('https://'):
                 continue
-            found.append({'image_url':u,'page_url':info.get('descriptionurl',''),
+            found.append({'image_url':u,'original_url':info.get('url') or u,'page_url':info.get('descriptionurl',''),
               'license':license_name,'license_url':val('LicenseUrl'),
               'credit':val('Attribution') or val('Artist') or page.get('title',''),
               'title':plain(page.get('title','').removeprefix('File:'))})
@@ -71,7 +71,7 @@ def intake_image(url,output_path,transport=None):
         # Tests can inject a transport but should never use it for arbitrary production URLs.
         if host not in ('upload.wikimedia.org','commons.wikimedia.org','example.org'):
             raise ValueError('Host uji tidak diizinkan')
-    with httpx.Client(timeout=30,follow_redirects=False,transport=transport) as client:
+    with httpx.Client(timeout=30,follow_redirects=False,transport=transport,headers={'User-Agent':'UnfoundedTheoryEditorialBot/0.1 (https://unfoundedtheory.vercel.app; editorial image retrieval)','Accept':'image/avif,image/webp,image/png,image/jpeg,*/*'}) as client:
         with client.stream('GET',url) as resp:
             resp.raise_for_status()
             if resp.headers.get('content-type','').split(';')[0].lower() not in ('image/jpeg','image/png','image/webp'):

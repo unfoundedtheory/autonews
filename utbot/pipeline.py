@@ -210,6 +210,7 @@ def prepare_batch(db,limit=3,notifier=None):
     stories=db.execute(select(Story).where(Story.verification_status=='needs_fact_check')
                 .order_by(case((Story.topic.in_(['astronomy','space']),0),else_=1), Story.published_at.desc(),Story.created_at.desc()).limit(limit*5)).scalars().all()
     outcome=[]
+    failures=[]
     for st in stories:
         if any(term in st.title.casefold() for term in ('nfl','football','stadium','tailgate','flyover','sports fans')):
             st.verification_status='needs_manual_fact_check'
@@ -230,6 +231,6 @@ def prepare_batch(db,limit=3,notifier=None):
             st=db.get(Story,st.id)
             st.verification_status='needs_manual_fact_check'
             db.commit()
-            outcome.append({'story_id':st.id,'status':'manual_review','reason':str(exc)[:250]})
+            failures.append({'story_id':st.id,'status':'manual_review','reason':str(exc)[:250]})
         if len(outcome)>=limit:break
-    return outcome
+    return outcome if outcome else failures[:1]
