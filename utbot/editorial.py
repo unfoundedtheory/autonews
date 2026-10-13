@@ -46,7 +46,7 @@ def lint(highlight, caption, hashtags, *, tragedy=False):
     if "\n" in highlight: issues.append("multiline_highlight")
     content_paragraphs=[p.strip() for p in caption.strip().split("\n\n") if p.strip()]
     if not 4 <= len(content_paragraphs) <= 5: issues.append("caption_paragraph_count")
-    if re.search(r"(?<!\\w)#[A-Za-z0-9_]+", caption): issues.append("hashtags_embedded_in_caption")
+    if re.search(r"(?<!\w)#[A-Za-z0-9_]+", caption): issues.append("hashtags_embedded_in_caption")
     if not tragedy and content_paragraphs and not content_paragraphs[-1].endswith("?"):
         issues.append("ending_not_question")
     if len(hashtags)!=5 or hashtags[-1]!="#UnfoundedTheory" or any(not re.fullmatch(r"#[A-Za-z0-9_]+",h) for h in hashtags):
