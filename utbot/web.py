@@ -2,6 +2,7 @@
 from datetime import datetime,timezone
 from contextlib import asynccontextmanager
 from hmac import compare_digest
+import logging
 from pathlib import Path
 from uuid import UUID
 from fastapi import FastAPI,Request,HTTPException,Depends
@@ -18,6 +19,8 @@ from .research import discover,fingerprint
 from .rewrite import rewrite
 from .pipeline import prepare_batch
 from .media import find_photos,intake_image,render_draft,upload_public_jpeg
+
+log=logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app):
@@ -399,7 +402,7 @@ def publish_job(db=Depends(session)):
     def alert(msg):
         if bot and CONFIG.chat_id:
             try:bot.message(CONFIG.chat_id,msg)
-            except Exception:pass
+            except Exception:log.exception('Telegram publication alert failed')
     publisher=InstagramPublisher(CONFIG.ig_base,CONFIG.ig_version,CONFIG.ig_user_id,CONFIG.ig_token)
     try:
         if not d.image_url:

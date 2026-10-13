@@ -1,5 +1,6 @@
 from datetime import datetime,timezone,timedelta
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.exc import IntegrityError
 from utbot.models import Base,make_engine,Story,Draft
 from utbot.editorial import approve,revise,lint
 from utbot.scheduler import schedule_approved,WIB
@@ -67,6 +68,12 @@ def test_editorial_rules():
 
 def test_url_dedup():
     assert fingerprint("https://www.nasa.gov/test?utm_source=ig") == fingerprint("https://www.nasa.gov/test/")
+
+def test_database_rejects_second_draft_for_same_story(db):
+    first=factory(db)[0]
+    db.add(Draft(story_id=first.story_id,highlight=first.highlight,caption=first.caption,
+                 hashtags=first.hashtags,rights_reviewed=True))
+    with pytest.raises(IntegrityError):db.flush()
 
 def test_rss_parse():
     doc=b'<rss><channel><item><title>Space Event</title><link>https://www.nasa.gov/2026/test</link><pubDate>Sat, 10 Oct 2026 10:00:00 GMT</pubDate></item></channel></rss>'

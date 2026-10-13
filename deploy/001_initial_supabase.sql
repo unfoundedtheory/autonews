@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS public.stories (
 
 CREATE TABLE IF NOT EXISTS public.drafts (
     id varchar(36) PRIMARY KEY,
-    story_id varchar(36) NOT NULL REFERENCES public.stories(id),
+    story_id varchar(36) NOT NULL UNIQUE REFERENCES public.stories(id),
     version integer NOT NULL DEFAULT 1,
     highlight text NOT NULL,
     caption text NOT NULL,
@@ -73,11 +73,19 @@ CREATE INDEX IF NOT EXISTS idx_unfounded_drafts_approval
     ON public.drafts(approved_at, created_at);
 CREATE INDEX IF NOT EXISTS idx_unfounded_stories_created_at
     ON public.stories(created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_unfounded_drafts_ig_container
+    ON public.drafts(ig_container_id) WHERE ig_container_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_unfounded_drafts_ig_media
+    ON public.drafts(ig_media_id) WHERE ig_media_id IS NOT NULL;
 
 ALTER TABLE public.stories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.drafts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.telegram_sessions ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE public.stories, public.drafts, public.audit, public.telegram_sessions
+    FROM anon, authenticated;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon, authenticated;
 
 -- No RLS policies = no anonymous browser access.
 -- Public-read storage is needed for Instagram's remote image ingestion.

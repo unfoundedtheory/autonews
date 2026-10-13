@@ -6,6 +6,7 @@ Refer to docs/DESIGN_SKILL.md before changing the template.
 from __future__ import annotations
 
 from pathlib import Path
+import os
 import re
 from functools import lru_cache
 from PIL import Image, ImageDraw, ImageFont, ImageOps
@@ -26,8 +27,11 @@ DEFAULT_BADGE = Path(__file__).resolve().parent / "assets" / "reference_badge.pn
 
 @lru_cache(maxsize=100)
 def _font(size: int, font_path: str | None = None):
+    windows_fonts = Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts"
     candidates = [
         font_path,
+        windows_fonts / "arialbd.ttf",
+        windows_fonts / "bahnschrift.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf",
         "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
     ]

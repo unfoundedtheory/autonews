@@ -20,8 +20,9 @@ class Config:
     live_publish: bool = os.getenv('ENABLE_LIVE_PUBLISH','false').lower() == 'true'
     daily_limit: int = int(os.getenv('DAILY_PUBLISH_LIMIT','2'))
     ai_provider: str = os.getenv('AI_PROVIDER','gemini')
-    model: str = os.getenv('GEMINI_MODEL','gemini-2.5-flash-lite')
-    media_dir: str = '/tmp/unfounded-media' if os.getenv('VERCEL') else os.getenv('MEDIA_DIR', './media')
+    model: str = os.getenv('GEMINI_MODEL','gemini-3.5-flash-lite')
+    # Vercel permits temporary writes only under /tmp; final media is uploaded immediately.
+    media_dir: str = '/tmp/unfounded-media' if os.getenv('VERCEL') else os.getenv('MEDIA_DIR', './media')  # nosec B108
     brand_logo: str = os.getenv('BRAND_LOGO_PATH','')
     font_path: str = os.getenv('BRAND_FONT_PATH','')
     supabase_url: str = os.getenv('SUPABASE_URL','')

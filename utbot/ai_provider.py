@@ -23,7 +23,7 @@ class Provider:
 
 
 PROVIDERS: dict[str, Provider] = {
-    'gemini': Provider('gemini', 'GEMINI_API_KEY', 'GEMINI_MODEL', 'gemini-2.5-flash-lite',
+    'gemini': Provider('gemini', 'GEMINI_API_KEY', 'GEMINI_MODEL', 'gemini-3.5-flash-lite',
                        'gemini', 'https://generativelanguage.googleapis.com/v1beta/models', False),
     'deepseek': Provider('deepseek', 'DEEPSEEK_API_KEY', 'DEEPSEEK_MODEL', 'deepseek-flash',
                          'openai', 'https://api.deepseek.com/chat/completions'),

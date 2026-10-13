@@ -8,5 +8,7 @@ media/
 *.db
 *.sqlite*
 .venv/
-.dist/
+dist/
+build/
+*.egg-info/
 .DS_Store

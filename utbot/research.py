@@ -4,18 +4,17 @@ import html
 from datetime import datetime,timezone,timedelta
 from email.utils import parsedate_to_datetime
 from urllib.parse import urlsplit,urlunsplit,parse_qsl,urlencode
-from xml.etree import ElementTree
+from defusedxml import ElementTree
 import httpx
 from .models import Story
 
 # Official feeds; verify changes to published feed URLs before going live.
 SOURCES=[
   {"name":"NASA News","url":"https://www.nasa.gov/news-release/feed/","topic":"space"},
-  {"name":"NASA Solar System","url":"https://science.nasa.gov/solar-system/feed/","topic":"astronomy"},
   {"name":"ESA Space Science","url":"https://www.esa.int/rssfeed/Our_Activities/Space_Science","topic":"astronomy"},
-  {"name":"MIT Space","url":"https://news.mit.edu/topic/mitspace-rss.xml","topic":"astronomy"},
-  {"name":"MIT Biology","url":"https://news.mit.edu/rss/topic/biology-and-genetics","topic":"biology"},
-  {"name":"MIT AI","url":"https://news.mit.edu/topic/mitartificial-intelligence2-rss.xml","topic":"ai"},
+  {"name":"ESO News","url":"https://www.eso.org/public/news/feed/","topic":"astronomy"},
+  {"name":"EMBL News","url":"https://www.embl.org/news/feed/","topic":"biology"},
+  {"name":"Google DeepMind","url":"https://deepmind.google/blog/rss.xml","topic":"ai"},
 ]
 
 def canonicalize(url):
@@ -27,6 +26,8 @@ def fingerprint(url):
     return hashlib.sha256(canonicalize(url).encode()).hexdigest()
 
 def parse_items(xml):
+    if len(xml if isinstance(xml,bytes) else xml.encode()) > 2_000_000:
+        raise ValueError('Feed RSS terlalu besar.')
     root=ElementTree.fromstring(xml)
     out=[]
     for item in root.findall(".//item"):
@@ -48,7 +49,12 @@ def discover(db, sources=None, fetcher=None, now=None):
     with httpx.Client(timeout=20,follow_redirects=True) as client:
         for source in feeds:
             try:
-                raw=fetcher(source["url"]) if fetcher else client.get(source["url"]).raise_for_status().text
+                if fetcher:
+                    raw=fetcher(source["url"])
+                else:
+                    response=client.get(source["url"])
+                    response.raise_for_status()
+                    raw=response.content
                 for entry in parse_items(raw):
                     pub=entry["pub"]
                     if pub and pub < now-timedelta(days=7):continue
