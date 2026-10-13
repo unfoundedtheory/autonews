@@ -128,9 +128,21 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
     db.add(Audit(draft_id=d.id,event='primary_quotes_checked',actor='worker',detail={'sources':[story.source_url],
                                                                                 'claim_count':len(checked)}))
     try:
-        opts=image_search(data.get('image_search') or story.title,limit=3)
+        query=data.get('image_search') or story.title
+        opts=image_search(query,limit=8)
+        matching=[item for item in opts if likely_same_subject(query,item)]
+        # Wikimedia search may fail on long AI-generated phrases. Retry with
+        # compact scientific terms, but never silently accept unrelated imagery.
+        if not matching:
+            from .photo_relevance import _terms
+            terms=sorted(_terms(query),key=len,reverse=True)[:3]
+            if terms:
+                fallback=' '.join(terms)
+                extra=image_search(fallback,limit=8)
+                known={item.get('image_url') for item in opts}
+                opts.extend(item for item in extra if item.get('image_url') not in known)
+                matching=[item for item in opts if likely_same_subject(fallback,item)]
         d.photo_candidates=opts
-        matching=[item for item in opts if likely_same_subject(data.get('image_search') or story.title,item)]
         if opts and not matching:
             d.last_error='Tidak ada kandidat foto yang cukup cocok dengan subjek berita; editor harus memilih.'
         if matching:
