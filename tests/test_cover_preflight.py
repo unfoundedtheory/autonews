@@ -95,3 +95,45 @@ def test_old_passed_qc_is_flagged_when_cover_will_not_fit():
         assert not report['passed']
         assert report['status']=='needs_manual_review'
         assert 'cover_four_line_overflow' in report['issues']
+
+def test_balanced_wrap_can_target_four_lines_even_if_three_would_score_better():
+    from PIL import ImageDraw
+    from utbot.renderer import _balanced_wrap, _font, WIDTH, MARGIN
+    draw=ImageDraw.Draw(Image.new('RGB',(1,1)))
+    words='Sebelum Ke Bulan Wahana Ini Harus Lolos Ujian Suhu Ekstrem'.upper().split()
+    lines=_balanced_wrap(draw,words,_font(58),WIDTH-2*MARGIN,max_lines=4,exact_lines=4)
+    assert len(lines)==4
+    assert all(lines)
+
+
+def test_official_markdown_reaches_author_and_ai_style_qc(monkeypatch):
+    from utbot.editorial import read_editorial_guide, editorial_guide_sha256
+    from utbot.quality_control import review_style
+    from utbot.pipeline import author_from_source
+    guide=read_editorial_guide()
+    assert 'Curiosity Gap' in guide and 'BREAKING NEWS:' in guide
+    assert len(editorial_guide_sha256())==64
+    recorded={}
+    def fake_writer(system,payload,**kwargs):
+        recorded['system']=system
+        return data(GOOD)
+    monkeypatch.setattr('utbot.pipeline.generate_json',fake_writer)
+    story=SimpleNamespace(title='NASA telescope data',source_url='https://nasa.gov/report',topic='space')
+    author_from_source(story,TEXT)
+    assert guide in recorded['system']
+    captured={}
+    def fake_reviewer(system,payload):
+        captured['system']=system
+        return {'passed':True,'issues':[],'note':'Lolos format SOP'}
+    result=review_style(GOOD,CAPTION,[{'claim':'satu','quote':'a quote'},
+                                      {'claim':'dua','quote':'another quote'}],llm=fake_reviewer)
+    assert result['passed']
+    assert guide in captured['system']
+
+
+def test_lint_follows_latest_markdown_structure():
+    from utbot.editorial import lint
+    assert 'caption_paragraph_count' in lint(GOOD,
+        'Paragraf satu.\\n\\nParagraf dua.\\n\\nPertanyaan?',TAGS)
+    assert 'hashtags_embedded_in_caption' in lint(GOOD,CAPTION+' #Sains',TAGS)
+    assert 'em_dash' in lint(GOOD+' -- UPDATE',CAPTION,TAGS)
