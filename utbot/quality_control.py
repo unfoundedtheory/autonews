@@ -10,6 +10,11 @@ def assess(highlight, caption, hashtags, evidence, *, tragedy=False, image=None,
     h=highlight.casefold()
     c=caption.casefold()
     if any(s in h for s in SENSATIONAL): issues.append('hook_clickbait')
+    if len(highlight) > 140: issues.append('hook_too_long')
+    if re.match(r'(?i)^(?:misi\\s+)?(?:nasa|esa|peneliti|ilmuwan|badan|lembaga|tim\\s+peneliti)\\b',highlight.strip()):
+        issues.append('hook_press_release_style')
+    if re.search(r'(?i)\\b(?:merilis|mengumumkan|akan melakukan|dijadwalkan|menggelar)\\b',highlight):
+        issues.append('hook_administrative_framing')
     if any(s in c for s in FILLERS): issues.append('caption_filler')
     if re.search(r'(?i)\\b(?:breaking|hari ini|malam ini)\\b',highlight) and not evidence:
         issues.append('urgent_hook_missing_evidence')
