@@ -366,7 +366,37 @@ def telegram_webhook(payload:dict,db=Depends(session)):
             return {'ok':True,'stale':True}
         st=db.get(Story,d.story_id)
         try:
-            if action=='qc':
+            if action=='hookideas':
+                if d.status in ('published','rejected') or d.publish_state in ('publishing','published','uncertain'):
+                    raise ValueError('Draf ini tidak boleh direvisi.')
+                if bot:bot.answer(cb_id,'Menyusun alternatif hook')
+                from .hook_editor import alternatives
+                ideas=alternatives(d,st)
+                db.add(Audit(draft_id=d.id,event='hook_candidates',actor=str(uid),
+                             detail={'version':d.version,'options':ideas}))
+                db.commit()
+                rows=[[{'text':f'Pilih Hook {i+1}','callback_data':f'pickh{i}:{d.id}:{d.version}'}]
+                      for i in range(len(ideas))]
+                if bot:bot.message(chat_id,'✨ Alternatif hook dari sumber yang sama: '+
+                    '\\n\\n'+'\\n\\n'.join(f'{i+1}. {h}' for i,h in enumerate(ideas))+
+                    '\\n\\nPilih salah satu. Semua tetap perlu pemeriksaan editorial.',
+                    {'inline_keyboard':rows})
+            elif action.startswith('pickh') and action[5:].isdigit():
+                index=int(action[5:])
+                report=db.query(Audit).filter(Audit.draft_id==d.id,
+                            Audit.event=='hook_candidates').order_by(Audit.id.desc()).first()
+                choices=(report.detail or {}).get('options',[]) if report and (report.detail or {}).get('version')==d.version else []
+                if index>=len(choices):raise ValueError('Opsi hook kedaluwarsa. Buat ulang alternatif.')
+                revise(db,d,'highlight',choices[index],uid)
+                d.accent_words=[]
+                db.add(Audit(draft_id=d.id,event='hook_selected',actor=str(uid),
+                             detail={'version':d.version,'source_version':version,'choice':index+1}))
+                if d.source_image_url or d.source_image_path:
+                    render_draft(d)
+                db.commit()
+                if bot:send_preview(bot,chat_id,d,st)
+                send('✨ Hook diperbarui. QC dan approval harus diperiksa lagi.')
+            elif action=='qc':
                 from .quality_control import report_for_draft
                 report=report_for_draft(db,d,st)
                 send('📋 Editorial QC | Draf '+d.id[:8]+' v'+str(d.version)+
@@ -415,7 +445,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 db.commit();send_preview(bot,chat_id,d,st) if bot else None
                 send('Foto diganti. Tinjau lisensi sebelum Approve; approval lama sudah batal.')
             else:raise ValueError('Pilihan tidak dikenali.')
-            if bot:bot.answer(cb_id,'Diterima')
+            if bot and action!='hookideas':bot.answer(cb_id,'Diterima')
         except (ValueError,RuntimeError,httpx.HTTPError,OSError) as exc:
             db.rollback()
             if bot:bot.answer(cb_id,'Permintaan perlu diperbaiki')

@@ -7,7 +7,9 @@ def keyboard(draft):
     rows=[
         [{'text':'✅ Approve','callback_data':f'approve:{ref}:{v}'},
          {'text':'❌ Tolak','callback_data':f'reject:{ref}:{v}'}],
-        [{'text':'✏️ Highlight','callback_data':f'highlight:{ref}:{v}'},
+        [{'text':'✨ Hook Alternatif','callback_data':f'hookideas:{ref}:{v}'},
+         {'text':'✏️ Highlight','callback_data':f'highlight:{ref}:{v}'}],
+        [
          {'text':'📝 Caption','callback_data':f'caption:{ref}:{v}'}],
         [{'text':'🖼 Ganti Foto','callback_data':f'photo:{ref}:{v}'},
          {'text':'🔎 Sumber','callback_data':f'sources:{ref}:{v}'}],

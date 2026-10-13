@@ -11,6 +11,10 @@ def assess(highlight, caption, hashtags, evidence, *, tragedy=False, image=None,
     c=caption.casefold()
     if any(s in h for s in SENSATIONAL): issues.append('hook_clickbait')
     if len(highlight) > 140: issues.append('hook_too_long')
+    if re.match(r'(?i)^(?:misi|wahana|satelit)\\b',highlight.strip()):
+        issues.append('hook_factual_summary_not_curiosity_gap')
+    if re.search(r'(?i)\\b(?:bertujuan untuk|dirancang untuk|akan mempelajari|akan meneliti|untuk memahami|berhasil diluncurkan)\\b',highlight):
+        issues.append('hook_press_release_summary')
     if re.match(r'(?i)^(?:misi\\s+)?(?:nasa|esa|peneliti|ilmuwan|badan|lembaga|tim\\s+peneliti)\\b',highlight.strip()):
         issues.append('hook_press_release_style')
     if re.search(r'(?i)\\b(?:merilis|mengumumkan|akan melakukan|dijadwalkan|menggelar)\\b',highlight):
