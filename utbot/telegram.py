@@ -14,6 +14,8 @@ def keyboard(draft):
         [{'text':'🖼 Ganti Foto','callback_data':f'photo:{ref}:{v}'},
          {'text':'🔎 Sumber','callback_data':f'sources:{ref}:{v}'}],
         [{'text':'📋 Hasil QC','callback_data':f'qc:{ref}:{v}'}]]
+    if not draft.image_url and not draft.image_local_path and draft.status=='pending_approval':
+        rows.append([{'text':'🔎 Cari Ulang Cover','callback_data':f'retrycover:{ref}:{v}'}])
     if draft.photo_license and not draft.rights_reviewed:
         rows.append([{'text':'📄 Verifikasi Hak Foto','callback_data':f'rights:{ref}:{v}'}])
     return {'inline_keyboard':rows}
@@ -28,7 +30,7 @@ def main_menu():
         [{'text':'📰 Generate Test News','callback_data':'nav:test_news'}]]}
 
 def photo_keyboard(draft):
-    return {'inline_keyboard':[[{'text':f'Pilih foto {i+1}: {(item.get("license") or "?")[:12]}',
+    return {'inline_keyboard':[[{'text':f'Foto {i+1}: {str(item.get("title") or "Tanpa judul")[:27]} ({(item.get("license") or "?")[:15]})',
                                 'callback_data':f'pick{i}:{draft.id}:{draft.version}'}]
          for i,item in enumerate(draft.photo_candidates or [])]}
 

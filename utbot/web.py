@@ -381,6 +381,40 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     '\\n\\n'+'\\n\\n'.join(f'{i+1}. {h}' for i,h in enumerate(ideas))+
                     '\\n\\nPilih salah satu. Semua tetap perlu pemeriksaan editorial.',
                     {'inline_keyboard':rows})
+            elif action=='retrycover':
+                if d.status!='pending_approval' or d.publish_state in ('publishing','uncertain','published'):
+                    raise ValueError('Hanya draf yang belum disetujui dapat mencari ulang cover.')
+                if bot:bot.answer(cb_id,'Mencari kandidat Wikimedia')
+                from .photo_relevance import search_queries,likely_same_subject
+                from .media import find_photos
+                choices=[]
+                visited=set()
+                errors=[]
+                for term in search_queries(st.title,story_title=st.title):
+                    try:
+                        candidates=find_photos(term,limit=6)
+                    except (httpx.HTTPError,ValueError) as exc:
+                        errors.append(type(exc).__name__)
+                        continue
+                    for candidate in candidates:
+                        identity=candidate.get('page_url') or candidate.get('image_url')
+                        if identity and identity not in visited and likely_same_subject(term,candidate):
+                            visited.add(identity)
+                            choices.append(candidate)
+                    if choices:break
+                if not choices:
+                    send('⚠️ Kandidat cover yang cocok dan berlisensi belum ditemukan.'+
+                         (' Kendala pencarian: '+', '.join(errors) if errors else '')+
+                         ' Gunakan Ganti Foto untuk mengunggah foto yang haknya sudah Anda periksa.')
+                else:
+                    d.photo_candidates=choices[:6]
+                    db.commit()
+                    if bot:
+                        lines=['🔎 Pilih satu kandidat cover. Identitas foto dan lisensinya harus diperiksa lagi.']
+                        lines.extend(str(i+1)+'. '+str(item.get('title') or 'Tanpa judul')[:100]+
+                           ' | '+str(item.get('license') or 'Lisensi belum jelas')
+                           for i,item in enumerate(d.photo_candidates))
+                        bot.message(chat_id,'\\n'.join(lines),photo_keyboard(d))
             elif action.startswith('pickh') and action[5:].isdigit():
                 index=int(action[5:])
                 report=db.query(Audit).filter(Audit.draft_id==d.id,
@@ -445,7 +479,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 db.commit();send_preview(bot,chat_id,d,st) if bot else None
                 send('Foto diganti. Tinjau lisensi sebelum Approve; approval lama sudah batal.')
             else:raise ValueError('Pilihan tidak dikenali.')
-            if bot and action!='hookideas':bot.answer(cb_id,'Diterima')
+            if bot and action not in ('hookideas','retrycover'):bot.answer(cb_id,'Diterima')
         except (ValueError,RuntimeError,httpx.HTTPError,OSError) as exc:
             db.rollback()
             if bot:bot.answer(cb_id,'Permintaan perlu diperbaiki')

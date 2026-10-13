@@ -41,3 +41,42 @@ def test_wide_1600_x_900_not_filtered():
           'descriptionurl':'https://commons.wikimedia.org/wiki/File:Smile_spacecraft.jpg',
           'extmetadata':{'LicenseShortName':{'value':'CC BY-SA 3.0 IGO'}}}]}}}})
     assert len(find_photos('Smile spacecraft',transport=httpx.MockTransport(handler)))==1
+
+def test_retry_cover_button_requires_editor_selection(monkeypatch):
+    from utbot.models import Base,make_engine,Story,Draft
+    from sqlalchemy.orm import sessionmaker
+    from utbot import web
+    from dataclasses import replace
+    from utbot.research import fingerprint
+    from utbot.telegram import keyboard
+    db=sessionmaker(bind=(eng:=make_engine('sqlite://')),expire_on_commit=False)()
+    Base.metadata.create_all(eng)
+    st=Story(fingerprint=fingerprint('https://www.esa.int/News/Smile'),
+             title='SMILE spacecraft reveals new data',source_url='https://www.esa.int/News/Smile',
+             source_name='ESA',topic='space')
+    db.add(st);db.flush()
+    dr=Draft(story_id=st.id,highlight='Cara Perisai Bumi Menahan Angin Matahari Masih Menyimpan Misteri',
+             caption='Ilmuwan meneliti magnetosfer.\\n\\nESA menjelaskan.\\n\\nNamun temuannya belum final.\\n\\nApa selanjutnya?',
+             hashtags=['#ESA','#Sains','#Space','#Bumi','#UnfoundedTheory'])
+    db.add(dr);db.commit()
+    assert any(x['callback_data'].startswith('retrycover:')
+               for line in keyboard(dr)['inline_keyboard'] for x in line)
+    class Bot:
+        def __init__(self):self.messages=[]
+        def answer(self,*args):pass
+        def message(self,chat,text,reply_markup=None):self.messages.append((text,reply_markup))
+    bot=Bot()
+    from utbot import media
+    photo={'image_url':'https://upload.wikimedia.org/Smile.jpg','title':'Smile spacecraft illustration',
+           'page_url':'https://commons.wikimedia.org/wiki/File:Smile.jpg','credit':'ESA',
+           'license':'CC BY-SA 3.0 IGO','license_url':'https://creativecommons.org/licenses/by-sa/3.0/igo/'}
+    monkeypatch.setattr(media,'find_photos',lambda query,limit=6:[photo])
+    monkeypatch.setattr(web,'_bot',lambda:bot)
+    monkeypatch.setattr(web,'CONFIG',replace(web.CONFIG,admin_ids=frozenset({42})))
+    cb={'callback_query':{'id':'cb','from':{'id':42},'message':{'chat':{'id':9}},
+         'data':f'retrycover:{dr.id}:{dr.version}'}}
+    assert web.telegram_webhook(cb,db=db)['ok']
+    assert dr.photo_candidates[0]['license']=='CC BY-SA 3.0 IGO'
+    assert not dr.image_local_path and not dr.rights_reviewed
+    assert any('Pilih satu kandidat cover' in s for s,m in bot.messages)
+    db.close()
