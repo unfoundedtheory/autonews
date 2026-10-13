@@ -193,21 +193,29 @@ def generate_test_news(db, bot, chat_id):
     results=prepare_batch(db,limit=1,notifier=notify)
     done=prepared(results)
     if not done:
-        # One bounded discovery pass, never a loop or background polling.
-        # Prefer scientific NASA/ESA feeds; the full schedule handles all sources.
-        feeds=list(discover(db,sources=SOURCES[:4]))
+        # One bounded discovery pass over all official sources, with NASA/APOD
+        # and ESA still given first priority. No unrestricted polling loop.
+        feeds=list(discover(db,sources=SOURCES))
         db.commit()
         count=sum(item.get('inserted',0) for item in feeds)
         if count:
             results=prepare_batch(db,limit=1,notifier=notify)
             done=prepared(results)
         else:
-            details='; '.join(f"{item['feed']}: {str(item['error'])[:70]}"
-                              for item in feeds if item.get('error'))
-            return ('⚠️ Belum ada berita baru dari sumber resmi. '
-                    'Discovery langsung sudah dijalankan (NASA/APOD/ESA). '
-                    + ('Kendala feed: '+details[:350] if details else
-                       'Berita pada feed mungkin sudah tersimpan atau melewati batas usia.'))
+            failed=[item for item in feeds if item.get('error')]
+            healthy=[item for item in feeds if not item.get('error')]
+            details='; '.join(f"{item['feed']}: {str(item['error'])[:70]}" for item in failed)
+            if not healthy:
+                return '❌ Discovery gagal: semua feed resmi bermasalah. '+details[:550]
+            if failed:
+                return ('⚠️ Belum ada kandidat baru dari '+str(len(healthy))+
+                        ' feed yang berhasil dibaca; '+str(len(failed))+
+                        ' feed bermasalah: '+details[:400])
+            seen=sum(item.get('seen',0) for item in healthy)
+            duplicates=sum(item.get('duplicates',0) for item in healthy)
+            return ('ℹ️ Belum ada kandidat baru. '+str(seen)+' artikel diperiksa, '+
+                    str(duplicates)+' sudah tersimpan; lainnya mungkin terlalu lama '+
+                    'atau tidak memenuhi kriteria sumber resmi.')
 
     if done:
         if done.get('notify_error'):
