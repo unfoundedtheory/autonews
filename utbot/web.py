@@ -154,6 +154,26 @@ def ai_connectivity_test():
         raise HTTPException(502, {'connected': False, 'error_type': 'UnexpectedResponse'})
     return {'provider': 'gemini', 'connected': True, 'persisted': False, 'published': False}
 
+def gemini_test_message():
+    """Admin-only Gemini diagnostic without publishing or saving content."""
+    import os
+    from .ai_provider import generate_json, PROVIDERS, _model_for
+    model = _model_for(PROVIDERS['gemini'], role='default', model=None)
+    if not os.getenv('GEMINI_API_KEY'):
+        return '❌ GEMINI_API_KEY belum dikonfigurasi.'
+    try:
+        response = generate_json('Return JSON with ok=true and label=UT_TEST.',
+                                 {'purpose': 'connectivity check'}, provider='gemini',
+                                 temperature=0.0)
+        if response.get('ok') is True and response.get('label') == 'UT_TEST':
+            return '✅ Gemini terhubung.\\nModel: '+model+'\\nJSON valid. Tidak ada posting dibuat.'
+        return '❌ Respons Gemini tidak sesuai. Model: '+model
+    except httpx.HTTPStatusError as exc:
+        return '❌ Gemini gagal. Model: '+model+'\\nHTTP '+str(exc.response.status_code)
+    except (httpx.HTTPError, ValueError, RuntimeError, KeyError, TypeError) as exc:
+        log.warning('Gemini Telegram test failed: %s', type(exc).__name__)
+        return '❌ Gemini gagal. Model: '+model+'\\nError: '+type(exc).__name__
+
 class DraftInput(BaseModel):
     source_url:str;source_name:str;title:str;topic:str='astronomy'
     evidence:list[dict];highlight:str;caption:str;hashtags:list[str]
@@ -253,10 +273,12 @@ def telegram_webhook(payload:dict,db=Depends(session)):
         if bot:bot.message(chat_id,s,main_menu() if menu else None)
     if cb and str(cb.get('data','')).startswith('nav:'):
         action=cb['data'][4:]
-        if action not in ('home','pending','queue','status'):
+        if action not in ('home','pending','queue','status','test_gemini'):
             if bot:bot.answer(cb.get('id'),'Menu tidak valid')
             return {'ok':True}
-        if action=='home':
+        if action=='test_gemini':
+            send(gemini_test_message(),True)
+        elif action=='home':
             send('🛰 Unfounded Theory Newsroom\\nPilih menu di bawah.',True)
         elif action=='status':
             from sqlalchemy import func
@@ -342,6 +364,9 @@ def telegram_webhook(payload:dict,db=Depends(session)):
     if msg:
         txt=(msg.get('text') or msg.get('caption') or '').strip()
         sess=db.get(TelegramSession,str(uid))
+        if txt=='/testgemini' and not sess:
+            send(gemini_test_message(),True)
+            return {'ok':True,'command':'testgemini'}
         if txt in ('/start','/help') and not sess:
             send('🛰 Unfounded Theory Newsroom\n\nPilih tombol di bawah untuk mengelola berita.',True)
             return {'ok':True,'command':'help'}

@@ -16,7 +16,8 @@ def main_menu():
         [{'text':'📝 Pending Approval','callback_data':'nav:pending'},
          {'text':'📅 Jadwal Posting','callback_data':'nav:queue'}],
         [{'text':'📊 Status Redaksi','callback_data':'nav:status'},
-         {'text':'🔄 Refresh','callback_data':'nav:home'}]]}
+         {'text':'🔄 Refresh','callback_data':'nav:home'}],
+        [{'text':'🧪 Test Gemini','callback_data':'nav:test_gemini'}]]}
 
 def photo_keyboard(draft):
     return {'inline_keyboard':[[{'text':f'Pilih foto {i+1}: {(item.get("license") or "?")[:12]}',
