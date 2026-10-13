@@ -14,7 +14,7 @@ from .config import CONFIG
 from .editorial import approve,revise,lint,evidence_ready
 from .scheduler import schedule_approved,due,WIB
 from .instagram import InstagramPublisher,caption_text
-from .telegram import TelegramClient,keyboard,send_preview,photo_keyboard
+from .telegram import TelegramClient,keyboard,send_preview,photo_keyboard,main_menu
 from .research import discover,fingerprint
 from .rewrite import rewrite
 from .pipeline import prepare_batch
@@ -227,8 +227,27 @@ def telegram_webhook(payload:dict,db=Depends(session)):
     if uid not in CONFIG.admin_ids:return {'ok':True,'ignored':'not_allowlisted'}
     chat_id=(msg or {}).get('chat',{}).get('id') or (cb or {}).get('message',{}).get('chat',{}).get('id')
     if not chat_id:return {'ok':True}
-    def send(s):
-        if bot:bot.message(chat_id,s)
+    def send(s,menu=False):
+        if bot:bot.message(chat_id,s,main_menu() if menu else None)
+    if cb and str(cb.get('data','')).startswith('nav:'):
+        action=cb['data'][4:]
+        if action not in ('home','pending','queue','status'):
+            if bot:bot.answer(cb.get('id'),'Menu tidak valid')
+            return {'ok':True}
+        if action=='home':
+            send('🛰 Unfounded Theory Newsroom\\nPilih menu di bawah.',True)
+        elif action=='status':
+            from sqlalchemy import func
+            groups=db.execute(select(Draft.status,func.count(Draft.id)).group_by(Draft.status)).all()
+            send('📊 Status redaksi\\n'+('\\n'.join(f'{s}: {n}' for s,n in groups) or 'Belum ada berita'),True)
+        elif action=='pending':
+            rows=db.execute(select(Draft).where(Draft.status=='pending_approval').order_by(Draft.created_at.desc()).limit(10)).scalars().all()
+            send('📝 Pending Approval\\n'+('\\n'.join(f'{d.id[:8]}: {d.highlight}' for d in rows) or 'Tidak ada'),True)
+        else:
+            rows=db.execute(select(Draft).where(Draft.status=='approved',Draft.scheduled_at.is_not(None)).order_by(Draft.scheduled_at).limit(15)).scalars().all()
+            send('📅 Jadwal WIB\\n'+('\\n'.join(f'{d.scheduled_at.astimezone(WIB):%d/%m %H:%M} - {d.highlight}' for d in rows) or 'Belum ada antrean'),True)
+        if bot:bot.answer(cb.get('id'),'Diperbarui')
+        return {'ok':True,'menu':action}
     if cb:
         cb_id=cb.get('id')
         try:
@@ -243,7 +262,15 @@ def telegram_webhook(payload:dict,db=Depends(session)):
             return {'ok':True,'stale':True}
         st=db.get(Story,d.story_id)
         try:
-            if action=='approve':
+            if action=='qc':
+                from .quality_control import report_for_draft
+                report=report_for_draft(db,d,st)
+                send('📋 Editorial QC | Draf '+d.id[:8]+' v'+str(d.version)+
+                     '\\nStatus: '+report.get('status','unknown')+
+                     '\\nPercobaan: '+str(report.get('attempts','n/a'))+
+                     '\\nMasalah: '+(', '.join(report.get('issues',[])) or 'Tidak ada')+
+                     '\\nPeriksa manual: '+', '.join(report.get('manual_checks',[])))
+            elif action=='approve':
                 approve(db,d,uid)
                 schedule_approved(db,daily_limit=CONFIG.daily_limit)
                 db.commit()
@@ -294,7 +321,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
         txt=(msg.get('text') or msg.get('caption') or '').strip()
         sess=db.get(TelegramSession,str(uid))
         if txt in ('/start','/help') and not sess:
-            send('🛰 Unfounded Theory Newsroom\n\n/queue - jadwal mendatang\n/pending - draf menunggu approval\n/status - ringkasan redaksi\n\nGunakan tombol di setiap draft untuk approve, menolak, merevisi teks, mengganti foto, dan memeriksa sumber.')
+            send('🛰 Unfounded Theory Newsroom\n\nPilih tombol di bawah untuk mengelola berita.',True)
             return {'ok':True,'command':'help'}
         if txt in ('/queue','/pending','/status') and not sess:
             from sqlalchemy import func

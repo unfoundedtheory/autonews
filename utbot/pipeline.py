@@ -11,6 +11,7 @@ import httpx,json,re,unicodedata
 from sqlalchemy import select,case
 from .models import Story,Draft,Audit
 from .editorial import trusted_source,lint
+from .quality_control import assess
 from .config import CONFIG
 from .media import find_photos,intake_image,render_draft
 from .ai_provider import generate_json
@@ -101,13 +102,26 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
         raise ValueError('Kandidat ini sudah memiliki draf.')
     if not trusted_source(story.source_url):raise ValueError('Sumber resmi tidak didukung.')
     article=reader(story.source_url)
-    data,checked=writer(story,article)
+    # Retry at most three complete drafts; never mark an unverified result as passed.
+    failures=[]
+    for attempt in range(1,4):
+        data,checked=writer(story,article)
+        qc=assess(data['highlight'],data['caption'],data['hashtags'],checked,
+                  tragedy=bool(data.get('tragedy')))
+        if qc['passed']:break
+        failures.append({'attempt':attempt,'issues':qc['issues']})
+    else:
+        raise ValueError('Editorial QC gagal setelah 3 percobaan: '+', '.join(qc['issues']))
     story.evidence=checked
     story.verification_status='verified'  # quotes matched primary text; not independent adjudication
     d=Draft(story_id=story.id,highlight=data['highlight'],caption=data['caption'],hashtags=data['hashtags'],
             accent_words=data.get('accent_words') or [],is_tragedy=bool(data.get('tragedy')),
             expires_at=datetime.fromisoformat(data['expires_at_wib']).astimezone(timezone.utc) if data.get('expires_at_wib') else None)
     db.add(d);db.flush()
+    db.add(Audit(draft_id=d.id,event='editorial_qc',actor='worker',
+                 detail={'version':d.version,'status':'passed_automated',
+                         'passed':True,'issues':[],'attempts':attempt,
+                         'prior_failures':failures,'manual_checks':qc['manual_checks']}))
     db.add(Audit(draft_id=d.id,event='primary_quotes_checked',actor='worker',detail={'sources':[story.source_url],
                                                                                 'claim_count':len(checked)}))
     try:

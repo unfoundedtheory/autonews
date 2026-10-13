@@ -8,7 +8,15 @@ def keyboard(draft):
         [{'text':'✅ Approve','callback_data':f'approve:{ref}:{v}'}, {'text':'❌ Tolak','callback_data':f'reject:{ref}:{v}'}],
         [{'text':'✏️ Highlight','callback_data':f'highlight:{ref}:{v}'}, {'text':'📝 Caption','callback_data':f'caption:{ref}:{v}'}],
         [{'text':'🖼 Ganti Foto','callback_data':f'photo:{ref}:{v}'}, {'text':'🔎 Sumber','callback_data':f'sources:{ref}:{v}'}],
-        [{'text':'📄 Konfirmasi Lisensi Foto','callback_data':f'rights:{ref}:{v}'}]]}
+        [{'text':'📄 Konfirmasi Lisensi Foto','callback_data':f'rights:{ref}:{v}'},
+         {'text':'📋 Hasil QC','callback_data':f'qc:{ref}:{v}'}]]}
+
+def main_menu():
+    return {'inline_keyboard':[
+        [{'text':'📝 Pending Approval','callback_data':'nav:pending'},
+         {'text':'📅 Jadwal Posting','callback_data':'nav:queue'}],
+        [{'text':'📊 Status Redaksi','callback_data':'nav:status'},
+         {'text':'🔄 Refresh','callback_data':'nav:home'}]]}
 
 def photo_keyboard(draft):
     return {'inline_keyboard':[[{'text':f'Pilih foto {i+1}: {(item.get("license") or "?")[:12]}',
