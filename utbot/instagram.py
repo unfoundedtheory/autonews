@@ -52,7 +52,13 @@ def photo_credit_line(draft, *, allow_missing=False):
     if not credit or credit.casefold() in {
             'unknown','unknown author','n/a','tidak diketahui','belum diisi',
             'kredit foto: perlu diisi oleh editor'}:
-        if allow_missing:return 'Photo by : (kredit foto belum diisi)'
+        if allow_missing:
+            # For the human Instagram music handoff, cite the *actual source
+            # page* if known, never invent an author or claim usage rights.
+            source=(getattr(draft,'media_page_url',None) or '').strip()
+            if source.startswith('https://') and len(source)<=500:
+                return 'Sumber gambar: '+source
+            return ''
         raise ValueError('Kredit foto asli wajib diisi sebelum publikasi Instagram.')
 
     net,handle=_social_source(credit if credit.startswith('https://')
@@ -82,8 +88,9 @@ def caption_text(draft, *, allow_missing_credit=False):
     # accidentally retain the previous photographer in an editable caption.
     body='\n'.join(line for line in body.split('\n')
                    if not re.match(r'^\s*(?:Photo\s+by|Foto|Kredit\s+foto)\s*:',line,re.I)).strip()
-    parts=[body,photo_credit_line(draft,allow_missing=allow_missing_credit),
-           ' '.join(draft.hashtags)]
+    parts=[value for value in (
+        body,photo_credit_line(draft,allow_missing=allow_missing_credit),
+        ' '.join(draft.hashtags)) if value]
     content='\n\n'.join(parts)
     if len(content)>2200:
         raise ValueError('Caption Instagram melebihi 2.200 karakter termasuk kredit foto')

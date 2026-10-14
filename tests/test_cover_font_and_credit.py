@@ -61,7 +61,7 @@ def test_missing_credit_blocks_publishing_but_is_honest_in_telegram_preview():
     with pytest.raises(ValueError,match='Kredit foto'):
         caption_text(d)
     preview=preview_text(d,None)
-    assert 'Photo by : (kredit foto belum diisi)' in preview
+    assert 'Sumber gambar: https://science.nasa.gov/mission' in preview
     assert preview.endswith(' '.join(TAGS))
 
 def test_caption_char_limit_includes_credit_and_hashtags():

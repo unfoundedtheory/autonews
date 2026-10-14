@@ -87,15 +87,25 @@ def test_due_approval_sends_one_manual_handoff_without_meta_publish(monkeypatch)
         db.close()
 
 
-def test_manual_handoff_requires_verified_photo_rights(monkeypatch):
+def test_manual_music_uses_known_photo_source_without_second_confirmation(monkeypatch):
     db=make_db()
     try:
         _,d=approved_draft(db)
-        d.rights_reviewed=False;db.commit()
+        d.rights_reviewed=False
+        d.photo_license=None
+        d.image_credit=None
+        d.media_page_url='https://science.nasa.gov/universe/'
+        db.commit()
+        sent=[]
+        class FakeBot:
+            def message(self,chat_id,message,buttons=None):
+                sent.append(message)
+        monkeypatch.setattr(web,'TelegramClient',lambda *args:FakeBot())
         monkeypatch.setattr(web,'CONFIG',replace(CONFIG,photo_music_mode='manual',
                               telegram_token='test-token',chat_id='123'))
-        assert web.publish_job(db=db)['manual_music']=='blocked'
-        assert d.publish_state=='unpublished'
+        assert web.publish_job(db=db)['manual_music']=='awaiting_editor'
+        assert d.publish_state=='manual_music_pending'
+        assert 'Sumber gambar: https://science.nasa.gov/universe/' in sent[1]
     finally:
         db.close()
 

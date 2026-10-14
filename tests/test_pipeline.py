@@ -57,9 +57,8 @@ def test_pipeline_drafts_unreviewed_rights_and_renders(db,tmp_path,monkeypatch):
     assert d.image_local_path and Path(d.image_local_path).exists()
     assert Image.open(d.image_local_path).size==(1080,1350)
     assert d.image_url is None and not d.rights_reviewed
-    with pytest.raises(ValueError,match='foto'):approve(db,d,'42')
-    d.rights_reviewed=True
     approve(db,d,'42')
+    assert d.rights_reviewed is False
     assert d.approved_version==1
     revise(db,d,'highlight','Sinyal Aneh Kembali Diamati Para Ilmuwan Dalam Pencarian Materi Gelap','42')
     assert d.approved_version is None

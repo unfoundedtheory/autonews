@@ -26,7 +26,7 @@ def keyboard(draft):
             rows.append([{'text':'✨ Perbaiki Cover Otomatis','callback_data':f'autofit:{ref}:{v}'}])
         rows.append([{'text':'🖼 Buat Cover dari Sumber','callback_data':f'retrycover:{ref}:{v}'}])
     if (draft.source_image_url or draft.image_url) and (not draft.photo_license or not draft.image_credit):
-        rows.append([{'text':'🧾 Isi Kredit & Lisensi','callback_data':f'credit:{ref}:{v}'}])
+        rows.append([{'text':'🧾 Kredit & Lisensi (Opsional)','callback_data':f'credit:{ref}:{v}'}])
     if ((draft.image_url or draft.image_local_path)
             and draft.status in ('pending_approval','approved')
             and draft.publish_state not in ('publishing','published','uncertain','awaiting_container')):
@@ -35,8 +35,8 @@ def keyboard(draft):
     if draft.status=='approved' and draft.publish_state=='manual_music_pending':
         rows.append([{'text':'🎵 Konfirmasi Post Instagram',
                       'callback_data':f'musicdone:{ref}:{v}'}])
-    if draft.photo_license and draft.image_credit and not draft.rights_reviewed:
-        rows.append([{'text':'📄 Verifikasi Hak Foto','callback_data':f'rights:{ref}:{v}'}])
+    # One editorial Approve is enough. Preserve optional credit editing,
+    # but do not present a second mandatory rights confirmation.
     return {'inline_keyboard':rows}
 
 def main_menu():

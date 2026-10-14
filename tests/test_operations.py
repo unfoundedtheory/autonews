@@ -54,7 +54,7 @@ def test_telegram_direct_photo_requires_attribution_and_new_approval(db,tmp_path
     assert dr.photo_license == 'Public domain' and not dr.rights_reviewed
     cb['callback_query']['data']=f'rights:{dr.id}:{dr.version}'
     web.telegram_webhook(cb,db=db)
-    assert dr.rights_reviewed
+    assert not dr.rights_reviewed  # old callback must not claim license verification
     assert dr.approved_version is None
 
 def test_worker_loop_repeats_once_per_window(monkeypatch):

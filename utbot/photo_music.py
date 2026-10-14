@@ -51,4 +51,6 @@ def manual_music_message(draft,story):
     )
 
 def manual_music_caption(draft):
-    return caption_text(draft)
+    # Native-music posts are completed by the editor in Instagram. If source
+    # metadata does not identify a photographer, do not fabricate one.
+    return caption_text(draft,allow_missing_credit=True)
