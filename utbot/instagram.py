@@ -1,4 +1,6 @@
 """Official Instagram Graph API adapter. Never automatically repeat uncertain media_publish calls."""
+import re
+from urllib.parse import urlparse
 import httpx
 
 class InstagramPublisher:
@@ -20,13 +22,68 @@ class InstagramPublisher:
         return self._request("POST",f"{self.ig_id}/media_publish",data={"creation_id":container_id})["id"]
 
 
-def caption_text(draft):
-    """Publish caption and hashtags only; retain image credit in draft metadata."""
-    credit=(draft.image_credit or '').strip()
-    license_name=(draft.photo_license or '').strip()
-    photo_line=('Foto: '+credit+(f' ({license_name})' if license_name else '')) if credit else ''
-    parts=[draft.caption.strip()]
-    parts.append(' '.join(draft.hashtags))
+_SOCIAL_DOMAINS={
+    'threads.net':'threads','threads.com':'threads','instagram.com':'instagram',
+    'tiktok.com':'tiktok','twitter.com':'twitter','x.com':'x',
+    'facebook.com':'facebook','pinterest.com':'pinterest'
+}
+
+def _social_source(url):
+    """Return network and explicit handle only; never infer who owns a photo."""
+    parsed=urlparse((url or '').strip())
+    host=(parsed.hostname or '').lower().removeprefix('www.').removeprefix('m.')
+    network=_SOCIAL_DOMAINS.get(host)
+    if not network:return None,None
+    parts=[s for s in parsed.path.split('/') if s]
+    if not parts:return network,None
+    candidate=parts[0].lstrip('@')
+    if not re.fullmatch(r'[A-Za-z0-9._-]{2,60}',candidate):
+        return network,None
+    if candidate in ('p','reel','reels','post','posts','explore','stories','share'):
+        return network,None
+    return network,candidate
+
+
+def photo_credit_line(draft, *, allow_missing=False):
+    """Short, human-supplied author credit. Source URL is NOT proof of ownership."""
+    credit=re.sub(r'\s+', ' ', (getattr(draft,'image_credit',None) or '')).strip()
+    credit=re.sub(r'^(?:Photo\s+by|Foto|Kredit\s+foto|Credit)\s*:\s*',
+                  '',credit,flags=re.IGNORECASE).strip()
+    if not credit or credit.casefold() in {
+            'unknown','unknown author','n/a','tidak diketahui','belum diisi',
+            'kredit foto: perlu diisi oleh editor'}:
+        if allow_missing:return 'Photo by : (kredit foto belum diisi)'
+        raise ValueError('Kredit foto asli wajib diisi sebelum publikasi Instagram.')
+
+    net,handle=_social_source(credit if credit.startswith('https://')
+                              else getattr(draft,'media_page_url',None))
+    direct_net,direct_handle=_social_source(credit) if credit.startswith('https://') else (None,None)
+    if direct_net and direct_handle:
+        credit=f'{direct_net}/{direct_handle}'
+    else:
+        social=re.fullmatch(r'(?i)(threads|instagram|tiktok|twitter|x|facebook|pinterest)/@?([A-Za-z0-9._-]{2,60})',credit)
+        if social:
+            credit=f'{social.group(1).lower()}/{social.group(2)}'
+        elif net and handle and credit.lstrip('@').casefold()==handle.casefold():
+            credit=f'{net}/{handle}'
+        elif net and re.fullmatch(r'@[A-Za-z0-9._-]{2,60}',credit):
+            credit=f'{net}/{credit[1:]}'
+    if len(credit)>140:
+        # Do not silently trim licensed photographer names; ask for a concise
+        # but accurately attributable credit in Telegram before approval.
+        raise ValueError('Kredit foto terlalu panjang. Ringkas nama kreator secara akurat.')
+    return 'Photo by : '+credit
+
+
+def caption_text(draft, *, allow_missing_credit=False):
+    """Same caption layout for Telegram preview and Instagram publication."""
+    body=(draft.caption or '').strip()
+    # A separate metadata-derived credit is authoritative so photo swaps cannot
+    # accidentally retain the previous photographer in an editable caption.
+    body='\n'.join(line for line in body.split('\n')
+                   if not re.match(r'^\s*(?:Photo\s+by|Foto|Kredit\s+foto)\s*:',line,re.I)).strip()
+    parts=[body,photo_credit_line(draft,allow_missing=allow_missing_credit),
+           ' '.join(draft.hashtags)]
     content='\n\n'.join(parts)
     if len(content)>2200:
         raise ValueError('Caption Instagram melebihi 2.200 karakter termasuk kredit foto')
