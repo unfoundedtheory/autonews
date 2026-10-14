@@ -25,14 +25,55 @@ def test_scientific_phenomenon_can_be_a_short_word_or_phrase():
 
 
 def test_true_league_spartan_bold_seven_hundred():
-    font=renderer._font(80)
-    family,style=font.getname()
-    assert 'league spartan' in family.casefold()
-    # Variation face must not be stuck on Black 900 or unbold Regular.
-    assert 'bold' in style.casefold()
-    assert 'black' not in style.casefold()
+    from PIL import ImageFont
+    font=renderer._font(96)
+    assert 'league spartan' in font.getname()[0].casefold()
+    assert font.get_variation_axes()[0]['minimum']<=700<=font.get_variation_axes()[0]['maximum']
+
+    # Some FreeType/Pillow releases keep returning the VARIABLE FONT's
+    # base style name ('Thin') even after selecting its 700 weight. Compare
+    # actual rasterized glyph weight, not a stale metadata label.
+    def ink_at(weight):
+        f=ImageFont.truetype(renderer.DEFAULT_HEADLINE_FONT,96)
+        f.set_variation_by_axes([weight])
+        return sum(bytes(f.getmask('MMMM')))
+
+    active=sum(bytes(font.getmask('MMMM')))
+    regular=ink_at(400)
+    black=ink_at(900)
+    assert regular<active<black, (regular,active,black)
+    assert active==ink_at(700)
     assert renderer.TRACKING_EM == -0.047
     assert renderer.LINE_SPACING == 1.05
+
+
+def test_five_line_reference_spacing_and_semantic_accents(tmp_path,monkeypatch):
+    from PIL import ImageDraw
+    headline=('Piramida Raksasa Ini Terkubur 25 Meter Di Dasar '
+              'Laut Jepang Dan Diklaim Lebih Tua Dari Piramida Mesir')
+    font,lines,pitch=renderer._headline_layout(
+        ImageDraw.Draw(Image.new('RGB',(1080,1350))),headline)
+    assert len(lines)==5
+    # The screenshot has y981,1046,1111,1176,1241 — a 65px rhythm.
+    assert 62<=pitch<=70
+    assert 46<=renderer._ink_height(font)<=58
+    assert renderer.HEADLINE_TOP+(len(lines)-1)*pitch+renderer._ink_height(font)<=renderer.HEADLINE_BOTTOM
+    accent=accent_for_hook(headline,['PIRAMIDA'])
+    assert accent == ['PIRAMIDA RAKSASA','LAUT JEPANG',
+                      'LEBIH TUA DARI PIRAMIDA MESIR']
+    recorded=[]
+    original=renderer._draw_word_tracked
+    def watch(draw,word,x,y,face,color):
+        recorded.append((word,color))
+        return original(draw,word,x,y,face,color)
+    monkeypatch.setattr(renderer,'_draw_word_tracked',watch)
+    src=tmp_path/'source.jpg'
+    Image.new('RGB',(1080,1350),'#222a33').save(src)
+    renderer.render(src,headline,tmp_path/'reference-layout.jpg',accent_words=['PIRAMIDA'])
+    green={w for w,c in recorded if c==renderer.GREEN}
+    assert {'PIRAMIDA','RAKSASA','LAUT','JEPANG','LEBIH',
+            'TUA','DARI','MESIR'}<=green
+    assert ('TERKUBUR',renderer.WHITE) in recorded
 
 
 def test_renderer_uses_all_three_accents_in_real_cover(tmp_path,monkeypatch):
