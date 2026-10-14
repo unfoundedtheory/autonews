@@ -212,59 +212,61 @@ def generate_test_cover(db, bot, chat_id):
 
 
 def generate_test_news(db, bot, chat_id):
-    """One admin request produces at most one verified editorial draft, never publishes."""
-    from .research import discover, SOURCES
+    """One admin request produces at most one new editorial draft, never publishes."""
+    from .research import discover, SOURCES, evergreen_sources
     import os
     if os.getenv('ENABLE_LIVE_PUBLISH', 'false').lower() != 'false':
         return '⚠️ Tes dibatalkan: ENABLE_LIVE_PUBLISH harus false.'
 
     def notify(d):
         if bot:
-            send_preview(bot, chat_id, d, db.get(Story, d.story_id))
+            send_preview(bot,chat_id,d,db.get(Story,d.story_id))
 
     def prepared(rows):
-        return next((r for r in rows if r.get('status')=='prepared'), None)
+        return next((r for r in rows if r.get('status')=='prepared'),None)
 
-    # First consume a previously discovered, unreviewed primary source.
+    def result_message(done):
+        if done.get('notify_error'):
+            return '⚠️ Draf dibuat, tetapi preview Telegram gagal: '+str(done['notify_error'])[:300]
+        if done.get('has_photo'):
+            return '✅ Draf sains dibuat. Preview dikirim untuk approval; belum diposting.'
+        return ('⚠️ Draf dibuat, tetapi belum memiliki cover. '+
+                str(done.get('photo_error') or 'Pilih foto dari menu Telegram.')[:400])
+
+    # 1. Finish the unreviewed queue before consuming any more sources.
     results=prepare_batch(db,limit=1,notifier=notify)
     done=prepared(results)
-    if not done:
-        # One bounded discovery pass over all official sources, with NASA/APOD
-        # and ESA still given first priority. No unrestricted polling loop.
-        feeds=list(discover(db,sources=SOURCES))
-        db.commit()
-        count=sum(item.get('inserted',0) for item in feeds)
-        if count:
-            results=prepare_batch(db,limit=1,notifier=notify)
-            done=prepared(results)
-        else:
-            failed=[item for item in feeds if item.get('error')]
-            healthy=[item for item in feeds if not item.get('error')]
-            details='; '.join(f"{item['feed']}: {str(item['error'])[:70]}" for item in failed)
-            if not healthy:
-                return '❌ Discovery gagal: semua feed resmi bermasalah. '+details[:550]
-            if failed:
-                # News discovery and recovering an existing cover are separate tests.
-                # An empty news batch should not imply that image rendering was attempted.
-                return ('⚠️ Belum ada kandidat baru dari '+str(len(healthy))+
-                        ' feed yang berhasil dibaca; '+str(len(failed))+
-                        ' feed bermasalah: '+details[:400])
-            seen=sum(item.get('seen',0) for item in healthy)
-            duplicates=sum(item.get('duplicates',0) for item in healthy)
-            return ('ℹ️ Belum ada berita baru yang memenuhi kriteria. '+str(seen)+' artikel diperiksa, '+
-                    str(duplicates)+' sudah tersimpan; lainnya mungkin terlalu lama '+
-                    'atau tidak memenuhi kriteria sumber resmi.')
+    if done:return result_message(done)
 
-    if done:
-        if done.get('notify_error'):
-            return '⚠️ Draf berhasil dibuat, tetapi preview Telegram gagal: '+str(done['notify_error'])[:300]
-        if done.get('has_photo'):
-            return '✅ Satu draf dan cover dibuat. Preview dikirim untuk approval; tidak ada posting Instagram.'
-        return ('⚠️ Satu draf dibuat, tetapi cover 4:5 belum tersedia. Diagnostik: '
-                +str(done.get('photo_error') or 'Tidak ada rincian')[:420])
+    # 2. Fresh feeds are still useful, but their age no longer gates eligibility.
+    normal=list(discover(db,sources=SOURCES))
+    db.commit()
+    if sum(int(f.get('inserted',0)) for f in normal):
+        results=prepare_batch(db,limit=1,notifier=notify)
+        done=prepared(results)
+        if done:return result_message(done)
+
+    # 3. Bounded evergreen archive pass: astronomy, history and archaeology.
+    # Never claim failure just because no article was published in the past 14 days.
+    archived=list(discover(db,sources=evergreen_sources()))
+    db.commit()
+    if sum(int(f.get('inserted',0)) for f in archived):
+        results=prepare_batch(db,limit=1,notifier=notify)
+        done=prepared(results)
+        if done:return result_message(done)
+
     if results:
-        return '⚠️ Sumber dicoba tetapi gagal QC: '+str(results[0].get('reason','Unknown'))[:300]
-    return '⚠️ Tidak ditemukan kandidat yang dapat diproses dari sumber resmi.'
+        return ('⚠️ Kandidat sumber sudah ditemukan tetapi belum lolos QC. '+
+                str(results[0].get('reason') or 'Periksa kutipan sumber dan relevansi.')[:320])
+    checked=sum(f.get('seen',0) for f in normal+archived)
+    duplicates=sum(f.get('duplicates',0) for f in normal+archived)
+    failures=[f for f in normal+archived if f.get('error')]
+    if failures and not checked:
+        details='; '.join(f"{f['feed']}: {str(f['error'])[:65]}" for f in failures)
+        return '⚠️ Sumber resmi belum bisa dibaca: '+details[:500]
+    return (f'ℹ️ {checked} artikel dari feed dan arsip diperiksa; {duplicates} sudah tersimpan. '
+            'Belum ada kandidat berbeda yang dapat diproses. '
+            'Coba lagi nanti ketika halaman arsip berganti atau periksa sumber dan QC.')
 
 class DraftInput(BaseModel):
     source_url:str;source_name:str;title:str;topic:str='astronomy'
