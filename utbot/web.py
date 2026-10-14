@@ -568,12 +568,12 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     db.commit()
                 gap=(report.get('checks') or {}).get('curiosity_gap',{})
                 send('📋 Editorial QC | Draf '+d.id[:8]+' v'+str(d.version)+
-                     '\\nStatus: '+report.get('status','unknown')+
-                     '\\nMasalah: '+(', '.join(report.get('issues',[])) or 'Tidak ada')+
-                     '\\nCuriosity Gap: '+('✅' if gap.get('passed') else '❌ Belum valid')+
-                     '\\nPertanyaan tersisa: '+str(gap.get('unanswered_question') or 'Belum ditemukan')[:180]+
-                     '\\nPenjelasan: '+str(gap.get('reason') or report.get('note') or '-')[:220]+
-                     '\\nPeriksa manual: '+', '.join(report.get('manual_checks',[])))
+                     '\nStatus: '+report.get('status','unknown')+
+                     '\nMasalah: '+(', '.join(report.get('issues',[])) or 'Tidak ada')+
+                     '\nCuriosity Gap: '+('✅' if gap.get('passed') else '❌ Belum valid')+
+                     '\nPertanyaan tersisa: '+str(gap.get('unanswered_question') or 'Belum ditemukan')[:180]+
+                     '\nPenjelasan: '+str(gap.get('reason') or report.get('note') or '-')[:220]+
+                     '\nPeriksa manual: '+', '.join(report.get('manual_checks',[])))
             elif action=='approve':
                 approve(db,d,uid)
                 schedule_approved(db,daily_limit=CONFIG.daily_limit)
