@@ -30,10 +30,14 @@ def test_text_fits_fixed_box_independent_of_line_count():
         font, lines, pitch = _headline_layout(draw,headline)
         counts.append(len(lines))
         assert _title_draw_y(font,0,pitch)+font.getbbox('HM',anchor='la')[1] == HEADLINE_TOP
-        assert len(lines) in (4,5)
+        assert len(lines) == 4
         assert HEADLINE_TOP+(len(lines)-1)*pitch+_ink_height(font) <= HEADLINE_BOTTOM
         assert all(_line_width(draw,line,font) <= WIDTH-2*MARGIN for line in lines)
-    assert counts == [4,4,5,4]
+    assert counts == [4,4,4,4]
+    sizes=[_headline_layout(draw,headline)[0].size for headline in HEADLINES]
+    # Font size should not be forced to one value for all different headlines.
+    assert len(set(sizes))>=2
+    assert min(sizes)>=48
 
 
 def test_tracking_tightens_characters_but_preserves_real_word_gap():
@@ -47,7 +51,7 @@ def test_tracking_tightens_characters_but_preserves_real_word_gap():
     assert _word_gap(draw,font) > -_letter_tracking(font) * 3
 
 
-def test_identical_badge_pixels_for_four_and_five_line_posts(tmp_path):
+def test_identical_badge_pixels_for_varying_four_line_font_sizes(tmp_path):
     bg = tmp_path/'dark.jpg'
     Image.new('RGB',(1080,1350),(3,3,3)).save(bg)
     regions=[]
