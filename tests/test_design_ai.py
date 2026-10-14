@@ -57,7 +57,7 @@ def test_gemini_quota_failure_never_implicitly_bills_deepseek(monkeypatch):
         generate_json('system',{'news':'test'},transport=transport)
 
 
-def test_serverless_uses_bundled_anton_without_system_fonts(monkeypatch,tmp_path):
+def test_serverless_uses_bundled_league_spartan_without_system_fonts(monkeypatch,tmp_path):
     from utbot import renderer
     # Simulate Vercel: only our licensed bundled font is available.
     monkeypatch.setattr(renderer.Path,'is_file',
@@ -66,7 +66,7 @@ def test_serverless_uses_bundled_anton_without_system_fonts(monkeypatch,tmp_path
     try:
         fallback=renderer._font(78)
         assert fallback.size>=70
-        assert 'anton' in fallback.getname()[0].lower()
+        assert 'league spartan' in fallback.getname()[0].lower()
         assert renderer._ink_height(fallback)>=45
         heading='Kalau Kamu Tinggal di Mars Kapan Ulang Tahunmu Tiba Lagi'
         assert renderer.cover_fits(heading)
