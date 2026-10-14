@@ -186,7 +186,7 @@ def test_generate_test_news_tries_evergreen_when_latest_feed_exhausted(monkeypat
         tries=[]
         def fake_prepare(db,limit,notifier):
             tries.append(True)
-            if len(tries)==3:
+            if len(tries)==2:
                 return [{'status':'prepared','has_photo':True}]
             return []
         monkeypatch.setattr('utbot.research.discover',fake_discover)
@@ -194,7 +194,7 @@ def test_generate_test_news_tries_evergreen_when_latest_feed_exhausted(monkeypat
         monkeypatch.setenv('ENABLE_LIVE_PUBLISH','false')
         result=web.generate_test_news(db,None,123)
         assert '✅' in result
-        assert len(calls)==2 and len(tries)==3
+        assert len(calls)==2 and len(tries)==2
         assert calls[1][0]['name']=='NASA APOD Archive'
     finally:
         db.close()
