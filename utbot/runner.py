@@ -52,7 +52,7 @@ def do_reschedule():
         return result
 
 def do_maintenance():
-    """Hourly read-only editorial eligibility and early music-kit delivery.
+    """Scheduled editorial eligibility checks and early music-kit delivery.
 
     May *approve* QC-passed drafts after 24 hours, but NEVER publishes here.
     """
