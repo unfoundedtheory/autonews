@@ -105,7 +105,7 @@ def approve(db, draft, actor, *, human_fact_checked=False):
 def revise(db,draft,field,value,actor):
     if field not in {"highlight","caption","source_image_url","image_credit","photo_license"}:
         raise ValueError("Field revisi tidak dikenali")
-    if draft.status in {"published","rejected"} or draft.publish_state in {"publishing","uncertain"}:
+    if draft.status in {"published","rejected"} or draft.publish_state in {"publishing","uncertain","manual_music_pending"}:
         raise ValueError("Draf ini tidak boleh diedit.")
     setattr(draft,field,value)
     if field in {"highlight","source_image_url"}:
