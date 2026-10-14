@@ -36,19 +36,17 @@ def callback(d,action,user=42):
     return {'callback_query':{'id':'c-1','from':{'id':user},'message':{'chat':{'id':100}},
           'data':f'{action}:{d.id}:{d.version}'}}
 
-def test_admin_rights_confirmation_and_approval_flow(db,monkeypatch):
+def test_admin_one_click_approval_flow(db,monkeypatch):
     d=seeded(db)
     c=replace(web.CONFIG,admin_ids=frozenset({42}),telegram_token='local-token',daily_limit=2)
     monkeypatch.setattr(web,'CONFIG',c)
-    bot=FakeBot();monkeypatch.setattr(web,'_bot',lambda:bot)
+    bot=FakeBot()
+    monkeypatch.setattr(web,'_bot',lambda:bot)
     assert web.telegram_webhook(callback(d,'approve',user=999),db=db)['ignored']=='not_allowlisted'
-    web.telegram_webhook(callback(d,'approve'),db=db)
-    assert d.status=='pending_approval'
-    web.telegram_webhook(callback(d,'rights'),db=db)
-    assert d.rights_reviewed
     web.telegram_webhook(callback(d,'approve'),db=db)
     assert d.status=='approved' and d.approved_version==d.version and d.scheduled_at
     assert any('Disetujui' in item[2] for item in bot.sent if item[0]=='message')
+
 
 def test_instagram_container_waits_then_publishes_once(db,monkeypatch,tmp_path):
     d=seeded(db);d.rights_reviewed=True
