@@ -5,6 +5,7 @@ Scientific claims still require independent editorial QC before publication.
 import re
 from .editorial import read_editorial_guide
 from .renderer import require_cover_fit
+from .accent import accent_for_hook
 
 
 def validate_typed_hook(text, story, font_path=None):
@@ -40,20 +41,3 @@ def validate_typed_hook(text, story, font_path=None):
         raise ValueError('Hook belum muat empat baris cover. '
                          'Persingkat sendiri lalu kirim lagi tanpa mengubah fakta.') from exc
     return value
-
-
-def accent_for_hook(text, existing=()):
-    """Preserve editorial accents where applicable; otherwise emphasize subject."""
-    available=set(re.findall(r'\b[\w-]+\b',text.upper()))
-    keep=[w for w in (existing or []) if w.upper() in available]
-    if keep:
-        return keep[:3]
-    # Accent is typography only, never a new factual assertion.
-    for keyword in ('ANTARTIKA','MARS','ICECUBE','NASA','NEUTRINO',
-                    'MATAHARI','BUMI','BULAN','METEOR','GALAKSI','KOMET'):
-        if keyword in available:
-            return [keyword]
-    key_words=[w for w in available if len(w)>=7 and w not in {
-        'MENGAPA','BAGAIMANA','TERNYATA','SEBENARNYA','TENTANG',
-        'SETELAH','SEBELUM','DARIPADA','TERHADAP','BAGAIMANAKAH'}]
-    return [sorted(key_words,key=lambda w:(-len(w),w))[0]] if key_words else []
