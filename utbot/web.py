@@ -229,7 +229,7 @@ def generate_test_news(db, bot, chat_id):
         if done.get('notify_error'):
             return '⚠️ Draf dibuat, tetapi preview Telegram gagal: '+str(done['notify_error'])[:300]
         if done.get('has_photo'):
-            return '✅ Draf sains dibuat. Preview dikirim untuk approval; belum diposting.'
+            return '✅ Satu draf dan cover dibuat. Preview dikirim untuk approval; belum diposting.'
         return ('⚠️ Draf dibuat, tetapi belum memiliki cover. '+
                 str(done.get('photo_error') or 'Pilih foto dari menu Telegram.')[:400])
 
