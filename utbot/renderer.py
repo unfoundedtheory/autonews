@@ -23,6 +23,9 @@ HEADLINE_BOTTOM = 1307            # strict fixed text region; do not push badge 
 TRACKING_EM = -0.025              # tighter GLYPHS, never collapse the word gap
 WORD_GAP_EM = 0.20               # distinct visual spaces remain between whole words
 DEFAULT_BADGE = Path(__file__).resolve().parent / "assets" / "reference_badge.png"
+# Bundled SIL OFL Anton: square-ended, narrow and heavy like the approved reference.
+# A bundled font is essential: Vercel's minimal runtime has no dependable OS fonts.
+DEFAULT_HEADLINE_FONT = Path(__file__).resolve().parent / "assets" / "Anton-Regular.ttf"
 
 
 @lru_cache(maxsize=100)
@@ -30,6 +33,7 @@ def _font(size: int, font_path: str | None = None):
     windows_fonts = Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts"
     candidates = [
         font_path,
+        DEFAULT_HEADLINE_FONT,  # deterministic branding on Vercel and desktop
         windows_fonts / "arialbd.ttf",
         windows_fonts / "bahnschrift.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf",
@@ -38,21 +42,18 @@ def _font(size: int, font_path: str | None = None):
     for candidate in candidates:
         if candidate and Path(candidate).is_file():
             return ImageFont.truetype(candidate, size)
-    # Serverless images frequently omit Linux font packages. Pillow's old
-    # unscaled bitmap default is ~10 px regardless of the requested size,
-    # which produces unreadable cover headlines while geometry falsely passes.
-    # Pillow 11+ ships a scalable Aileron fallback; honor the ACTUAL size.
-    fallback = ImageFont.load_default(size=size)
-    if getattr(fallback,'size',0) < size * .90:
-        raise RuntimeError('Font cover tidak mendukung ukuran yang diminta')
-    return fallback
+    # Never silently switch to Pillow's rounded Aileron default. The operator
+    # would approve a different cover from the reference brand.
+    raise RuntimeError('Font headline resmi tidak ditemukan. Periksa paket asset Anton.')
 
 
 def font_readability_status(font_path: str | None = None):
     """Report actual glyph size so deploy/readiness can catch tiny serverless fonts."""
     font = _font(80, font_path)
     cap_height = _ink_height(font)
+    family=font.getname()[0]
     return {'requested_px':80, 'actual_font_px':font.size,
+            'font_family':family,
             'cap_height_px':cap_height, 'readable':cap_height>=46}
 
 
@@ -181,7 +182,11 @@ def _draw_word_tracked(draw, word, x, y, font, color):
     # When a serverless host lacks condensed bold fonts, Pillow uses its
     # bundled scalable regular family; moderate stroke restores headline
     # hierarchy without raster stretching. True bold fonts need no stroke.
-    stroke=0 if ('bold' in style or 'black' in style or 'heavy' in style) else min(3,max(1,round(font.size*0.035)))
+    # Anton is already a heavy display face despite being named "Regular".
+    # Strokes would soften and round the otherwise square letter terminals.
+    family=font.getname()[0].lower()
+    stroke=0 if ('anton' in family or 'bold' in style or 'black' in style
+                 or 'heavy' in style) else min(3,max(1,round(font.size*0.035)))
     for ch in word:
         draw.text((round(cursor),round(y)), ch, font=font, fill=color,
                   stroke_width=stroke, stroke_fill=color, anchor='la')
