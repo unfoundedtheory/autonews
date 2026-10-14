@@ -145,6 +145,16 @@ def _ink_height(font):
     return bbox[3]-bbox[1]
 
 
+def _reference_line_pitch(font):
+    """Canva-style 1.05 leading applied to the visible League Spartan cap rhythm.
+
+    In the owner's 1080x1350 sample, 53px uppercase ink recurs every 65px,
+    rather than Pillow's 76-80px em-based line pitch. The 9px baseline
+    allowance corresponds to free ascender/descender space in this typeface.
+    """
+    return round((_ink_height(font)+9)*LINE_SPACING)
+
+
 def _headline_layout(draw, highlight, font_path=None, max_width=WIDTH-2*MARGIN):
     """Fit four lines, or five for reference-style long scientific headlines.
 
@@ -156,12 +166,12 @@ def _headline_layout(draw, highlight, font_path=None, max_width=WIDTH-2*MARGIN):
     long_reference_style = len(words)>=16 and len(highlight)>=94
     line_counts = (5,4) if long_reference_style else (4,5)
     for count in line_counts:
-        top_size=66 if count==5 else 104
-        bottom_size=56 if count==5 else 58
+        top_size=80 if count==5 else 104
+        bottom_size=62 if count==5 else 58
         for size in range(top_size,bottom_size-1,-2):
             font=_font(size,font_path)
             lines=_balanced_wrap(draw,words,font,max_width,max_lines=count,exact_lines=count)
-            pitch=round(size*LINE_SPACING)
+            pitch=_reference_line_pitch(font)
             if (len(lines)==count
                 and HEADLINE_TOP+(count-1)*pitch+_ink_height(font)<=HEADLINE_BOTTOM
                 and all(_line_width(draw,line,font)<=max_width for line in lines)
