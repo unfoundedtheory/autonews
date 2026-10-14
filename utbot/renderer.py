@@ -14,14 +14,18 @@ from .accent import accent_for_hook
 WIDTH, HEIGHT = 1080, 1350
 GREEN = "#95F21E"
 WHITE = "#FFFFFF"
-MARGIN = 56  # Content safe margin; actual reference ink sometimes stops near x=75.
-LAYOUT_STYLE = "fixed_editorial_grid_v06"
-# Measured directly from SIX supplied 1080×1350 reference posts.
-BADGE_BOX = (402, 900, 678, 948)   # exact same badge region on every original cover
-HEADLINE_TOP = 981                 # first ink row 977–982 in references
-HEADLINE_BOTTOM = 1307            # strict fixed text region; do not push badge up
-TRACKING_EM = -0.047              # League Spartan letter spacing -47 (thousandths em)
-LINE_SPACING = 1.05             # line spacing is 1.05 x font size
+SIDE_MARGIN = 56
+BOTTOM_MARGIN = 56
+MARGIN = SIDE_MARGIN              # backward-compatible horizontal safe area
+LAYOUT_STYLE = "responsive_four_line_editorial_v07"
+# Lift badge and headline together by 24px; preserve their 33px separation.
+# Screen edges share one 56px safe area on left, right and bottom.
+GROUP_RAISE_PX = 24
+BADGE_BOX = (402, 900-GROUP_RAISE_PX, 678, 948-GROUP_RAISE_PX)
+HEADLINE_TOP = 981-GROUP_RAISE_PX
+HEADLINE_BOTTOM = HEIGHT-BOTTOM_MARGIN
+TRACKING_EM = -0.047             # League Spartan letter spacing -47
+LINE_SPACING = 1.08              # optically relaxed compared with prior 1.05
 WORD_GAP_EM = 0.20               # distinct visual spaces remain between whole words
 DEFAULT_BADGE = Path(__file__).resolve().parent / "assets" / "reference_badge.png"
 # Genuine Google Fonts League Spartan variable face: use the Bold 700 axis.
@@ -146,11 +150,10 @@ def _ink_height(font):
 
 
 def _reference_line_pitch(font):
-    """Canva-style 1.05 leading applied to the visible League Spartan cap rhythm.
+    """Scale leading with the actual League Spartan cap height.
 
-    In the owner's 1080x1350 sample, 53px uppercase ink recurs every 65px,
-    rather than Pillow's 76-80px em-based line pitch. The 9px baseline
-    allowance corresponds to free ascender/descender space in this typeface.
+    Keep 1.08 proportional for headlines with different dynamic font sizes,
+    rather than setting a fixed inter-line pixel distance.
     """
     return round((_ink_height(font)+9)*LINE_SPACING)
 
@@ -174,7 +177,7 @@ def _headline_layout(draw, highlight, font_path=None, max_width=WIDTH-2*MARGIN):
             and all(_line_width(draw,line,font)<=max_width for line in lines)
             and (len(lines[-1].split())>1 or len(words)<4)):
             return font,lines,pitch
-    raise ValueError('Highlight belum muat tepat empat baris dengan ukuran font yang tetap terbaca; persingkat melalui Telegram')
+    raise ValueError('Highlight belum muat tepat empat baris dengan margin kiri/kanan/bawah 56px; persingkat melalui Telegram')
 
 
 @lru_cache(maxsize=256)
@@ -244,7 +247,7 @@ def _title_draw_y(font, line_index, pitch):
 
 
 def _draw_badge(img, logo_path=None):
-    """No text-driven movement: center remains x=540, y=924 on ALL posts."""
+    """Badge moves up 24px with headline; always horizontally centered."""
     left, top, right, bottom = BADGE_BOX
     logo_file = Path(logo_path) if logo_path else DEFAULT_BADGE
     if logo_file.is_file():
@@ -257,8 +260,8 @@ def _draw_badge(img, logo_path=None):
         draw = ImageDraw.Draw(img)
         draw.rounded_rectangle((left,top,right,bottom),radius=24,
                                outline=WHITE,width=3)
-        draw.text((540,924),'unfounded theory',font=_font(26),
-                  fill=WHITE,anchor='mm')
+        draw.text(((left+right)//2,(top+bottom)//2),'unfounded theory',
+                  font=_font(26),fill=WHITE,anchor='mm')
 
 
 def _place_photo(source: Image.Image, focus: tuple[float, float]):
@@ -305,8 +308,8 @@ def render(input_image, highlight, outpath, accent_words=None, logo_path=None,
     img.paste(black, (0, 0), gradient)
     draw = ImageDraw.Draw(img)
 
-    # Reference geometry fixed: badge y900–948 and first title ink y981.
-    # All approved headlines use FOUR lines; font size adapts to copy length.
+    # Consistent 56px side/bottom safe area; both badge and headline raised
+    # together without moving the focal photograph. Font size remains adaptive.
     font, lines, pitch = _headline_layout(draw, highlight, font_path)
     if _ink_height(font) + HEADLINE_TOP + (len(lines)-1)*pitch > HEADLINE_BOTTOM:
         raise ValueError('Headline overflow: requires editorial revision')
