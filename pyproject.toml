@@ -24,4 +24,4 @@ include = ["utbot*"]
 exclude = ["tests*", "scripts*", "outputs*", "media*", "deploy*", "assets*", "docs*"]
 
 [tool.setuptools.package-data]
-utbot = ["assets/*.png", "assets/*.ttf", "assets/ANTON_LICENSE.txt"]
+utbot = ["assets/*.png", "assets/*.ttf", "assets/LEAGUE_SPARTAN_LICENSE.txt"]
