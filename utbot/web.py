@@ -332,7 +332,7 @@ def import_draft(payload:DraftInput,db=Depends(session)):
         photo_license=payload.photo_license,rights_reviewed=payload.rights_reviewed,is_tragedy=payload.is_tragedy)
     db.add(d);db.commit()
     return {'story_id':story.id,'draft_id':d.id,'lint':lint(d.highlight,d.caption,d.hashtags),
-            'ready_for_approval':evidence_ready(story) and story.verification_status=='verified' and bool(d.image_url or d.image_local_path)
+            'ready_for_approval':evidence_ready(story) and story.verification_status=='verified' and bool(d.image_url or d.image_local_path)}
 
 @app.post('/jobs/discover',dependencies=[Depends(worker_auth)])
 def discover_job(db=Depends(session)):
