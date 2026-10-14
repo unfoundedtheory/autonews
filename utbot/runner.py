@@ -18,7 +18,10 @@ log = logging.getLogger(__name__)
 
 def do_discover():
     with Session() as db:
-        result = list(discover(db))
+        from .research import evergreen_sources
+        result=list(discover(db))
+        if not any(int(x.get('inserted',0)) for x in result):
+            result.extend(discover(db,sources=evergreen_sources()))
         db.execute(delete(TelegramUpdateReceipt).where(
             TelegramUpdateReceipt.received_at < datetime.now(timezone.utc)-timedelta(days=30)))
         db.commit()
