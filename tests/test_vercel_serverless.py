@@ -15,8 +15,7 @@ def test_cron_schedules_wib():
       ('/api/cron/prepare/afternoon','0 8 * * *'),
       ('/api/cron/tick/morning','0 23 * * *'),
       ('/api/cron/tick/noon','0 5 * * *'),
-      ('/api/cron/tick/evening','0 11 * * *'),
-      ('/api/cron/maintenance','0 * * * *')]
+      ('/api/cron/tick/evening','0 11 * * *')]
 
 def test_cron_secret_validation(monkeypatch):
     monkeypatch.setenv('CRON_SECRET','secret-local-test')
@@ -48,3 +47,10 @@ def test_mounted_routes():
         assert client.get('/api/health').status_code==200
         assert client.get('/api/cron/tick/morning').status_code==403
         assert client.post('/api/telegram/webhook',json={}).status_code==403
+
+
+def test_hobby_crons_do_not_run_more_than_once_a_day():
+    crons=json.loads((Path(__file__).parents[1]/'vercel.json').read_text())['crons']
+    assert all('*/' not in cron['schedule'] and cron['schedule'].split()[1].isdigit()
+               for cron in crons)
+    assert len(set(cron['path'] for cron in crons))==len(crons)
