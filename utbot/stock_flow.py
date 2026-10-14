@@ -47,7 +47,7 @@ def _commons_permissive_photo(draft):
         and bool((draft.image_credit or '').strip())
     )
 
-def _photo_auto_safe(draft):
+def photo_auto_safe(draft):
     return bool(
         (draft.rights_reviewed or _commons_permissive_photo(draft))
         and (draft.image_credit or '').strip()
@@ -88,7 +88,7 @@ def auto_approve_overdue(db, *, now=None, config=CONFIG, limit=5):
         if d.expires_at and d.expires_at <= now:
             blocked.append(d.id)
             continue
-        if not story or story.verification_status != 'verified' or not _photo_auto_safe(d):
+        if not story or story.verification_status != 'verified' or not photo_auto_safe(d):
             blocked.append(d.id)
             continue
         # For auto approval, the latest *version-specific* QC must be real,
