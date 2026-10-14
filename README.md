@@ -185,3 +185,10 @@ Preview sementara yang memakai foto dari posting referensi **hanya untuk uji vis
 - Cover memakai **League Spartan Black** (font weight 900) dengan **letter spacing -47** (tracking `-0.047 em`) dan **line spacing 1.05** sesuai pengaturan desain asli. Font dibundel secara legal dengan lisensi SIL Open Font License 1.1 agar hasil Vercel, Docker, dan desktop seragam. Jangan gunakan Anton atau font fallback sistem.
 - Semua caption Telegram dan Instagram menampilkan `Photo by : {nama fotografer}` **setelah caption utama dan tepat sebelum lima hashtag**. Contoh akun media sosial asli: `Photo by : threads/ikhsanaditya_`. Field `image_credit` menjadi satu-satunya sumber nama kredit; URL foto tidak otomatis membuktikan pemilik hak.
 - Kredit foto wajib terisi sebelum approval. `Kredit: ...` pada menu Telegram tetap untuk mengisi pemilik asli (bukan lokasi atau nama media repost); peninjauan lisensi dan kecocokan foto tetap diperlukan. Jika lisensi mensyaratkan keterangan tambahan/tautan, editor harus mematuhinya selain kredit singkat tersebut.
+
+## Evergreen science research (Oktober 2026)
+
+- **Tidak ada cutoff usia 14 hari**. Riset, ilmuwan, penemuan lama, masa purba, biologi, kosmologi, dan dampak AI boleh menjadi bahan cerita jika sumbernya masih sahih.
+- Jika RSS terbaru sudah habis, **Generate Test News** memeriksa APOD archive NASA (halaman bergilir), sejarah NASA dan arkeologi Nature. Semua kandidat harus lulus pembacaan sumber primer, pencocokan kutipan, QC, pemeriksaan foto/lisensi dan approval manusia.
+- Daftar Pending Telegram memuat **5 draf per halaman** dengan tombol pendek dan halaman navigasi. Kandidat foto menampilkan detail pemilik dan lisensi di isi pesan serta pilihan singkat.
+- Artikel sejarah tidak boleh disebut breaking news; tahun penemuan dan status ilmu mutakhir harus dijelaskan di caption.

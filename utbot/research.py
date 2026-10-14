@@ -30,6 +30,27 @@ SOURCES=[
   {"name":"Google DeepMind","url":"https://deepmind.google/blog/rss.xml","topic":"ai"},
 ]
 
+
+def evergreen_sources(now=None):
+    """Bounded archive pass when current feeds are exhausted.
+
+    The APOD WordPress archive is paged; rotate among older pages by date.
+    Editorial review checks facts and distinguishes historical events from news.
+    """
+    now=now or datetime.now(timezone.utc)
+    page=2+(now.toordinal()%40)
+    return [
+        {"name":"NASA APOD Archive",
+         "url":f"https://science.nasa.gov/wp-json/wp/v2/apod-basic?per_page=25&page={page}",
+         "format":"apod_json","topic":"astronomy"},
+        {"name":"NASA History",
+         "url":"https://www.nasa.gov/history-news-and-articles/",
+         "format":"history_listing","topic":"science"},
+        {"name":"Nature Archaeology",
+         "url":"https://www.nature.com/subjects/archaeology",
+         "format":"archaeology_listing","topic":"archaeology"},
+    ]
+
 def canonicalize(url):
     s=urlsplit(url.strip())
     qs=urlencode([(k,v) for k,v in parse_qsl(s.query) if not k.lower().startswith("utm_") and k not in {"fbclid","gclid"}])
@@ -192,11 +213,51 @@ def parse_eso_listing(content):
     return out
 
 
+
+def parse_evergreen_listing(content, *, site):
+    """Extract article HEADLINES from a vetted official topic listing, not site navigation."""
+    if isinstance(content,bytes):
+        if len(content)>2_000_000:raise ValueError('Daftar arsip terlalu besar.')
+        content=content.decode('utf-8','replace')
+    soup=BeautifulSoup(content,'html.parser')
+    for el in soup(['script','style','nav','footer','header','form']):el.decompose()
+    main=soup.find('main') or soup
+    results=[];found=set()
+    for heading in main.find_all(['h2','h3','h4']):
+        anchor=heading.find('a',href=True) or heading.find_parent('a',href=True)
+        if not anchor:continue
+        link=urljoin(site,anchor.get('href',''))
+        if not trusted_source(link):continue
+        host=urlsplit(link).hostname or ''
+        path=urlsplit(link).path
+        if site.startswith('https://www.nature.com/'):
+            if host not in ('www.nature.com','nature.com') or not re.match(r'^/(?:articles|news)/[^/]+',path):
+                continue
+        else:
+            if not host.endswith('nasa.gov') or path.rstrip('/') in (
+                    '/history','/history-news-and-articles','/'):
+                continue
+            if not re.search(r'/[a-zA-Z0-9][a-zA-Z0-9-]{10,}/?$',path):
+                continue
+        title=html.unescape(heading.get_text(' ',strip=True))
+        if not 20<=len(title)<=220:continue
+        link=canonicalize(link)
+        if link in found:continue
+        found.add(link)
+        # Historical pages may not have a machine-readable publish date.
+        # Never fabricate one or claim a finding happened today.
+        results.append({'title':title,'url':link,'pub':None,'summary':''})
+    if not results:
+        raise ValueError('Tidak menemukan artikel arsip yang memenuhi struktur sumber.')
+    return results[:45]
+
 def parse_source_response(source,url,content):
     if source.get('format')=='apod_json' and '/wp-json/' in url:
         return parse_apod_json(content)
     if source.get('format')=='eso_listing' and url==source['url']:
         return parse_eso_listing(content)
+    if source.get('format') in ('history_listing','archaeology_listing'):
+        return parse_evergreen_listing(content,site=url)
     return parse_items(content)
 
 def discover(db, sources=None, fetcher=None, now=None):
@@ -206,7 +267,7 @@ def discover(db, sources=None, fetcher=None, now=None):
     with httpx.Client(timeout=15,follow_redirects=False,
                       headers={'User-Agent':'UnfoundedTheoryNewsroom/0.7 (science news discovery)'}) as client:
         for source in feeds:
-            inserted=0;duplicates=0;seen=0
+            inserted=0;duplicates=0;seen=0;excluded=0
             errors=[];used_url=None
             entries=None
             for url in [source['url']]+list(source.get('fallback_urls') or []):
@@ -232,8 +293,14 @@ def discover(db, sources=None, fetcher=None, now=None):
                 seen=len(entries)
                 for entry in entries:
                     pub=entry['pub']
-                    if pub and pub < now-timedelta(days=14):continue
-                    if not trusted_source(entry['url']):continue
+                    # Evergreen science: original publication can be many years old.
+                    # Future dates remain invalid; a verified article is not a breaking alert.
+                    if pub and pub > now+timedelta(days=1):
+                        excluded+=1
+                        continue
+                    if not trusted_source(entry['url']):
+                        excluded+=1
+                        continue
                     ident=fingerprint(entry['url'])
                     if db.query(Story).filter_by(fingerprint=ident).first():
                         duplicates+=1
@@ -249,5 +316,5 @@ def discover(db, sources=None, fetcher=None, now=None):
                 yield {'feed':source['name'],'error':str(exc)[:200],'inserted':0}
                 continue
             yield {'feed':source['name'],'inserted':inserted,'seen':seen,
-                   'duplicates':duplicates,
+                   'duplicates':duplicates,'excluded':excluded,
                    'fallback_used':bool(used_url and used_url!=source['url'])}

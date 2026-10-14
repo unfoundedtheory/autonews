@@ -16,6 +16,7 @@ from .editorial import approve,revise,lint,evidence_ready
 from .scheduler import schedule_approved,due,WIB
 from .instagram import InstagramPublisher,caption_text
 from .telegram import TelegramClient,keyboard,send_preview,photo_keyboard,main_menu
+from .telegram_ui import pending_page,photo_candidate_message,PENDING_PAGE_SIZE
 from .research import discover,fingerprint
 from .rewrite import rewrite
 from .pipeline import prepare_batch
@@ -211,59 +212,67 @@ def generate_test_cover(db, bot, chat_id):
 
 
 def generate_test_news(db, bot, chat_id):
-    """One admin request produces at most one verified editorial draft, never publishes."""
-    from .research import discover, SOURCES
+    """One admin request produces at most one new editorial draft, never publishes."""
+    from .research import discover, SOURCES, evergreen_sources
     import os
     if os.getenv('ENABLE_LIVE_PUBLISH', 'false').lower() != 'false':
         return '⚠️ Tes dibatalkan: ENABLE_LIVE_PUBLISH harus false.'
 
     def notify(d):
         if bot:
-            send_preview(bot, chat_id, d, db.get(Story, d.story_id))
+            send_preview(bot,chat_id,d,db.get(Story,d.story_id))
 
     def prepared(rows):
-        return next((r for r in rows if r.get('status')=='prepared'), None)
+        return next((r for r in rows if r.get('status')=='prepared'),None)
 
-    # First consume a previously discovered, unreviewed primary source.
+    def result_message(done):
+        if done.get('notify_error'):
+            return '⚠️ Draf dibuat, tetapi preview Telegram gagal: '+str(done['notify_error'])[:300]
+        if done.get('has_photo'):
+            return '✅ Satu draf dan cover dibuat. Preview dikirim untuk approval; belum diposting.'
+        return ('⚠️ Draf dibuat, tetapi belum memiliki cover. '+
+                str(done.get('photo_error') or 'Pilih foto dari menu Telegram.')[:400])
+
+    # 1. Finish the unreviewed queue before consuming any more sources.
     results=prepare_batch(db,limit=1,notifier=notify)
     done=prepared(results)
-    if not done:
-        # One bounded discovery pass over all official sources, with NASA/APOD
-        # and ESA still given first priority. No unrestricted polling loop.
-        feeds=list(discover(db,sources=SOURCES))
-        db.commit()
-        count=sum(item.get('inserted',0) for item in feeds)
-        if count:
-            results=prepare_batch(db,limit=1,notifier=notify)
-            done=prepared(results)
-        else:
-            failed=[item for item in feeds if item.get('error')]
-            healthy=[item for item in feeds if not item.get('error')]
-            details='; '.join(f"{item['feed']}: {str(item['error'])[:70]}" for item in failed)
-            if not healthy:
-                return '❌ Discovery gagal: semua feed resmi bermasalah. '+details[:550]
-            if failed:
-                # News discovery and recovering an existing cover are separate tests.
-                # An empty news batch should not imply that image rendering was attempted.
-                return ('⚠️ Belum ada kandidat baru dari '+str(len(healthy))+
-                        ' feed yang berhasil dibaca; '+str(len(failed))+
-                        ' feed bermasalah: '+details[:400])
-            seen=sum(item.get('seen',0) for item in healthy)
-            duplicates=sum(item.get('duplicates',0) for item in healthy)
-            return ('ℹ️ Belum ada berita baru yang memenuhi kriteria. '+str(seen)+' artikel diperiksa, '+
-                    str(duplicates)+' sudah tersimpan; lainnya mungkin terlalu lama '+
-                    'atau tidak memenuhi kriteria sumber resmi.')
+    if done:return result_message(done)
 
-    if done:
-        if done.get('notify_error'):
-            return '⚠️ Draf berhasil dibuat, tetapi preview Telegram gagal: '+str(done['notify_error'])[:300]
-        if done.get('has_photo'):
-            return '✅ Satu draf dan cover dibuat. Preview dikirim untuk approval; tidak ada posting Instagram.'
-        return ('⚠️ Satu draf dibuat, tetapi cover 4:5 belum tersedia. Diagnostik: '
-                +str(done.get('photo_error') or 'Tidak ada rincian')[:420])
+    # 2. Fresh feeds are still useful, but their age no longer gates eligibility.
+    normal=list(discover(db,sources=SOURCES))
+    db.commit()
+    if sum(int(f.get('inserted',0)) for f in normal):
+        results=prepare_batch(db,limit=1,notifier=notify)
+        done=prepared(results)
+        if done:return result_message(done)
+
+    # 3. Bounded evergreen archive pass: astronomy, history and archaeology.
+    # Never claim failure just because no article was published in the past 14 days.
+    archived=list(discover(db,sources=evergreen_sources()))
+    db.commit()
+    if sum(int(f.get('inserted',0)) for f in archived):
+        results=prepare_batch(db,limit=1,notifier=notify)
+        done=prepared(results)
+        if done:return result_message(done)
+
     if results:
-        return '⚠️ Sumber dicoba tetapi gagal QC: '+str(results[0].get('reason','Unknown'))[:300]
-    return '⚠️ Tidak ditemukan kandidat yang dapat diproses dari sumber resmi.'
+        return ('⚠️ Kandidat sumber sudah ditemukan tetapi belum lolos QC. '+
+                str(results[0].get('reason') or 'Periksa kutipan sumber dan relevansi.')[:320])
+    checked=sum(f.get('seen',0) for f in normal+archived)
+    duplicates=sum(f.get('duplicates',0) for f in normal+archived)
+    failures=[f for f in normal if f.get('error')]
+    healthy=[f for f in normal if not f.get('error')]
+    details='; '.join(f"{f['feed']}: {str(f['error'])[:65]}" for f in failures)
+    if failures and not healthy:
+        return ('⚠️ Discovery: semua feed resmi bermasalah. '+details[:430]+
+                ' Arsip juga diperiksa; tidak ada kandidat siap.')
+    if failures:
+        return (f'⚠️ Belum ada kandidat siap; {len(failures)} feed bermasalah dan '
+                f'{len(healthy)} feed yang berhasil dibaca. '+
+                details[:360]+' Arsip juga diperiksa.')
+    return (f'ℹ️ {checked} artikel dari feed dan arsip diperiksa; {duplicates} sudah tersimpan. '
+            'Belum ada kandidat berbeda yang dapat diproses. '
+            'Coba lagi nanti ketika halaman arsip berganti atau periksa sumber dan QC.')
 
 class DraftInput(BaseModel):
     source_url:str;source_name:str;title:str;topic:str='astronomy'
@@ -376,19 +385,27 @@ def telegram_webhook(payload:dict,db=Depends(session)):
             return {'ok':True,'ignored':'duplicate_telegram_update'}
     def send(s,menu=False):
         if bot:bot.message(chat_id,s,main_menu() if menu else None)
-    def show_pending():
+    def show_pending(page=0):
+        from sqlalchemy import func
+        total=db.execute(select(func.count(Draft.id)).where(
+            Draft.status=='pending_approval')).scalar_one()
+        page=max(0,min(page,max(0,(total-1)//PENDING_PAGE_SIZE)))
         pending=db.execute(select(Draft).where(Draft.status=='pending_approval')
-                  .order_by(Draft.created_at.desc()).limit(10)).scalars().all()
-        lines=[f'{draft.id[:8]} v{draft.version}: {draft.highlight}' for draft in pending]
-        body='📝 Pending Approval\\n'+('\\n'.join(lines) or 'Tidak ada draf menunggu approval')
+                   .order_by(Draft.created_at.desc(),Draft.id.desc())
+                   .offset(page*PENDING_PAGE_SIZE).limit(PENDING_PAGE_SIZE)).scalars().all()
         if bot:
-            actions=[[{'text':f'👁 Buka {draft.id[:8]}: {draft.highlight[:25]}',
-                       'callback_data':f'open:{draft.id}:{draft.version}'}]
-                     for draft in pending]
-            actions.append([{'text':'🏠 Menu Utama','callback_data':'nav:home'}])
-            bot.message(chat_id,body,{'inline_keyboard':actions})
+            body,actions=pending_page(pending,total,page)
+            bot.message(chat_id,body,actions)
     if cb and str(cb.get('data','')).startswith('nav:'):
         action=cb['data'][4:]
+        pending_index=0
+        if action.startswith('pending:'):
+            page_text=action.partition(':')[2]
+            if not page_text.isascii() or not page_text.isdigit() or len(page_text)>5:
+                if bot:bot.answer(cb.get('id'),'Halaman tidak valid')
+                return {'ok':True,'invalid_page':True}
+            pending_index=int(page_text)
+            action='pending'
         if action not in ('home','pending','queue','status','test_gemini','test_news','test_cover'):
             if bot:bot.answer(cb.get('id'),'Menu tidak valid')
             return {'ok':True}
@@ -403,16 +420,16 @@ def telegram_webhook(payload:dict,db=Depends(session)):
         elif action=='test_gemini':
             send(gemini_test_message(),True)
         elif action=='home':
-            send('🛰 Unfounded Theory Newsroom\\nPilih menu di bawah.',True)
+            send('🛰 Unfounded Theory Newsroom\nPilih menu di bawah.',True)
         elif action=='status':
             from sqlalchemy import func
             groups=db.execute(select(Draft.status,func.count(Draft.id)).group_by(Draft.status)).all()
-            send('📊 Status redaksi\\n'+('\\n'.join(f'{s}: {n}' for s,n in groups) or 'Belum ada berita'),True)
+            send('📊 Status redaksi\n'+('\n'.join(f'{s}: {n}' for s,n in groups) or 'Belum ada berita'),True)
         elif action=='pending':
-            show_pending()
+            show_pending(pending_index)
         else:
             rows=db.execute(select(Draft).where(Draft.status=='approved',Draft.scheduled_at.is_not(None)).order_by(Draft.scheduled_at).limit(15)).scalars().all()
-            send('📅 Jadwal WIB\\n'+('\\n'.join(f'{d.scheduled_at.astimezone(WIB):%d/%m %H:%M} - {d.highlight}' for d in rows) or 'Belum ada antrean'),True)
+            send('📅 Jadwal WIB\n'+('\n'.join(f'{d.scheduled_at.astimezone(WIB):%d/%m %H:%M} - {d.highlight}' for d in rows) or 'Belum ada antrean'),True)
         if bot and action not in ('test_news','test_cover'):bot.answer(cb.get('id'),'Diperbarui')
         return {'ok':True,'menu':action}
     if cb:
@@ -555,7 +572,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         lines.extend(str(i+1)+'. '+str(item.get('title') or 'Tanpa judul')[:100]+
                            ' | '+str(item.get('license') or 'Lisensi belum jelas')
                            for i,item in enumerate(d.photo_candidates))
-                        bot.message(chat_id,'\\n'.join(lines),photo_keyboard(d))
+                        bot.message(chat_id,photo_candidate_message(d),photo_keyboard(d))
             elif action.startswith('pickh') and action[5:].isdigit():
                 index=int(action[5:])
                 report=db.query(Audit).filter(Audit.draft_id==d.id,

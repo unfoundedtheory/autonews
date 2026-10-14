@@ -41,9 +41,8 @@ def main_menu():
          {'text':'🖼 Test Cover','callback_data':'nav:test_cover'}]]}
 
 def photo_keyboard(draft):
-    return {'inline_keyboard':[[{'text':f'Foto {i+1}: {str(item.get("title") or "Tanpa judul")[:27]} ({(item.get("license") or "?")[:15]})',
-                                'callback_data':f'pick{i}:{draft.id}:{draft.version}'}]
-         for i,item in enumerate(draft.photo_candidates or [])]}
+    from .telegram_ui import photo_keyboard as make_keyboard
+    return make_keyboard(draft)
 
 class TelegramClient:
     def __init__(self,token,transport=None): self.token=token;self.transport=transport

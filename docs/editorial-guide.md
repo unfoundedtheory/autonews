@@ -120,6 +120,12 @@ Dirangkum dari koreksi, teori hook, dan diskusi selama proses pembuatan konten. 
 - Hindari blog agregator atau situs SEO yang tidak menyebut nama peneliti, jurnal, atau institusi.
 - Jika sumber awal meragukan, cari sumber aslinya dulu sebelum menulis.
 
+**Cerita evergreen, sejarah dan penemuan lama**
+- Artikel dan penemuan boleh berumur puluhan hingga miliaran tahun. Usia publikasi bukan alasan menolak konten.
+- Prioritas: astronomi, asal-usul alam semesta, ilmuwan dan penemuan bersejarah, zaman purba, evolusi dan kehidupan, arkeologi ilmiah, serta dampak/ancaman AI pada manusia.
+- Bedakan waktu penemuan, publikasi riset, dan usia objek/era geologi. Jangan memakai "hari ini", "baru", "terkini" atau 🚨 untuk kejadian lama.
+- Jika teori lama sudah dibantah atau diperbarui, utamakan pengetahuan paling mutakhir dan sebutkan keterbatasannya; situs arsip hanya pintu masuk, bukan alasan menyampaikan klaim usang sebagai fakta.
+
 **Kejujuran data**
 - Cantumkan status yang benar. Contoh: sinyal 2,6-sigma "belum bisa disebut penemuan".
 - Sertakan bantahan atau pembaruan jika ada (contoh: WR 104 kemungkinan tidak mengarah ke Bumi).
