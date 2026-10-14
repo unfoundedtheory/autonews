@@ -175,6 +175,41 @@ def gemini_test_message():
         log.warning('Gemini Telegram test failed: %s', type(exc).__name__)
         return '❌ Gemini gagal. Model: '+model+'\\nError: '+type(exc).__name__
 
+def generate_test_cover(db, bot, chat_id):
+    """Explicit admin-only test: try one EXISTING pending draft, no new news required."""
+    from .cover_recovery import recover_article_cover
+    from .renderer import cover_fits
+    drafts=db.execute(select(Draft).where(
+        Draft.status=='pending_approval',Draft.image_url.is_(None))
+        .order_by(Draft.created_at.desc()).limit(25)).scalars().all()
+    ready=[d for d in drafts if cover_fits(d.highlight,CONFIG.font_path)]
+    if not ready:
+        return ('ℹ️ Tidak ada draf pending yang siap dibuatkan cover. '
+                'Jika highlight masih terlalu panjang, buka Pending Approval dan '
+                'gunakan Perbaiki Cover Otomatis lebih dahulu.')
+    failures=[]
+    for draft in ready[:3]:
+        story=db.get(Story,draft.story_id)
+        if not story:continue
+        try:
+            recover_article_cover(db,draft,story,actor='telegram_cover_test')
+            db.commit()
+            try:
+                if bot:send_preview(bot,chat_id,draft,story)
+            except (httpx.HTTPError,ValueError,RuntimeError) as exc:
+                return ('⚠️ Cover sudah dibuat dan disimpan, tetapi preview Telegram gagal: '+
+                        str(exc)[:180])
+            return ('✅ Cover 4:5 dari sumber resmi berhasil dibuat untuk draf '+
+                    draft.id[:8]+'. Preview dikirim. Kredit, lisensi dan hak penggunaan '
+                    'tetap harus diverifikasi sebelum Approve.')
+        except (httpx.HTTPError,ValueError,RuntimeError,OSError) as exc:
+            db.rollback()
+            failures.append(draft.id[:8]+': '+str(exc)[:110])
+    return ('⚠️ Belum berhasil memulihkan cover. Diagnostik: '+
+            (' | '.join(failures)[:500] if failures else 'Tidak ada foto sumber yang tersedia.')+
+            ' Buka Pending Approval untuk melihat draf dan opsi Ganti Foto.')
+
+
 def generate_test_news(db, bot, chat_id):
     """One admin request produces at most one verified editorial draft, never publishes."""
     from .research import discover, SOURCES
@@ -208,6 +243,8 @@ def generate_test_news(db, bot, chat_id):
             if not healthy:
                 return '❌ Discovery gagal: semua feed resmi bermasalah. '+details[:550]
             if failed:
+                # News discovery and recovering an existing cover are separate tests.
+                # An empty news batch should not imply that image rendering was attempted.
                 return ('⚠️ Belum ada kandidat baru dari '+str(len(healthy))+
                         ' feed yang berhasil dibaca; '+str(len(failed))+
                         ' feed bermasalah: '+details[:400])
@@ -352,13 +389,17 @@ def telegram_webhook(payload:dict,db=Depends(session)):
             bot.message(chat_id,body,{'inline_keyboard':actions})
     if cb and str(cb.get('data','')).startswith('nav:'):
         action=cb['data'][4:]
-        if action not in ('home','pending','queue','status','test_gemini','test_news'):
+        if action not in ('home','pending','queue','status','test_gemini','test_news','test_cover'):
             if bot:bot.answer(cb.get('id'),'Menu tidak valid')
             return {'ok':True}
         if action=='test_news':
             if bot:bot.answer(cb.get('id'),'Memproses satu draf')
             send('📰 Memproses satu berita percobaan...')
             send(generate_test_news(db,bot,chat_id))
+        elif action=='test_cover':
+            if bot:bot.answer(cb.get('id'),'Mencoba membuat satu cover')
+            send('🖼 Membuat satu cover dari draf pending dan artikel resmi...')
+            send(generate_test_cover(db,bot,chat_id))
         elif action=='test_gemini':
             send(gemini_test_message(),True)
         elif action=='home':
@@ -372,7 +413,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
         else:
             rows=db.execute(select(Draft).where(Draft.status=='approved',Draft.scheduled_at.is_not(None)).order_by(Draft.scheduled_at).limit(15)).scalars().all()
             send('📅 Jadwal WIB\\n'+('\\n'.join(f'{d.scheduled_at.astimezone(WIB):%d/%m %H:%M} - {d.highlight}' for d in rows) or 'Belum ada antrean'),True)
-        if bot and action!='test_news':bot.answer(cb.get('id'),'Diperbarui')
+        if bot and action not in ('test_news','test_cover'):bot.answer(cb.get('id'),'Diperbarui')
         return {'ok':True,'menu':action}
     if cb:
         cb_id=cb.get('id')

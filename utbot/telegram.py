@@ -31,7 +31,8 @@ def main_menu():
         [{'text':'📊 Status Redaksi','callback_data':'nav:status'},
          {'text':'🔄 Refresh','callback_data':'nav:home'}],
         [{'text':'🧪 Test Gemini','callback_data':'nav:test_gemini'}],
-        [{'text':'📰 Generate Test News','callback_data':'nav:test_news'}]]}
+        [{'text':'📰 Generate Test News','callback_data':'nav:test_news'},
+         {'text':'🖼 Test Cover','callback_data':'nav:test_cover'}]]}
 
 def photo_keyboard(draft):
     return {'inline_keyboard':[[{'text':f'Foto {i+1}: {str(item.get("title") or "Tanpa judul")[:27]} ({(item.get("license") or "?")[:15]})',
