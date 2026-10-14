@@ -72,13 +72,14 @@ def approve(db, draft, actor, *, human_fact_checked=False):
     story=db.get(Story,draft.story_id)
     if not story or story.verification_status!="verified" or not evidence_ready(story):
         raise ValueError("Berita belum lolos verifikasi klaim. Approval ditolak.")
-    if not draft.rights_reviewed or not (draft.image_url or draft.image_local_path) or not draft.photo_license:
-        raise ValueError("Hak foto dan URL gambar final belum diverifikasi.")
-    # The public Instagram caption now explicitly cites the real photographer.
-    from .instagram import photo_credit_line
-    photo_credit_line(draft)
+    # Approval is the *single* human editorial action. Do not require a second
+    # "verify photo rights" click: credits/license metadata are preserved and
+    # displayed when available, not fabricated or represented as verified.
+    # A real final 4:5 cover is still necessary to fulfil the posting handoff.
+    if not (draft.image_url or draft.image_local_path):
+        raise ValueError("Cover final belum tersedia. Pilih Buat Cover atau Ganti Foto dahulu.")
     if draft.image_url and not draft.image_url.startswith("https://"):
-        raise ValueError("URL gambar Instagram wajib HTTPS.")
+        raise ValueError("URL cover final wajib HTTPS.")
     issues=lint(draft.highlight,draft.caption,draft.hashtags,tragedy=bool(draft.is_tragedy))
     if issues: raise ValueError("Aturan editorial belum terpenuhi: "+", ".join(issues))
     prior_qc=db.query(Audit).filter(Audit.draft_id==draft.id,Audit.event=='editorial_qc').first()
