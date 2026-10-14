@@ -75,3 +75,10 @@ Measured from the original 1080×1350 owner examples, not guessed from the v0.5 
 - Pilih warna hijau `#95F21E` pada hingga tiga kelompok kata penting yang boleh terpisah jauh, berdasarkan **subjek → tindakan → fenomena**. Setiap kelompok dapat satu atau dua kata. Contoh: `KAMERA ROBOTIK` / `MEREKAM` / `AURORAL`. Kata lain, termasuk `LINGKARAN`, tetap putih pada contoh tersebut.
 - Jangan mengubah kata `AURORAL` menjadi `AURORA` hanya demi aksen visual. Teks editorial, fakta, dan aturan approval tetap tidak berubah.
 - Render cover lama harus memperbarui aksen usang otomatis dan membatalkan approval versi sebelumnya.
+
+## 11. Aturan terbaru — empat baris dengan ukuran font responsif
+
+- **Headline wajib tepat empat baris**, termasuk cerita panjang. Tidak ada mode fallback otomatis menjadi lima baris.
+- Ukuran **League Spartan Bold 700** dipilih otomatis sebesar mungkin yang masih muat di area headline tetap (x=56–1024, y=981–1307), sambil menjaga tracking `-47` dan line spacing `1.05`.
+- Jika teks bahkan tidak muat pada ukuran minimum yang masih terbaca, bot wajib meminta revisi hook, **bukan** mengecilkan font sampai tak terbaca, mengubah kata, atau membuat baris kelima.
+- Referensi visual Mars/piramida adalah panduan bentuk glyph dan ritme; jumlah barisnya tidak mengubah persyaratan empat baris terbaru.
