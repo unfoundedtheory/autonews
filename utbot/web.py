@@ -75,6 +75,12 @@ def cron_prepare():
     from .runner import do_prepare
     return {'prepared':do_prepare()}
 
+@app.get('/cron/prepare/afternoon', dependencies=[Depends(cron_auth)])
+def cron_prepare_afternoon():
+    """Second daily batch to grow the editorial stock without extra publishing."""
+    from .runner import do_prepare
+    return {'prepared':do_prepare()}
+
 @app.get('/cron/tick/{slot}', dependencies=[Depends(cron_auth)])
 def cron_tick(slot: str):
     """Publish only pre-approved eligible drafts around 06/12/18 WIB."""
