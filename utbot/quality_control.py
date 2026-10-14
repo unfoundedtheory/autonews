@@ -123,7 +123,7 @@ def review_style(highlight, caption, evidence, *, tragedy=False, llm=None):
             'guide_sha256':editorial_guide_sha256()}
 
 
-def run_draft_qc(db,draft,story,*,llm=None):
+def run_draft_qc(db,draft,story,*,llm=None,trigger=None):
     """Recheck final draft, including hand-edited text; persist explicit failure."""
     from .models import Audit
     report=assess(draft.highlight,draft.caption,draft.hashtags,
@@ -143,11 +143,12 @@ def run_draft_qc(db,draft,story,*,llm=None):
     report['checks']=style.get('checks',{}) if style else {}
     report['note']=report.get('note',style.get('note','') if style else '')
     report['version']=draft.version
+    if trigger:report['trigger']=str(trigger)[:60]
     report['rubric_version']=QC_RUBRIC_VERSION
     report['guide_sha256']=editorial_guide_sha256()
     report['status']='passed_automated' if report['passed'] else 'needs_manual_review'
     report['style_review']='passed' if style and style['passed'] else 'rejected'
-    db.add(Audit(draft_id=draft.id,event='editorial_qc',actor='worker',detail=dict(report)))
+    db.add(Audit(draft_id=draft.id,event='editorial_qc',actor=trigger or 'worker',detail=dict(report)))
     db.flush()
     return report
 
