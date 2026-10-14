@@ -68,3 +68,10 @@ Measured from the original 1080×1350 owner examples, not guessed from the v0.5 
 - The logo is reused from the uploaded owner reference as an **extracted staging bitmap** at `utbot/assets/reference_badge.png`; replace it with the owner's original transparent vector/PNG when supplied, but do not change the bounding box. The bitmap is bundled as package data so installed-wheel rendering keeps the correct visual identity.
 - All previews use the reference image's actual pixels, cropped to remove previously baked-in text. **Never regenerate scientific-looking image content using AI**. That owner-reference preview is a layout-only asset and is not cleared for publication.
 - Regression tests must verify the fixed badge area for 4- and 5-line posts, fixed headline top, visual-safe width, and distinct word spacing.
+
+## 10. Koreksi pemilik — League Spartan Bold 700 dan aksen tersebar
+
+- Headline menggunakan font Google Fonts **League Spartan Bold 700** (bukan Black 900 dan bukan Anton), tracking **-47** atau `-0.047em`, leading **1.05**. Jangan biarkan environment override mengganti famili font.
+- Pilih warna hijau `#95F21E` pada hingga tiga kelompok kata penting yang boleh terpisah jauh, berdasarkan **subjek → tindakan → fenomena**. Setiap kelompok dapat satu atau dua kata. Contoh: `KAMERA ROBOTIK` / `MEREKAM` / `AURORAL`. Kata lain, termasuk `LINGKARAN`, tetap putih pada contoh tersebut.
+- Jangan mengubah kata `AURORAL` menjadi `AURORA` hanya demi aksen visual. Teks editorial, fakta, dan aturan approval tetap tidak berubah.
+- Render cover lama harus memperbarui aksen usang otomatis dan membatalkan approval versi sebelumnya.
