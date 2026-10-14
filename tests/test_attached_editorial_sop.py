@@ -52,6 +52,10 @@ def test_rewrite_and_style_review_receive_user_sop(monkeypatch):
     assert 'Toolkit Hook' in recorded['system']
     result=review_style(draft.highlight,draft.caption,
                         [{'claim':'satu','quote':'a'}, {'claim':'dua','quote':'b'}],
-                        llm=lambda system,data:({'passed':True,'issues':[],'note':'lolos'}
+                        llm=lambda system,data:({'passed':True,'issues':[],'note':'Lolos SOP lengkap','checks':{
+        'curiosity_gap':{'passed':True,'reason':'Sumber sinyal aneh tetap belum dijawab oleh headline','unanswered_question':'Dari manakah sinyal aneh itu benar-benar berasal?'},
+        'reader_relevance':{'passed':True,'reason':'Sinyal aneh membuka pertanyaan penelitian sains baru'},
+        'caption_story':{'passed':True,'reason':'Caption memiliki alur pengamatan, pivot dan penutup yang relevan'},
+        'fact_integrity':{'passed':True,'reason':'Tidak ada angka atau temuan pasti di luar kutipan'}}}
                             if 'Hook di setiap paragraf' in system else {'passed':False,'issues':['missing_sop']}))
     assert result['passed']

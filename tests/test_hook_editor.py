@@ -33,3 +33,20 @@ def test_bland_mission_lead_fails_editorial_qc():
                   draft.caption,draft.hashtags,make_story().evidence)
     assert not review['passed']
     assert 'hook_factual_summary_not_curiosity_gap' in review['issues']
+
+
+def test_mars_year_summary_does_not_pass_curiosity_gap():
+    title='Mengapa Satu Tahun Penuh di Planet Merah Berlangsung Selama Hampir Dua Kali Lipat Waktu Bumi'
+    d=make_draft()
+    result=assess(title,d.caption,d.hashtags,make_story().evidence,check_cover=False)
+    assert not result['passed']
+    assert 'hook_explains_answer_in_title' in result['issues']
+
+
+def test_shallow_independent_qc_is_not_a_pass():
+    import pytest
+    from utbot.quality_control import review_style
+    d=make_draft()
+    with pytest.raises(ValueError,match='rubrik'):
+        review_style(d.highlight,d.caption,make_story().evidence,
+                     llm=lambda *_:{'passed':True,'issues':[]})
