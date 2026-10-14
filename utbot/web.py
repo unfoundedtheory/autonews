@@ -414,16 +414,16 @@ def telegram_webhook(payload:dict,db=Depends(session)):
         elif action=='test_gemini':
             send(gemini_test_message(),True)
         elif action=='home':
-            send('🛰 Unfounded Theory Newsroom\\nPilih menu di bawah.',True)
+            send('🛰 Unfounded Theory Newsroom\nPilih menu di bawah.',True)
         elif action=='status':
             from sqlalchemy import func
             groups=db.execute(select(Draft.status,func.count(Draft.id)).group_by(Draft.status)).all()
-            send('📊 Status redaksi\\n'+('\\n'.join(f'{s}: {n}' for s,n in groups) or 'Belum ada berita'),True)
+            send('📊 Status redaksi\n'+('\n'.join(f'{s}: {n}' for s,n in groups) or 'Belum ada berita'),True)
         elif action=='pending':
             show_pending(pending_index)
         else:
             rows=db.execute(select(Draft).where(Draft.status=='approved',Draft.scheduled_at.is_not(None)).order_by(Draft.scheduled_at).limit(15)).scalars().all()
-            send('📅 Jadwal WIB\\n'+('\\n'.join(f'{d.scheduled_at.astimezone(WIB):%d/%m %H:%M} - {d.highlight}' for d in rows) or 'Belum ada antrean'),True)
+            send('📅 Jadwal WIB\n'+('\n'.join(f'{d.scheduled_at.astimezone(WIB):%d/%m %H:%M} - {d.highlight}' for d in rows) or 'Belum ada antrean'),True)
         if bot and action not in ('test_news','test_cover'):bot.answer(cb.get('id'),'Diperbarui')
         return {'ok':True,'menu':action}
     if cb:
