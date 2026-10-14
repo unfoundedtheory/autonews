@@ -48,3 +48,23 @@ Admin commands: `/help`, `/pending`, `/queue`, `/status`. In each draft: review 
 The owner selected Instagram **4:5 feed photo with native Instagram music**, NOT a Reel. The standard Graph API image container does not accept licensed catalog audio. Use `PHOTO_MUSIC_MODE=manual` and keep `ENABLE_LIVE_PUBLISH=false` while onboarding. Scheduled approved stories are sent as a Telegram posting kit; the operator uploads the original 4:5 photo and uses Instagram's Add Music flow, then confirms a valid `/p/<code>/` URL to the bot. This confirmation is explicitly user-attested and does not prove that the music was applied. Do not switch to silent photo API publication without a deliberate explicit change to `PHOTO_MUSIC_MODE=off`.
 
 Facebook Page auto-post is a distinct optional API action; link an actual Page with permissions and test read-only `GET /api/internal/meta/connection` before setting `FACEBOOK_CROSSPOST=true`. Check whether Meta Business Suite/Instagram already shares to Facebook so there is exactly ONE posting method. There is NO automatic transfer of the native Instagram track to a Facebook Page photo through the Graph API. On ambiguous Facebook POST results, audit records `facebook_uncertain` and never retries.
+
+
+## Single-click approval QC recovery (2026-10-14)
+
+Telegram **Approve** first verifies the draft status/version, source/facts and final
+cover, then runs independent Gemini editorial QC **on the same click** only when
+the current automated QC is missing, outdated or incomplete. Current passed QC
+is cached to stay within free-tier API limits. Failed QC remains failed and
+is saved before the approval attempt returns; no scheduled posting is created.
+The Telegram message describes the concrete content issue or temporary AI
+unavailability instead of exposing \`independent_style_qc_not_recorded\`.
+A repeat click for the same draft version does not repeat a failed Gemini call.
+The **Hasil QC** button is still available for an explicit retry after resolving
+a temporary issue. Any headline/caption revision increments the draft version
+and invalidates prior QC/approval, so the next approval requires fresh QC.
+
+Pure manual imports with no automated provenance retain the existing human
+editorial review path, but must still pass trusted-source fact checks, format
+lint and final cover readiness. One click never bypasses a real failed
+independent style review and never auto-publishes to Instagram.
