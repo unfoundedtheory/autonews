@@ -95,7 +95,7 @@ def cron_tick(slot: str):
 
 @app.get('/cron/maintenance', dependencies=[Depends(cron_auth)])
 def cron_maintenance():
-    """Hourly review of elapsed approvals and delivery of prepared music kits."""
+    """Daily maintenance on Vercel Hobby; posting ticks also review 24h eligibility."""
     from .runner import do_maintenance
     return do_maintenance()
 
