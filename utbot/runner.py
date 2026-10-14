@@ -34,15 +34,34 @@ def do_prepare():
         def notify(d):
             if bot:
                 send_preview(bot, CONFIG.chat_id, d, db.get(Story, d.story_id))
-        result = prepare_batch(db, limit=3, notifier=notify)
+        from .stock_flow import stock_to_prepare
+        quota = stock_to_prepare(db)
+        if quota <= 0:
+            log.info('draft stock target reached; skipping additional AI calls')
+            return []
+        result = prepare_batch(db, limit=quota, notifier=notify)
         log.info('prepared=%s', result)
         return result
 
 def do_reschedule():
     with Session() as db:
+        from .stock_flow import auto_approve_overdue
+        auto_approve_overdue(db)
         result = schedule_approved(db, daily_limit=CONFIG.daily_limit)
         db.commit()
         return result
+
+def do_maintenance():
+    """Hourly read-only editorial eligibility and early music-kit delivery.
+
+    May *approve* QC-passed drafts after 24 hours, but NEVER publishes here.
+    """
+    from .stock_flow import auto_approve_overdue, dispatch_approved_kits
+    bot = TelegramClient(CONFIG.telegram_token) if CONFIG.telegram_token else None
+    with Session() as db:
+        decisions = auto_approve_overdue(db)
+        kits = dispatch_approved_kits(db, bot, CONFIG.chat_id)
+        return {'timeout':decisions, 'music_kits':kits}
 
 def do_publish():
     # Reuse the exact publication gate, idempotency and uncertainty handling of the API.

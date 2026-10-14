@@ -37,17 +37,19 @@ def manual_music_message(draft,story):
     if not draft.image_url or not draft.image_url.startswith("https://"):
         raise ValueError('Cover HTTPS final belum siap untuk posting dengan musik.')
     return (
-        '🎵 SIAP POSTING FEED + MUSIK\n\n'
+        '📦 PAKET DRAFT INSTAGRAM + MUSIK\n\n'
         f'Draf: {draft.id[:8]} • v{draft.version}\n'
         'Format: feed foto 4:5 (bukan Reel)\n'
         f'Musik: pilih di Instagram ({mood_for(getattr(story,"topic",None))})\n\n'
-        '1. Buka Instagram → + → Post.\n'
-        '2. Gunakan cover dari tautan berikut, lalu pilih Add music.\n'
-        '3. Tempel caption yang dikirim bot (termasuk kredit dan hashtag).\n'
-        '4. Publikasikan lalu kirim tautan posting ke bot untuk konfirmasi.\n\n'
+        '1. Simpan cover dari foto Telegram atau tautan berikut.\n'
+        '2. Instagram → + → Post → pilih foto 4:5 → Add music.\n'
+        '3. Tempel caption yang dikirim bot termasuk kredit dan hashtag.\n'
+        '4. Simpan sebagai Drafts di Instagram, JANGAN terbitkan dulu.\n'
+        '5. Saat jadwal tiba, buka Drafts dan terbitkan, lalu konfirmasi URL ke Telegram.\n\n'
         'Cover: '+draft.image_url+'\n\n'
         'Catatan: audio dipilih manual; API feed foto tidak menambahkan lagu. '
-        'Bot TIDAK akan memublikasikan versi tanpa musik.'
+        'Untuk draf yang sudah disetujui Anda, bot TIDAK memublikasikan foto tanpa musik. '
+        'Fallback 24 jam hanya berlaku pada berita yang belum mendapat approval dan lolos seluruh pengaman.'
     )
 
 def manual_music_caption(draft):

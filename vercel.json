@@ -10,6 +10,10 @@
       "schedule": "0 20 * * *"
     },
     {
+      "path": "/api/cron/prepare/afternoon",
+      "schedule": "0 8 * * *"
+    },
+    {
       "path": "/api/cron/tick/morning",
       "schedule": "0 23 * * *"
     },
@@ -20,6 +24,10 @@
     {
       "path": "/api/cron/tick/evening",
       "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/cron/maintenance",
+      "schedule": "0 * * * *"
     }
   ],
   "functions": {

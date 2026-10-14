@@ -75,6 +75,12 @@ def cron_prepare():
     from .runner import do_prepare
     return {'prepared':do_prepare()}
 
+@app.get('/cron/prepare/afternoon', dependencies=[Depends(cron_auth)])
+def cron_prepare_afternoon():
+    """Second daily batch to grow the editorial stock without extra publishing."""
+    from .runner import do_prepare
+    return {'prepared':do_prepare()}
+
 @app.get('/cron/tick/{slot}', dependencies=[Depends(cron_auth)])
 def cron_tick(slot: str):
     """Publish only pre-approved eligible drafts around 06/12/18 WIB."""
@@ -86,6 +92,12 @@ def cron_tick(slot: str):
     publication=do_publish()
     scheduled=do_reschedule()
     return {'queued':len(scheduled),'publication':publication}
+
+@app.get('/cron/maintenance', dependencies=[Depends(cron_auth)])
+def cron_maintenance():
+    """Hourly review of elapsed approvals and delivery of prepared music kits."""
+    from .runner import do_maintenance
+    return do_maintenance()
 
 @app.get('/health')
 def health():return {'status':'ok','live_publish':CONFIG.live_publish}
@@ -648,8 +660,19 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                      '\nPertanyaan tersisa: '+str(gap.get('unanswered_question') or 'Belum ditemukan')[:180]+
                      '\nPenjelasan: '+str(gap.get('reason') or report.get('note') or '-')[:220]+
                      '\nPeriksa manual: '+', '.join(report.get('manual_checks',[])))
+            elif action=='musickit':
+                from .stock_flow import send_music_kit, is_auto_approved
+                if (d.status!='approved' or is_auto_approved(db,d)
+                    or d.publish_state not in ('unpublished','manual_music_pending')):
+                    raise ValueError('Paket musik hanya untuk berita yang disetujui secara manual.')
+                send_music_kit(db,d,st,bot,chat_id,force=True)
+                send('📦 Paket Instagram Drafts dikirim ulang. Simpan foto dan caption, lalu pilih musik di Instagram.')
             elif action=='musicdone':
-                if d.status!='approved' or d.publish_state!='manual_music_pending':
+                from .stock_flow import music_kit_sent, is_auto_approved
+                if (d.status!='approved'
+                    or is_auto_approved(db,d)
+                    or not (d.publish_state=='manual_music_pending' or
+                            (d.publish_state=='unpublished' and music_kit_sent(db,d)))):
                     raise ValueError('Belum ada kiriman musik manual yang menunggu konfirmasi.')
                 prior=db.get(TelegramSession,str(uid))
                 if prior:db.delete(prior);db.flush()
@@ -661,7 +684,10 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                      'Bot akan mencatat konfirmasi Anda dan tidak akan memposting ulang. '
                      'Ketik /cancel jika belum selesai.')
             elif action=='musiccancel':
-                if d.status!='approved' or d.publish_state!='manual_music_pending':
+                from .stock_flow import music_kit_sent, is_auto_approved
+                if (d.status!='approved' or is_auto_approved(db,d) or
+                    not (d.publish_state=='manual_music_pending' or
+                         (d.publish_state=='unpublished' and music_kit_sent(db,d)))):
                     raise ValueError('Hanya handoff yang belum dikonfirmasi dapat dibatalkan.')
                 d.publish_state='unpublished'
                 d.version+=1
@@ -696,6 +722,17 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 db.commit()
                 at=d.scheduled_at.astimezone(WIB).strftime('%d %b %Y %H:%M WIB') if d.scheduled_at else 'belum tersedia'
                 send('✅ Disetujui setelah QC untuk versi '+str(d.version)+'. Jadwal: '+at)
+                if CONFIG.photo_music_mode=='manual':
+                    from .stock_flow import send_music_kit
+                    try:
+                        send_music_kit(db,d,st,bot,chat_id)
+                        send('📦 Cover dan caption sudah dikirim. Simpan sebagai Draft Instagram '
+                             'dan tambahkan musik. Bot mengingatkan saat jadwal posting.')
+                    except (ValueError,RuntimeError,OSError,httpx.HTTPError) as kit_error:
+                        db.rollback()
+                        send('⚠️ Approval dan jadwal tetap tersimpan, tetapi paket Draft Instagram '
+                             'belum terkirim: '+type(kit_error).__name__+
+                             '. Bot akan mencoba kembali saat pemeriksaan berkala.')
             elif action=='reject':
                 if d.status=='published' or d.publish_state in {'publishing','published','uncertain','awaiting_container'}:
                     raise ValueError('Posting sudah terbit atau sedang diproses, tidak dapat ditolak.')
@@ -808,7 +845,10 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         send('Foto diterima. Balas dua baris seperti ini:\nKredit: NASA/Chandra\nLisensi: Public domain\nTambahkan URL sumber jika ada. /cancel untuk batal.')
                         return {'ok':True,'awaiting':'photo_credit'}
                     if sess.mode=='music_post_link':
-                        if d.status!='approved' or d.publish_state!='manual_music_pending':
+                        from .stock_flow import music_kit_sent, is_auto_approved
+                        if (d.status!='approved' or is_auto_approved(db,d) or
+                            not (d.publish_state=='manual_music_pending' or
+                                 (d.publish_state=='unpublished' and music_kit_sent(db,d)))):
                             raise ValueError('Handoff musik tidak lagi menunggu konfirmasi.')
                         link=instagram_post_url(txt)
                         d.status='published'
@@ -903,14 +943,16 @@ def _manual_photo_music_handoff(db):
     if not CONFIG.telegram_token or not CONFIG.chat_id:
         return {'manual_music':'blocked','reason':'Telegram credentials missing'}
     now=datetime.now(timezone.utc)
+    from .stock_flow import is_auto_approved, send_music_kit, music_kit_sent
     q=select(Draft).where(
         Draft.status=='approved',Draft.approved_version==Draft.version,
         Draft.publish_state=='unpublished',
         Draft.scheduled_at.is_not(None),Draft.scheduled_at<=now
-    ).order_by(Draft.scheduled_at).limit(1)
+    ).order_by(Draft.scheduled_at).limit(30)
     if db.bind.dialect.name=='postgresql':
         q=q.with_for_update(skip_locked=True)
-    d=db.execute(q).scalars().first()
+    candidates=db.execute(q).scalars().all()
+    d=next((row for row in candidates if not is_auto_approved(db,row)), None)
     if not d:return {'manual_music':'none_due'}
     # Native music requires a human Instagram posting step, not another
     # separate Telegram photo-rights click.
@@ -919,13 +961,12 @@ def _manual_photo_music_handoff(db):
     try:
         if not d.image_url and d.image_local_path:
             d.image_url=upload_public_jpeg(d.image_local_path,f'{d.id}/v{d.version}.jpg')
-        caption=manual_music_caption(d)
-        message=manual_music_message(d,db.get(Story,d.story_id))
         bot=TelegramClient(CONFIG.telegram_token)
-        bot.message(CONFIG.chat_id,message)
-        bot.message(CONFIG.chat_id,'📝 CAPTION SIAP SALIN\n\n'+caption)
-        bot.message(CONFIG.chat_id,'Sudah menambahkan musik dan posting di Instagram? '
-                    'Tekan konfirmasi lalu kirim tautan post.',{
+        if not music_kit_sent(db,d):
+            send_music_kit(db,d,db.get(Story,d.story_id),bot,CONFIG.chat_id)
+        bot.message(CONFIG.chat_id,'⏰ PENGINGAT JADWAL POSTING\n\n'
+                    'Buka Drafts Instagram, pilih foto + musik yang sudah disimpan, '
+                    'publikasikan secara manual, lalu konfirmasi URL posting ke bot.',{
             'inline_keyboard':[[{
                 'text':'🎵 Konfirmasi Post Instagram',
                 'callback_data':f'musicdone:{d.id}:{d.version}'
@@ -946,11 +987,15 @@ def _manual_photo_music_handoff(db):
 
 @app.post('/jobs/publish',dependencies=[Depends(worker_auth)])
 def publish_job(db=Depends(session)):
-    if CONFIG.photo_music_mode=='manual':
-        return _manual_photo_music_handoff(db)
-    if CONFIG.photo_music_mode!='off':
+    manual_mode=CONFIG.photo_music_mode=='manual'
+    if manual_mode:
+        reminder=_manual_photo_music_handoff(db)
+        if reminder.get('manual_music')!='none_due':
+            return reminder
+    elif CONFIG.photo_music_mode!='off':
         return {'blocked':'Invalid PHOTO_MUSIC_MODE'}
     if not CONFIG.live_publish:
+        if manual_mode:return {'manual_music':'none_due', 'live_publish':False}
         return {'live_publish':False,'due_count':len(due(db)),
                 'note':'DRY RUN: tidak ada permintaan dikirim ke Instagram'}
     if not CONFIG.brand_logo or not Path(CONFIG.brand_logo).is_file():
@@ -960,9 +1005,14 @@ def publish_job(db=Depends(session)):
     # Single-worker deployment is mandatory with SQLite; Postgres supports skip_locked.
     q=select(Draft).where(Draft.status=='approved',Draft.approved_version==Draft.version,
           Draft.publish_state.in_(['unpublished','awaiting_container']),
-          Draft.scheduled_at <= datetime.now(timezone.utc)).order_by(Draft.scheduled_at).limit(1)
+          Draft.scheduled_at <= datetime.now(timezone.utc)).order_by(Draft.scheduled_at).limit(30 if manual_mode else 1)
     if db.bind.dialect.name=='postgresql':q=q.with_for_update(skip_locked=True)
-    d=db.execute(q).scalars().first()
+    rows=db.execute(q).scalars().all()
+    if manual_mode:
+        from .stock_flow import is_auto_approved
+        d=next((row for row in rows if is_auto_approved(db,row)),None)
+    else:
+        d=rows[0] if rows else None
     if not d:return {'due':0}
     if d.expires_at:
         expires=d.expires_at.replace(tzinfo=timezone.utc) if d.expires_at.tzinfo is None else d.expires_at
@@ -973,7 +1023,9 @@ def publish_job(db=Depends(session)):
         d.last_error='Gambar final belum tersedia';db.commit()
         return {'blocked':d.id,'error':d.last_error}
     if not d.rights_reviewed:
-        return {'blocked':d.id,'error':'Hak foto belum dikonfirmasi'}
+        from .stock_flow import photo_auto_safe, is_auto_approved
+        if not (manual_mode and is_auto_approved(db,d) and photo_auto_safe(d)):
+            return {'blocked':d.id,'error':'Hak foto belum dikonfirmasi'}
     # Lock claim before ANY external request. Stuck publishing requires manual reconciliation.
     d.publish_state='publishing';db.commit()
     bot=_bot()

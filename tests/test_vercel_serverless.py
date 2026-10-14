@@ -12,9 +12,11 @@ def test_cron_schedules_wib():
     assert [(c['path'],c['schedule']) for c in crons] == [
       ('/api/cron/discover','0 18 * * *'),
       ('/api/cron/prepare','0 20 * * *'),
+      ('/api/cron/prepare/afternoon','0 8 * * *'),
       ('/api/cron/tick/morning','0 23 * * *'),
       ('/api/cron/tick/noon','0 5 * * *'),
-      ('/api/cron/tick/evening','0 11 * * *')]
+      ('/api/cron/tick/evening','0 11 * * *'),
+      ('/api/cron/maintenance','0 * * * *')]
 
 def test_cron_secret_validation(monkeypatch):
     monkeypatch.setenv('CRON_SECRET','secret-local-test')

@@ -5,13 +5,15 @@ from .instagram import caption_text
 
 def keyboard(draft):
     ref=draft.id;v=draft.version
-    if draft.status=='approved' and draft.publish_state=='manual_music_pending':
-        return {'inline_keyboard':[
+    if (draft.status=='approved' and draft.publish_state in ('unpublished','manual_music_pending')
+        and not str(draft.approved_by or '').startswith('system:24h_timeout')):
+        music_rows=[
+            [{'text':'📦 Kirim Paket Instagram','callback_data':f'musickit:{ref}:{v}'}],
             [{'text':'🎵 Konfirmasi Post Instagram','callback_data':f'musicdone:{ref}:{v}'}],
-            [{'text':'↩️ Batalkan & Revisi','callback_data':f'musiccancel:{ref}:{v}'}],
-            [{'text':'🔎 Sumber','callback_data':f'sources:{ref}:{v}'}]
-        ]}
-    rows=[
+            [{'text':'↩️ Batalkan & Revisi','callback_data':f'musiccancel:{ref}:{v}'}]]
+    else:
+        music_rows=[]
+    rows=music_rows+[
         [{'text':'✅ Approve','callback_data':f'approve:{ref}:{v}'},
          {'text':'❌ Tolak','callback_data':f'reject:{ref}:{v}'}],
         [{'text':'✨ Hook Alternatif','callback_data':f'hookideas:{ref}:{v}'},
