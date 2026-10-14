@@ -15,6 +15,13 @@ def publish_facebook_once(db,draft,*,actor="worker",poster=None,config=None):
         return {'facebook':'disabled'}
     if not config.facebook_page_id or not config.facebook_page_token:
         return {'facebook':'not_configured'}
+    # Serialize concurrent Page posts for the same draft in PostgreSQL. Once
+    # facebook_publish_started is committed, no worker may retry blindly.
+    if db.bind.dialect.name=='postgresql':
+        from sqlalchemy import text
+        import hashlib
+        key=int.from_bytes(hashlib.sha256(draft.id.encode()).digest()[:8],'big',signed=True)
+        db.execute(text('SELECT pg_advisory_xact_lock(:key)'),{'key':key})
     previous=db.query(Audit).filter(
         Audit.draft_id==draft.id,
         Audit.event.in_(['facebook_publish_started','facebook_published','facebook_uncertain'])
