@@ -437,7 +437,20 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     raise ValueError('Hanya draf yang belum disetujui dapat mencari ulang cover.')
                 from .renderer import require_cover_fit
                 require_cover_fit(d.highlight,CONFIG.font_path)
-                if bot:bot.answer(cb_id,'Mencari kandidat Wikimedia')
+                if bot:bot.answer(cb_id,'Mencari foto dari artikel resmi')
+                from .cover_recovery import recover_article_cover
+                try:
+                    recover_article_cover(db,d,st,actor=uid)
+                    db.commit()
+                    if bot:send_preview(bot,chat_id,d,st)
+                    send('🖼 Cover 4:5 berhasil dibuat dari artikel resmi. '
+                         'Isi kredit dan lisensi foto, lalu lakukan Verifikasi Hak Foto sebelum Approve.')
+                    return {'ok':True,'cover':'official_article'}
+                except (ValueError,RuntimeError,httpx.HTTPError,OSError) as hero_error:
+                    db.rollback()
+                    d=db.get(Draft,ident)
+                    send('ℹ️ Foto utama artikel belum bisa dipakai: '+str(hero_error)[:150]+
+                         '. Mencari alternatif Wikimedia yang berlisensi.')
                 from .photo_relevance import search_queries,likely_same_subject
                 from .media import find_photos
                 choices=[]
@@ -511,6 +524,17 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                        f'URL lisensi: {d.image_license_url}']
                 for e in (st.evidence or [])[:8]:lines.append(f'Klaim: {e.get("claim")}\nKutipan sumber: {e.get("quote","(manual import)")}\n{e.get("url")}')
                 send('\n\n'.join(lines)[:4000])
+            elif action=='credit':
+                if not (d.source_image_url or d.image_url):
+                    raise ValueError('Pilih foto sebelum mengisi kredit dan lisensi.')
+                sess=db.get(TelegramSession,str(uid))
+                if sess:db.delete(sess);db.flush()
+                db.add(TelegramSession(user_id=str(uid),draft_id=d.id,mode='photo_credit',version=d.version))
+                db.commit()
+                send('🧾 Periksa artikel sumber dan lisensi foto. Balas dengan:\\n'
+                     'Kredit: Nama pemilik/kreator\\nLisensi: Nama lisensi/hak penggunaan\\n'
+                     'Sumber: https://...\\n\\n'
+                     'Jangan menganggap foto NASA/ESA otomatis bebas hak cipta. Setelah itu gunakan Verifikasi Hak Foto.')
             elif action=='rights':
                 if not (d.source_image_url or d.image_url) or not d.photo_license or not d.image_credit:
                     raise ValueError('Foto, kredit, dan lisensi harus lengkap sebelum konfirmasi.')

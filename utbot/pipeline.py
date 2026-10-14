@@ -16,7 +16,7 @@ from .quality_control import assess,review_style
 from .renderer import cover_fits
 from .hook_editor import cover_fit_alternative
 from .config import CONFIG
-from .media import find_photos,intake_image,render_draft
+from .media import find_photos,intake_image,render_draft,find_article_photo
 from .ai_provider import generate_json
 from .photo_relevance import likely_same_subject,search_queries
 
@@ -280,6 +280,28 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
 
     except (httpx.HTTPError,ValueError,OSError,RuntimeError) as exc:
         d.last_error='Foto memerlukan pemeriksaan editor: '+str(exc)[:250]
+    # Wikimedia often returns 403 or cannot match an obscure mission.
+    # Prefer the hero image embedded in the EXACT trusted primary article,
+    # never a random stock image. Its copyright remains unverified.
+    if not (d.image_url or d.image_local_path):
+        try:
+            hero=find_article_photo(story.source_url)
+            if hero:
+                src=Path(CONFIG.media_dir)/d.id/'article_source.jpg'
+                d.source_image_path=image_intake(hero['image_url'],str(src))
+                d.source_image_url=hero['image_url']
+                d.media_page_url=hero['page_url']
+                d.image_credit=None
+                d.photo_license=None
+                d.image_license_url=None
+                d.rights_reviewed=False
+                render_draft(d)
+                d.last_error=None
+        except (httpx.HTTPError,ValueError,OSError,RuntimeError) as exc:
+            d.image_url=None
+            d.image_local_path=None
+            message='Foto utama dari artikel resmi gagal: '+str(exc)[:150]
+            d.last_error=((d.last_error or '')+' | '+message).strip(' |')[:490]
     db.flush()
     return d
 

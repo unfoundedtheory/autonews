@@ -6,14 +6,56 @@ require a human rights review even when their machine-readable license appears s
 import html
 import re
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse,urljoin
 from PIL import Image, UnidentifiedImageError
 import httpx
+from bs4 import BeautifulSoup
+from .editorial import trusted_source
 from .config import CONFIG
 
 COMMONS_API='https://commons.wikimedia.org/w/api.php'
 # Editorial redistribution is permitted by these licenses when attribution/other terms are satisfied.
 LICENSE_ALLOW={'CC0','CC BY 4.0','CC BY 3.0','CC BY 2.0','CC BY-SA 4.0','CC BY-SA 3.0','CC BY-SA 3.0 IGO','CC BY-SA 2.0','Public domain','PD-old','PD-USGov','PDM 1.0'}
+
+def find_article_photo(article_url,transport=None):
+    """Candidate hero image *from the exact official source article*.
+
+    This is only a preview candidate, not proof of reuse rights. Credits and
+    licensing must be supplied by the human editor before final approval.
+    """
+    if not trusted_source(article_url):
+        raise ValueError('Foto artikel hanya boleh dicari dari sumber primer resmi.')
+    with httpx.Client(timeout=16,follow_redirects=False,transport=transport,
+                      headers={'User-Agent':'UnfoundedTheoryEditorialBot/0.7 (official-source preview)'}) as client:
+        response=client.get(article_url)
+        response.raise_for_status()
+        typ=response.headers.get('content-type','').split(';')[0].strip().lower()
+        if typ not in ('text/html','application/xhtml+xml'):
+            raise ValueError('Artikel resmi tidak menyediakan HTML untuk foto.')
+        if len(response.content)>2_000_000:
+            raise ValueError('HTML artikel melebihi batas.')
+    soup=BeautifulSoup(response.text,'html.parser')
+    candidates=[]
+    for key,attr in (('og:image','property'),('twitter:image','name'),
+                     ('og:image:url','property'),('twitter:image:src','name')):
+        for meta in soup.find_all('meta',attrs={attr:key}):
+            url=urljoin(article_url,(meta.get('content') or '').strip())
+            if url.startswith('https://') and url not in candidates:
+                candidates.append(url)
+    for url in candidates:
+        parsed=urlparse(url)
+        if parsed.scheme!='https' or not parsed.hostname or parsed.port not in (None,443):
+            continue
+        # Generic share/logo artwork is not an article image.
+        lower=parsed.path.casefold()
+        if any(word in lower for word in ('logo','favicon','default-share','placeholder','avatar','social-share')):
+            continue
+        return {'image_url':url,'original_url':url,'page_url':article_url,
+                'title':(soup.title.get_text(' ',strip=True) if soup.title else 'Foto artikel sumber')[:160],
+                'credit':None,'license':None,'license_url':None,
+                'description':'Foto artikel sumber; wajib cek pemilik, kredit, lisensi, dan kesesuaian.'}
+    return None
+
 
 def plain(s):
     return re.sub(r'\s+',' ',html.unescape(re.sub('<[^>]+>',' ',s or ''))).strip()
