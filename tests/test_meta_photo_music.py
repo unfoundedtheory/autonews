@@ -77,11 +77,12 @@ def test_due_approval_sends_one_manual_handoff_without_meta_publish(monkeypatch)
         out=web.publish_job(db=db)
         assert out['manual_music']=='awaiting_editor'
         assert db.get(Draft,d.id).publish_state=='manual_music_pending'
-        assert len(sent)==3
+        assert len(sent)==4
+        assert 'PENGINGAT JADWAL POSTING' in sent[-1][1]
         assert 'CAPTION SIAP SALIN' in sent[1][1]
         assert sent[2][2]['inline_keyboard'][0][0]['callback_data'].startswith('musicdone:')
         assert web.publish_job(db=db)['manual_music']=='none_due'
-        assert len(sent)==3
+        assert len(sent)==4
         assert db.query(Audit).filter_by(draft_id=d.id,event='manual_music_handoff').count()==1
     finally:
         db.close()
