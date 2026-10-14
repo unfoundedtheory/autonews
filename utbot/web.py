@@ -333,8 +333,8 @@ def _replace_photo(db,d,url,uid,*,details=None):
     photo_path=intake_image(url,str(src))
     revise(db,d,'source_image_url',url,uid)
     d.source_image_path=photo_path
-    d.image_credit=(details or {}).get('credit') or 'Kredit foto: perlu diisi oleh editor'
-    d.photo_license=(details or {}).get('license') or 'Editor-supplied; explicit rights confirmation required'
+    d.image_credit=(details or {}).get('credit') or None
+    d.photo_license=(details or {}).get('license') or None
     d.image_license_url=(details or {}).get('license_url')
     d.media_page_url=(details or {}).get('page_url') or url
     d.photo_candidates=[]
@@ -488,7 +488,8 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 require_cover_fit(replacement,CONFIG.font_path)
                 original=d.highlight
                 revise(db,d,'highlight',replacement,uid)
-                d.accent_words=[]
+                from .manual_hook import accent_for_hook
+                d.accent_words=accent_for_hook(replacement,d.accent_words)
                 d.last_error=None
                 db.add(Audit(draft_id=d.id,event='cover_hook_auto_revised',actor=str(uid),
                              detail={'version':d.version,'original':original,
