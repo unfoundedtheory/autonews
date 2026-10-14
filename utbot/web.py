@@ -87,6 +87,12 @@ def cron_tick(slot: str):
     scheduled=do_reschedule()
     return {'queued':len(scheduled),'publication':publication}
 
+@app.get('/cron/maintenance', dependencies=[Depends(cron_auth)])
+def cron_maintenance():
+    """Hourly review of elapsed approvals and delivery of prepared music kits."""
+    from .runner import do_maintenance
+    return do_maintenance()
+
 @app.get('/health')
 def health():return {'status':'ok','live_publish':CONFIG.live_publish}
 
@@ -648,8 +654,19 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                      '\nPertanyaan tersisa: '+str(gap.get('unanswered_question') or 'Belum ditemukan')[:180]+
                      '\nPenjelasan: '+str(gap.get('reason') or report.get('note') or '-')[:220]+
                      '\nPeriksa manual: '+', '.join(report.get('manual_checks',[])))
+            elif action=='musickit':
+                from .stock_flow import send_music_kit, is_auto_approved
+                if (d.status!='approved' or is_auto_approved(db,d)
+                    or d.publish_state not in ('unpublished','manual_music_pending')):
+                    raise ValueError('Paket musik hanya untuk berita yang disetujui secara manual.')
+                send_music_kit(db,d,st,bot,chat_id,force=True)
+                send('📦 Paket Instagram Drafts dikirim ulang. Simpan foto dan caption, lalu pilih musik di Instagram.')
             elif action=='musicdone':
-                if d.status!='approved' or d.publish_state!='manual_music_pending':
+                from .stock_flow import music_kit_sent, is_auto_approved
+                if (d.status!='approved'
+                    or is_auto_approved(db,d)
+                    or not (d.publish_state=='manual_music_pending' or
+                            (d.publish_state=='unpublished' and music_kit_sent(db,d)))):
                     raise ValueError('Belum ada kiriman musik manual yang menunggu konfirmasi.')
                 prior=db.get(TelegramSession,str(uid))
                 if prior:db.delete(prior);db.flush()
@@ -661,7 +678,10 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                      'Bot akan mencatat konfirmasi Anda dan tidak akan memposting ulang. '
                      'Ketik /cancel jika belum selesai.')
             elif action=='musiccancel':
-                if d.status!='approved' or d.publish_state!='manual_music_pending':
+                from .stock_flow import music_kit_sent, is_auto_approved
+                if (d.status!='approved' or is_auto_approved(db,d) or
+                    not (d.publish_state=='manual_music_pending' or
+                         (d.publish_state=='unpublished' and music_kit_sent(db,d)))):
                     raise ValueError('Hanya handoff yang belum dikonfirmasi dapat dibatalkan.')
                 d.publish_state='unpublished'
                 d.version+=1
@@ -696,6 +716,17 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 db.commit()
                 at=d.scheduled_at.astimezone(WIB).strftime('%d %b %Y %H:%M WIB') if d.scheduled_at else 'belum tersedia'
                 send('✅ Disetujui setelah QC untuk versi '+str(d.version)+'. Jadwal: '+at)
+                if CONFIG.photo_music_mode=='manual':
+                    from .stock_flow import send_music_kit
+                    try:
+                        send_music_kit(db,d,st,bot,chat_id)
+                        send('📦 Cover dan caption sudah dikirim. Simpan sebagai Draft Instagram '
+                             'dan tambahkan musik. Bot mengingatkan saat jadwal posting.')
+                    except (ValueError,RuntimeError,OSError,httpx.HTTPError) as kit_error:
+                        db.rollback()
+                        send('⚠️ Approval dan jadwal tetap tersimpan, tetapi paket Draft Instagram '
+                             'belum terkirim: '+type(kit_error).__name__+
+                             '. Bot akan mencoba kembali saat pemeriksaan berkala.')
             elif action=='reject':
                 if d.status=='published' or d.publish_state in {'publishing','published','uncertain','awaiting_container'}:
                     raise ValueError('Posting sudah terbit atau sedang diproses, tidak dapat ditolak.')
@@ -903,14 +934,16 @@ def _manual_photo_music_handoff(db):
     if not CONFIG.telegram_token or not CONFIG.chat_id:
         return {'manual_music':'blocked','reason':'Telegram credentials missing'}
     now=datetime.now(timezone.utc)
+    from .stock_flow import is_auto_approved, send_music_kit, music_kit_sent
     q=select(Draft).where(
         Draft.status=='approved',Draft.approved_version==Draft.version,
         Draft.publish_state=='unpublished',
         Draft.scheduled_at.is_not(None),Draft.scheduled_at<=now
-    ).order_by(Draft.scheduled_at).limit(1)
+    ).order_by(Draft.scheduled_at).limit(30)
     if db.bind.dialect.name=='postgresql':
         q=q.with_for_update(skip_locked=True)
-    d=db.execute(q).scalars().first()
+    candidates=db.execute(q).scalars().all()
+    d=next((row for row in candidates if not is_auto_approved(db,row)), None)
     if not d:return {'manual_music':'none_due'}
     # Native music requires a human Instagram posting step, not another
     # separate Telegram photo-rights click.
@@ -919,13 +952,12 @@ def _manual_photo_music_handoff(db):
     try:
         if not d.image_url and d.image_local_path:
             d.image_url=upload_public_jpeg(d.image_local_path,f'{d.id}/v{d.version}.jpg')
-        caption=manual_music_caption(d)
-        message=manual_music_message(d,db.get(Story,d.story_id))
         bot=TelegramClient(CONFIG.telegram_token)
-        bot.message(CONFIG.chat_id,message)
-        bot.message(CONFIG.chat_id,'📝 CAPTION SIAP SALIN\n\n'+caption)
-        bot.message(CONFIG.chat_id,'Sudah menambahkan musik dan posting di Instagram? '
-                    'Tekan konfirmasi lalu kirim tautan post.',{
+        if not music_kit_sent(db,d):
+            send_music_kit(db,d,db.get(Story,d.story_id),bot,CONFIG.chat_id)
+        bot.message(CONFIG.chat_id,'⏰ PENGINGAT JADWAL POSTING\n\n'
+                    'Buka Drafts Instagram, pilih foto + musik yang sudah disimpan, '
+                    'publikasikan secara manual, lalu konfirmasi URL posting ke bot.',{
             'inline_keyboard':[[{
                 'text':'🎵 Konfirmasi Post Instagram',
                 'callback_data':f'musicdone:{d.id}:{d.version}'
