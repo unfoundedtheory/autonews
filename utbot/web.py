@@ -332,7 +332,7 @@ def import_draft(payload:DraftInput,db=Depends(session)):
         photo_license=payload.photo_license,rights_reviewed=payload.rights_reviewed,is_tragedy=payload.is_tragedy)
     db.add(d);db.commit()
     return {'story_id':story.id,'draft_id':d.id,'lint':lint(d.highlight,d.caption,d.hashtags),
-            'ready_for_approval':evidence_ready(story) and story.verification_status=='verified' and d.rights_reviewed}
+            'ready_for_approval':evidence_ready(story) and story.verification_status=='verified' and bool(d.image_url or d.image_local_path)
 
 @app.post('/jobs/discover',dependencies=[Depends(worker_auth)])
 def discover_job(db=Depends(session)):
@@ -675,6 +675,11 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 send('↩️ Handoff dibatalkan. Draf kembali ke Pending Approval. '
                      'Periksa apakah posting sudah terbit di Instagram sebelum menyetujui ulang.')
             elif action=='approve':
+                # A single Approve covers the editorial review. Repair only
+                # missing render artifacts when a source image is available.
+                if not (d.image_url or d.image_local_path) and (
+                        d.source_image_url or d.source_image_path):
+                    render_draft(d)
                 approve(db,d,uid)
                 schedule_approved(db,daily_limit=CONFIG.daily_limit)
                 db.commit()
@@ -702,14 +707,12 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 send('🧾 Periksa artikel sumber dan lisensi foto. Balas dengan:\\n'
                      'Kredit: Nama pemilik/kreator\\nLisensi: Nama lisensi/hak penggunaan\\n'
                      'Sumber: https://...\\n\\n'
-                     'Jangan menganggap foto NASA/ESA otomatis bebas hak cipta. Setelah itu gunakan Verifikasi Hak Foto.')
+                     'Jangan menganggap foto NASA/ESA otomatis bebas hak cipta. '
+                     'Kredit dan lisensi ini opsional di Telegram; cek hak penggunaan sebelum posting.')
             elif action=='rights':
-                if not (d.source_image_url or d.image_url) or not d.photo_license or not d.image_credit:
-                    raise ValueError('Foto, kredit, dan lisensi harus lengkap sebelum konfirmasi.')
-                d.rights_reviewed=True
-                db.add(Audit(draft_id=d.id,event='photo_rights_confirmed',actor=str(uid),
-                             detail={'photo':d.media_page_url,'license':d.photo_license}))
-                db.commit();send('📄 Hak penggunaan foto dikonfirmasi. Anda bertanggung jawab memeriksa syarat lisensi dan kecocokan foto.')
+                # Legacy inline buttons may remain in old Telegram messages.
+                send('ℹ️ Verifikasi foto terpisah sudah tidak diperlukan. '
+                     'Periksa cover dan sumber, lalu langsung klik Approve.')
             elif action in ('highlight','caption','photo','manualhook'):
                 if d.status in ('published','rejected') or d.publish_state in ('publishing','published','uncertain'):
                     raise ValueError('Draf ini tidak dapat diedit.')
@@ -898,8 +901,10 @@ def _manual_photo_music_handoff(db):
         q=q.with_for_update(skip_locked=True)
     d=db.execute(q).scalars().first()
     if not d:return {'manual_music':'none_due'}
-    if not d.rights_reviewed or not d.photo_license or not d.image_credit:
-        return {'manual_music':'blocked','reason':'Photo rights/credits incomplete'}
+    # Native music requires a human Instagram posting step, not another
+    # separate Telegram photo-rights click.
+    if not (d.image_url or d.image_local_path):
+        return {'manual_music':'blocked','reason':'Final cover missing'}
     try:
         if not d.image_url and d.image_local_path:
             d.image_url=upload_public_jpeg(d.image_local_path,f'{d.id}/v{d.version}.jpg')
