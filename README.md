@@ -172,7 +172,7 @@ Preview sementara yang memakai foto dari posting referensi **hanya untuk uji vis
 - **Fixed four-line headline** enforced during rendering. If it cannot fit, the draft must be rewritten (no fifth line, no badge movement).
 - **Docker Compose** runs the FastAPI webhooks and a single always-on worker. Named volumes retain local SQLite demo state and image media. Use PostgreSQL for production.
 - Worker discovers and prepares every two hours WIB and checks approved posts every five minutes; publication never bypasses `ENABLE_LIVE_PUBLISH=false`.
-- Telegram accepts a **direct photo upload** in addition to HTTPS links and Commons search. Uploaded photos require credit, license and a separate rights confirmation.
+- Telegram accepts a **direct photo upload** in addition to HTTPS links and Commons search. The **Approve** button is the only editorial confirmation; no second photo-rights button is required. Existing source/credit/license metadata stays visible to the editor.
 - Telegram admin commands: `/help`, `/pending`, `/queue`, `/status`.
 - `/internal/readiness` (worker-secret protected) shows missing live settings without printing keys.
 - Image credit/license is automatically included before hashtags in Instagram captions.
@@ -184,7 +184,7 @@ Preview sementara yang memakai foto dari posting referensi **hanya untuk uji vis
 
 - Cover memakai **League Spartan Bold** (font weight 700) dengan **letter spacing -47** (tracking `-0.047 em`) dan **line spacing 1.05** sesuai pengaturan desain asli. Font dibundel secara legal dengan lisensi SIL Open Font License 1.1 agar hasil Vercel, Docker, dan desktop seragam. Jangan gunakan Anton atau font fallback sistem.
 - Semua caption Telegram dan Instagram menampilkan `Photo by : {nama fotografer}` **setelah caption utama dan tepat sebelum lima hashtag**. Contoh akun media sosial asli: `Photo by : threads/ikhsanaditya_`. Field `image_credit` menjadi satu-satunya sumber nama kredit; URL foto tidak otomatis membuktikan pemilik hak.
-- Kredit foto wajib terisi sebelum approval. `Kredit: ...` pada menu Telegram tetap untuk mengisi pemilik asli (bukan lokasi atau nama media repost); peninjauan lisensi dan kecocokan foto tetap diperlukan. Jika lisensi mensyaratkan keterangan tambahan/tautan, editor harus mematuhinya selain kredit singkat tersebut.
+- Untuk mode feed + musik manual, kredit foto dapat dilengkapi bila tersedia sebelum atau saat posting tanpa memblokir tombol Approve. Bot mempertahankan atribusi kreator yang diketahui; jika tidak ada, bot mencantumkan URL sumber gambar bila tersedia dan tidak mengarang nama kreator. Editor tetap bertanggung jawab memastikan izin pemakaian yang sesuai sebelum publikasi.
 
 ## Evergreen science research (Oktober 2026)
 
