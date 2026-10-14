@@ -203,3 +203,19 @@ Preview sementara yang memakai foto dari posting referensi **hanya untuk uji vis
 **Cover 4 baris responsif:** font League Spartan Bold 700 tidak memakai satu ukuran tetap. Renderer mencari ukuran terbesar yang muat tepat 4 baris pada grid, sambil mempertahankan tracking -47, line spacing 1.05, dan posisi logo. Jika tidak muat pada minimum yang layak dibaca, editor diminta memendekkan hook di Telegram; tidak ada fallback lima baris.
 
 **Ergonomi cover (v0.7):** badge dan blok headline naik 24px bersama-sama; safe area kiri/kanan/bawah sama-sama 56px; line spacing proporsional 1.08. Font tetap League Spartan Bold 700, tracking -47, dan persis empat baris dengan ukuran dinamis. Pemilihan kata hijau tetap semantik. Untuk konten pendek, whitespace nyata bisa melebihi 56px; angka tersebut adalah **minimum safety margin**, bukan target merenggangkan atau men-stretch huruf.
+
+## Semi-otomatis Feed Foto + Musik (Oktober 2026)
+
+**Mode produksi aman:** `PHOTO_MUSIC_MODE=manual`. Tidak ada parameter resmi yang dapat menambahkan lagu native Instagram ke JPEG feed melalui API Graph yang dipakai proyek ini; jika musik diwajibkan, backend **tidak akan menerbitkan gambar tanpa musik diam-diam**.
+
+1. AutoNews mencari cerita lama/baru, melakukan pemeriksaan editorial awal, menyiapkan foto cover 1080×1350 dan caption, mengirim preview ke Telegram.
+2. Admin memeriksa sumber, identitas foto, hak penggunaan, dan QC lalu klik **Approve**. Slot diatur 06/12/18 WIB (batas default 2 per hari).
+3. Ketika slot jatuh tempo, cron mengirim **paket posting Instagram dengan musik** ke Telegram: URL cover HTTPS, caption final siap salin, rekomendasi jenis soundtrack sesuai topik. Tidak ada request `media_publish` pada mode ini.
+4. Admin membuka aplikasi Instagram, memilih **Feed Post** dan menambahkan musik dari katalog yang tersedia pada akunnya (periksa izin audio), memublikasikan, kemudian klik **🎵 Konfirmasi Post Instagram** dan mengirim permalink `https://www.instagram.com/p/.../`. Ini **konfirmasi manual editor**, bukan pembuktian status live melalui Graph API.
+5. Bot mencatat posting sebagai completed dan tidak menerbitkan ulang. Callback batal membatalkan handoff dan approval untuk revisi. Setelah konfirmasi, **opsional** `FACEBOOK_CROSSPOST=true` dan `ENABLE_LIVE_PUBLISH=true` memakai Facebook Page Graph API untuk satu posting foto Page terpisah; guard audit durabel mencegah retry buta saat status tidak pasti.
+
+**Facebook:** Akun Instagram yang sudah terhubung Facebook tidak membuktikan API Page telah terotorisasi. Set `FACEBOOK_PAGE_ID` dan `FACEBOOK_PAGE_ACCESS_TOKEN` di Vercel Secret Manager setelah membuat Meta Developer App, meminta izin `pages_manage_posts`, `pages_read_engagement`, `pages_show_list` dan Page CREATE_CONTENT; periksa koneksi via worker-authenticated `GET /api/internal/meta/connection`. Jangan mengaktifkan dua mekanisme Facebook sekaligus (native IG sharing dan Facebook API), karena bisa menimbulkan duplikat. Meta token tidak dicatat di log.
+
+**Mode terpisah tanpa musik:** `PHOTO_MUSIC_MODE=off` memungkinkan publishing JPEG Instagram Graph API lama setelah `ENABLE_LIVE_PUBLISH=true` dan uji resmi berhasil. Ini *bukan* mode yang dipilih untuk Unfounded Theory.
+
+**Go-live**: credentials Instagram/Facebook belum dikonfigurasi di Production (audit 14 Oktober 2026). Preview/unit test bukan tes izin API secara live. Jangan mengaktifkan `FACEBOOK_CROSSPOST` maupun API publication sampai 1 posting uji terverifikasi dan pemilik memastikan sharing native tidak menggandakan post. Vercel Hobby Cron bisa terlambat dari slot terjadwal.
