@@ -54,3 +54,26 @@ def test_article_photo_rejects_untrusted_or_generic_logo():
         '<meta property="og:image" content="https://nasa.gov/logo-default-share.jpg">'),
         headers={'content-type':'text/html'}))
     assert find_article_photo('https://nasa.gov/news/',transport=response) is None
+
+
+def test_official_photo_requires_specific_subject_not_just_location():
+    # Antarctica alone is insufficient evidence for an IceCube neutrino image.
+    wrong = httpx.MockTransport(lambda req: httpx.Response(
+        200, text=('<html><head>'
+                   '<meta property="og:image" content="https://images-assets.nasa.gov/antarctica-storm.jpg">'
+                   '<meta property="og:image:alt" content="Snowstorm over Antarctica">'
+                   '</head></html>'),
+        headers={'content-type':'text/html'}))
+    url='https://science.nasa.gov/space/icecube-neutrino/'
+    assert find_article_photo(url,transport=wrong,
+        subject='IceCube Neutrino Observatory in Antarctica') is None
+
+    matching = httpx.MockTransport(lambda req: httpx.Response(
+        200, text=('<html><head>'
+                   '<meta property="og:image" content="https://images-assets.nasa.gov/icecube-detector.jpg">'
+                   '<meta property="og:image:alt" content="IceCube neutrino detector observatory in Antarctica">'
+                   '</head></html>'),
+        headers={'content-type':'text/html'}))
+    found=find_article_photo(url,transport=matching,
+        subject='IceCube Neutrino Observatory in Antarctica')
+    assert found and found['image_url'].endswith('icecube-detector.jpg')
