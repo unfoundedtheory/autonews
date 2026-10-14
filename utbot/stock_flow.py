@@ -121,7 +121,7 @@ def music_kit_sent(db, draft):
     return any((row or {}).get('version') == draft.version for row in events)
 
 
-def send_music_kit(db, draft, story, bot, chat_id):
+def send_music_kit(db, draft, story, bot, chat_id, *, force=False):
     """Send cover/caption immediately after human approval (NOT an IG Draft API).
 
     Allows idempotent recovery via a button if a partial Telegram send failed.
@@ -135,7 +135,7 @@ def send_music_kit(db, draft, story, bot, chat_id):
         raise ValueError('Berita fallback otomatis tidak boleh dikirim sebagai draf musik.')
     if draft.publish_state not in ('unpublished', 'manual_music_pending'):
         raise ValueError('Berita ini sudah diproses; paket musik tidak dapat dikirim.')
-    if music_kit_sent(db, draft):
+    if music_kit_sent(db, draft) and not force:
         return {'kit': 'already_sent'}
     if not bot:
         raise ValueError('Bot Telegram tidak tersedia.')
@@ -166,3 +166,26 @@ def send_music_kit(db, draft, story, bot, chat_id):
                  actor='telegram',detail={'version':draft.version}))
     db.commit()
     return {'kit': 'sent'}
+
+def dispatch_approved_kits(db, bot, chat_id, *, limit=5):
+    """Backfill already-approved pre-deployment drafts without duplicating kits."""
+    if not bot or not chat_id or CONFIG.photo_music_mode != 'manual':
+        return {'sent': [], 'failed': []}
+    rows = db.execute(select(Draft).where(
+        Draft.status == 'approved',
+        Draft.approved_version == Draft.version,
+        Draft.publish_state.in_(['unpublished', 'manual_music_pending'])
+    ).order_by(Draft.approved_at, Draft.id).limit(30)).scalars().all()
+    sent, failed = [], []
+    for d in rows:
+        if is_auto_approved(db, d) or music_kit_sent(db, d):
+            continue
+        try:
+            send_music_kit(db, d, db.get(Story, d.story_id), bot, chat_id)
+            sent.append(d.id)
+        except (ValueError, RuntimeError, OSError) as exc:
+            db.rollback()
+            failed.append({'id':d.id, 'error_type':type(exc).__name__})
+        if len(sent) + len(failed) >= limit:
+            break
+    return {'sent':sent, 'failed':failed}
