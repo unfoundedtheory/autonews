@@ -61,7 +61,11 @@ def preflight_approval(db, draft, story):
         Audit.draft_id == draft.id,
         Audit.event == 'manual_hook_submitted',
     ).first() is not None
-    if not has_prior and not manual_hook:
+    automated_origin = db.query(Audit.id).filter(
+        Audit.draft_id == draft.id,
+        Audit.event == 'primary_quotes_checked',
+    ).first() is not None
+    if not has_prior and not manual_hook and not automated_origin:
         # Existing manual imports had no AI review; maintain their explicit
         # human editorial approval, but still enforce factual evidence + lint.
         return None
@@ -72,10 +76,10 @@ def preflight_approval(db, draft, story):
         return report  # reuse valid QC to avoid AI quota usage
     if current:
         detail = current.detail or {}
-        if detail.get('trigger') == 'telegram_approve':
-            return report  # no repeat charge/AI call for same version
         current_guide = detail.get('guide_sha256') == editorial_guide_sha256()
         current_rubric = detail.get('rubric_version') == QC_RUBRIC_VERSION
+        if detail.get('trigger') == 'telegram_approve' and current_guide and current_rubric:
+            return report  # no repeat charge/AI call for same version
         checks = detail.get('checks') or {}
         # A genuine current semantic rejection is not a missing-QC error.
         if (current_guide and current_rubric and
