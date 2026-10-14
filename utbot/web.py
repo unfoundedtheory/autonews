@@ -646,6 +646,33 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                      '\nPertanyaan tersisa: '+str(gap.get('unanswered_question') or 'Belum ditemukan')[:180]+
                      '\nPenjelasan: '+str(gap.get('reason') or report.get('note') or '-')[:220]+
                      '\nPeriksa manual: '+', '.join(report.get('manual_checks',[])))
+            elif action=='musicdone':
+                if d.status!='approved' or d.publish_state!='manual_music_pending':
+                    raise ValueError('Belum ada kiriman musik manual yang menunggu konfirmasi.')
+                prior=db.get(TelegramSession,str(uid))
+                if prior:db.delete(prior);db.flush()
+                db.add(TelegramSession(user_id=str(uid),draft_id=d.id,
+                                       mode='music_post_link',version=d.version))
+                db.commit()
+                send('🎵 Kirim tautan posting Instagram yang benar-benar sudah terbit '
+                     'dengan musik, format https://www.instagram.com/p/KODE/. '
+                     'Bot akan mencatat konfirmasi Anda dan tidak akan memposting ulang. '
+                     'Ketik /cancel jika belum selesai.')
+            elif action=='musiccancel':
+                if d.status!='approved' or d.publish_state!='manual_music_pending':
+                    raise ValueError('Hanya handoff yang belum dikonfirmasi dapat dibatalkan.')
+                d.publish_state='unpublished'
+                d.version+=1
+                d.status='pending_approval'
+                d.approved_version=None
+                d.approved_by=None
+                d.approved_at=None
+                d.scheduled_at=None
+                db.add(Audit(draft_id=d.id,event='manual_music_cancelled',
+                             actor=str(uid),detail={'version':d.version}))
+                db.commit()
+                send('↩️ Handoff dibatalkan. Draf kembali ke Pending Approval. '
+                     'Periksa apakah posting sudah terbit di Instagram sebelum menyetujui ulang.')
             elif action=='approve':
                 approve(db,d,uid)
                 schedule_approved(db,daily_limit=CONFIG.daily_limit)
