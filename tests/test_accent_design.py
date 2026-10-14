@@ -1,0 +1,95 @@
+"""Owner design contract: League Spartan Bold 700 and semantic spaced accents."""
+from PIL import Image
+from utbot import renderer
+from utbot.accent import accent_for_hook
+
+HEADLINE='Kamera Robotik Berhasil Merekam Lingkaran Cahaya Auroral Utuh Dari Luar Angkasa'
+
+
+def test_screenshot_headline_highlights_subject_action_phenomenon():
+    # A legacy 1-word "LINGKARAN" selection should be corrected automatically.
+    assert accent_for_hook(HEADLINE,['LINGKARAN']) == [
+        'KAMERA ROBOTIK','MEREKAM','AURORAL']
+    assert accent_for_hook(HEADLINE,[]) == [
+        'KAMERA ROBOTIK','MEREKAM','AURORAL']
+
+
+def test_scientific_phenomenon_can_be_a_short_word_or_phrase():
+    assert 'MARS' in accent_for_hook(
+        'Kalau Kamu Tinggal Di Mars Kapan Ulang Tahunmu Akan Datang Lagi')
+    phrase=accent_for_hook(
+        'Fisikawan Temukan Sinyal Aneh Dalam Pencarian Partikel Dark Matter',
+        ['SINYAL'])
+    assert 'DARK MATTER' in phrase
+    assert all(len(x.split())<=2 for x in phrase)
+
+
+def test_true_league_spartan_bold_seven_hundred():
+    from PIL import ImageFont
+    font=renderer._font(96)
+    assert 'league spartan' in font.getname()[0].casefold()
+    assert font.get_variation_axes()[0]['minimum']<=700<=font.get_variation_axes()[0]['maximum']
+
+    # Some FreeType/Pillow releases keep returning the VARIABLE FONT's
+    # base style name ('Thin') even after selecting its 700 weight. Compare
+    # actual rasterized glyph weight, not a stale metadata label.
+    def ink_at(weight):
+        f=ImageFont.truetype(renderer.DEFAULT_HEADLINE_FONT,96)
+        f.set_variation_by_axes([weight])
+        return sum(bytes(f.getmask('MMMM')))
+
+    active=sum(bytes(font.getmask('MMMM')))
+    regular=ink_at(400)
+    black=ink_at(900)
+    assert regular<active<black, (regular,active,black)
+    assert active==ink_at(700)
+    assert renderer.TRACKING_EM == -0.047
+    assert renderer.LINE_SPACING == 1.05
+
+
+def test_long_reference_adapts_font_for_four_lines_and_preserves_semantic_accents(tmp_path,monkeypatch):
+    from PIL import ImageDraw
+    headline=('Piramida Raksasa Ini Terkubur 25 Meter Di Dasar '
+              'Laut Jepang Dan Diklaim Lebih Tua Dari Piramida Mesir')
+    font,lines,pitch=renderer._headline_layout(
+        ImageDraw.Draw(Image.new('RGB',(1080,1350))),headline)
+    assert len(lines)==4
+    assert 48<=font.size<=112
+    assert pitch==renderer._reference_line_pitch(font)
+    # The actual line height scales with the dynamically selected font size.
+    assert 30<=renderer._ink_height(font)<=85
+    assert renderer.HEADLINE_TOP+(len(lines)-1)*pitch+renderer._ink_height(font)<=renderer.HEADLINE_BOTTOM
+    accent=accent_for_hook(headline,['PIRAMIDA'])
+    assert accent == ['PIRAMIDA RAKSASA','LAUT JEPANG',
+                      'LEBIH TUA DARI PIRAMIDA MESIR']
+    recorded=[]
+    original=renderer._draw_word_tracked
+    def watch(draw,word,x,y,face,color):
+        recorded.append((word,color))
+        return original(draw,word,x,y,face,color)
+    monkeypatch.setattr(renderer,'_draw_word_tracked',watch)
+    src=tmp_path/'source.jpg'
+    Image.new('RGB',(1080,1350),'#222a33').save(src)
+    renderer.render(src,headline,tmp_path/'reference-layout.jpg',accent_words=['PIRAMIDA'])
+    green={w for w,c in recorded if c==renderer.GREEN}
+    assert {'PIRAMIDA','RAKSASA','LAUT','JEPANG','LEBIH',
+            'TUA','DARI','MESIR'}<=green
+    assert ('TERKUBUR',renderer.WHITE) in recorded
+
+
+def test_renderer_uses_all_three_accents_in_real_cover(tmp_path,monkeypatch):
+    src=tmp_path/'science.jpg'
+    Image.new('RGB',(1080,1350),'#263240').save(src)
+    out=tmp_path/'cover.jpg'
+    recorded=[]
+    original=renderer._draw_word_tracked
+
+    def track(draw,word,x,y,font,color):
+        recorded.append((word,color))
+        return original(draw,word,x,y,font,color)
+    monkeypatch.setattr(renderer,'_draw_word_tracked',track)
+    renderer.render(src,HEADLINE,out,accent_words=['LINGKARAN'])
+    assert Image.open(out).size == (1080,1350)
+    green={word for word,color in recorded if color==renderer.GREEN}
+    assert green=={'KAMERA','ROBOTIK','MEREKAM','AURORAL'}
+    assert ('LINGKARAN',renderer.WHITE) in recorded
