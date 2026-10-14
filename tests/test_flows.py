@@ -56,7 +56,7 @@ def test_instagram_container_waits_then_publishes_once(db,monkeypatch,tmp_path):
     d.scheduled_at=datetime.now(timezone.utc)-timedelta(minutes=1)
     db.commit()
     logo=tmp_path/'logo.png';logo.write_bytes(b'valid-placeholder-for-test')
-    cfg=replace(web.CONFIG,live_publish=True,brand_logo=str(logo),ig_user_id='123',ig_token='token')
+    cfg=replace(web.CONFIG,photo_music_mode='off',live_publish=True,brand_logo=str(logo),ig_user_id='123',ig_token='token')
     monkeypatch.setattr(web,'CONFIG',cfg)
     monkeypatch.setattr(web,'_bot',lambda:None)
     class FakeIG:
@@ -79,7 +79,7 @@ def test_uncertain_publish_never_retries(db,monkeypatch,tmp_path):
     d.scheduled_at=datetime.now(timezone.utc)-timedelta(minutes=1)
     db.commit()
     logo=tmp_path/'logo.png';logo.write_bytes(b'placeholder')
-    monkeypatch.setattr(web,'CONFIG',replace(web.CONFIG,live_publish=True,brand_logo=str(logo),ig_user_id='123',ig_token='token'))
+    monkeypatch.setattr(web,'CONFIG',replace(web.CONFIG,photo_music_mode='off',live_publish=True,brand_logo=str(logo),ig_user_id='123',ig_token='token'))
     monkeypatch.setattr(web,'_bot',lambda:None)
     class BadIG:
         def __init__(self,*args):pass

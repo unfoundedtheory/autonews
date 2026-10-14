@@ -20,7 +20,7 @@ def schedule_approved(db, now=None, daily_limit=2, horizon_days=90):
     ds=db.execute(select(Draft).where(Draft.status=="approved", Draft.approved_version==Draft.version, Draft.publish_state=="unpublished").order_by(Draft.approved_at,Draft.created_at,Draft.id)).scalars().all()
     occupied={} # daily quota, including already published/uncertain posts
     used_slots=set() # at most ONE post in a given slot
-    locked=db.execute(select(Draft).where(Draft.scheduled_at.is_not(None), Draft.publish_state.in_(["published","publishing","uncertain","awaiting_container"]))).scalars().all()
+    locked=db.execute(select(Draft).where(Draft.scheduled_at.is_not(None), Draft.publish_state.in_(["published","publishing","uncertain","awaiting_container","manual_music_pending"]))).scalars().all()
     for p in locked:
         slot=p.scheduled_at.replace(tzinfo=timezone.utc) if p.scheduled_at.tzinfo is None else p.scheduled_at
         day=slot.astimezone(WIB).date()

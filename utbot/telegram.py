@@ -5,6 +5,12 @@ from .instagram import caption_text
 
 def keyboard(draft):
     ref=draft.id;v=draft.version
+    if draft.status=='approved' and draft.publish_state=='manual_music_pending':
+        return {'inline_keyboard':[
+            [{'text':'🎵 Konfirmasi Post Instagram','callback_data':f'musicdone:{ref}:{v}'}],
+            [{'text':'↩️ Batalkan & Revisi','callback_data':f'musiccancel:{ref}:{v}'}],
+            [{'text':'🔎 Sumber','callback_data':f'sources:{ref}:{v}'}]
+        ]}
     rows=[
         [{'text':'✅ Approve','callback_data':f'approve:{ref}:{v}'},
          {'text':'❌ Tolak','callback_data':f'reject:{ref}:{v}'}],
@@ -26,6 +32,9 @@ def keyboard(draft):
             and draft.publish_state not in ('publishing','published','uncertain','awaiting_container')):
         rows.append([{'text':'🎨 Render Ulang Desain Cover',
                       'callback_data':f'redesign:{ref}:{v}'}])
+    if draft.status=='approved' and draft.publish_state=='manual_music_pending':
+        rows.append([{'text':'🎵 Konfirmasi Post Instagram',
+                      'callback_data':f'musicdone:{ref}:{v}'}])
     if draft.photo_license and draft.image_credit and not draft.rights_reviewed:
         rows.append([{'text':'📄 Verifikasi Hak Foto','callback_data':f'rights:{ref}:{v}'}])
     return {'inline_keyboard':rows}

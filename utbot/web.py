@@ -15,6 +15,8 @@ from .config import CONFIG
 from .editorial import approve,revise,lint,evidence_ready
 from .scheduler import schedule_approved,due,WIB
 from .instagram import InstagramPublisher,caption_text
+from .photo_music import manual_music_message,manual_music_caption,instagram_post_url
+from .meta_delivery import publish_facebook_once
 from .telegram import TelegramClient,keyboard,send_preview,photo_keyboard,main_menu
 from .telegram_ui import pending_page,photo_candidate_message,PENDING_PAGE_SIZE
 from .research import discover,fingerprint
@@ -106,14 +108,26 @@ def readiness(db=Depends(session)):
         'ai_key_available':bool(configured_ai),
         'media_storage':bool(CONFIG.supabase_url and CONFIG.supabase_key),
         'instagram_credentials':bool(CONFIG.ig_user_id and CONFIG.ig_token),
+        'facebook_page_configured':bool(CONFIG.facebook_page_id and CONFIG.facebook_page_token),
+        'manual_photo_music':CONFIG.photo_music_mode=='manual',
         'worker_secret':bool(CONFIG.worker_secret),
         'four_line_renderer':True,
     }
-    blockers=[key for key,ok in checks.items() if not ok]
-    return {'ready_for_live':len(blockers)==0 and CONFIG.live_publish,
+    required=['database_reachable','persistent_postgres','telegram_bot',
+              'telegram_webhook_secret','telegram_allowed_admin',
+              'telegram_destination','ai_key_available','media_storage','worker_secret']
+    if CONFIG.photo_music_mode=='off':
+        required.append('instagram_credentials')
+    if CONFIG.facebook_crosspost:
+        required.append('facebook_page_configured')
+    blockers=[key for key in required if not checks[key]]
+    return {'ready_for_live':len(blockers)==0 and CONFIG.photo_music_mode=='off' and CONFIG.live_publish,
+            'ready_for_manual_handoff':len(blockers)==0 and CONFIG.photo_music_mode=='manual',
             'live_publish_enabled':CONFIG.live_publish,
             'checks':checks,'configured_ai':configured_ai,'blockers':blockers,
-            'note':'This checks configuration presence, not valid external API permissions or end-to-end publishing.'}
+            'photo_music_mode':CONFIG.photo_music_mode,
+            'facebook_crosspost':CONFIG.facebook_crosspost,
+            'note':'Native music needs Instagram app handoff. Configuration presence is not an external API permission test.'}
 
 @app.get('/internal/ai/providers', dependencies=[Depends(worker_auth)])
 def ai_providers_status():
@@ -133,6 +147,29 @@ def ai_providers_status():
                       for name, spec in PROVIDERS.items()],
         'note': 'Key configured is not an API connectivity or quota check. Ollama requires a locally running model.'
     }
+
+@app.get('/internal/meta/connection', dependencies=[Depends(worker_auth)])
+def meta_connection_check():
+    """Read-only Page linkage check; never expose Meta tokens."""
+    from .meta import MetaGraph
+    configured={'instagram_id':bool(CONFIG.ig_user_id),
+                'instagram_token':bool(CONFIG.ig_token),
+                'facebook_page_id':bool(CONFIG.facebook_page_id),
+                'facebook_page_token':bool(CONFIG.facebook_page_token)}
+    out={'configured':configured,'photo_music':'manual_in_instagram_app',
+         'facebook_crosspost':CONFIG.facebook_crosspost}
+    if CONFIG.facebook_page_id and CONFIG.facebook_page_token:
+        try:
+            linked=MetaGraph(CONFIG.facebook_page_token,
+                             CONFIG.facebook_graph_version).page_linkage(CONFIG.facebook_page_id)
+            out['linked_page']=linked
+            out['instagram_id_matches']=(
+                linked['instagram_business_account_id']==CONFIG.ig_user_id
+                if CONFIG.ig_user_id else None)
+        except (ValueError,httpx.HTTPError) as exc:
+            out['linkage_error_type']=type(exc).__name__
+    return out
+
 
 @app.post('/internal/ai/test', dependencies=[Depends(worker_auth)])
 def ai_connectivity_test():
@@ -610,6 +647,33 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                      '\nPertanyaan tersisa: '+str(gap.get('unanswered_question') or 'Belum ditemukan')[:180]+
                      '\nPenjelasan: '+str(gap.get('reason') or report.get('note') or '-')[:220]+
                      '\nPeriksa manual: '+', '.join(report.get('manual_checks',[])))
+            elif action=='musicdone':
+                if d.status!='approved' or d.publish_state!='manual_music_pending':
+                    raise ValueError('Belum ada kiriman musik manual yang menunggu konfirmasi.')
+                prior=db.get(TelegramSession,str(uid))
+                if prior:db.delete(prior);db.flush()
+                db.add(TelegramSession(user_id=str(uid),draft_id=d.id,
+                                       mode='music_post_link',version=d.version))
+                db.commit()
+                send('🎵 Kirim tautan posting Instagram yang benar-benar sudah terbit '
+                     'dengan musik, format https://www.instagram.com/p/KODE/. '
+                     'Bot akan mencatat konfirmasi Anda dan tidak akan memposting ulang. '
+                     'Ketik /cancel jika belum selesai.')
+            elif action=='musiccancel':
+                if d.status!='approved' or d.publish_state!='manual_music_pending':
+                    raise ValueError('Hanya handoff yang belum dikonfirmasi dapat dibatalkan.')
+                d.publish_state='unpublished'
+                d.version+=1
+                d.status='pending_approval'
+                d.approved_version=None
+                d.approved_by=None
+                d.approved_at=None
+                d.scheduled_at=None
+                db.add(Audit(draft_id=d.id,event='manual_music_cancelled',
+                             actor=str(uid),detail={'version':d.version}))
+                db.commit()
+                send('↩️ Handoff dibatalkan. Draf kembali ke Pending Approval. '
+                     'Periksa apakah posting sudah terbit di Instagram sebelum menyetujui ulang.')
             elif action=='approve':
                 approve(db,d,uid)
                 schedule_approved(db,daily_limit=CONFIG.daily_limit)
@@ -729,6 +793,24 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         if bot:send_preview(bot,chat_id,d,st)
                         send('Foto diterima. Balas dua baris seperti ini:\nKredit: NASA/Chandra\nLisensi: Public domain\nTambahkan URL sumber jika ada. /cancel untuk batal.')
                         return {'ok':True,'awaiting':'photo_credit'}
+                    if sess.mode=='music_post_link':
+                        if d.status!='approved' or d.publish_state!='manual_music_pending':
+                            raise ValueError('Handoff musik tidak lagi menunggu konfirmasi.')
+                        link=instagram_post_url(txt)
+                        d.status='published'
+                        d.publish_state='published'
+                        db.add(Audit(draft_id=d.id,event='ig_music_manual_confirmed',
+                                     actor=str(uid),detail={'version':d.version,
+                                        'post_url':link,
+                                        'note':'Confirmed by human editor, not independently API verified'}))
+                        db.delete(sess)
+                        db.commit()
+                        fb=publish_facebook_once(db,d,actor=str(uid))
+                        send('✅ Post Instagram dicatat sesuai konfirmasi Anda.\\n'
+                             'URL: '+link+'\\nFacebook: '+str(fb.get('facebook'))+
+                             '\\nTidak ada publikasi foto tanpa musik oleh bot.')
+                        return {'ok':True,'instagram':'editor_confirmed',
+                                'facebook':fb.get('facebook')}
                     if sess.mode=='photo_credit':
                         # Deliberately requires manual attribution information from owner.
                         import re
@@ -802,8 +884,56 @@ def reschedule_job(db=Depends(session)):
     db.commit()
     return {'scheduled':[{'draft_id':i,'at':t.isoformat() if t else None} for i,t in scheduled]}
 
+def _manual_photo_music_handoff(db):
+    """Approved due photo: send editor a native-music posting kit, never a mute JPEG."""
+    if not CONFIG.telegram_token or not CONFIG.chat_id:
+        return {'manual_music':'blocked','reason':'Telegram credentials missing'}
+    now=datetime.now(timezone.utc)
+    q=select(Draft).where(
+        Draft.status=='approved',Draft.approved_version==Draft.version,
+        Draft.publish_state=='unpublished',
+        Draft.scheduled_at.is_not(None),Draft.scheduled_at<=now
+    ).order_by(Draft.scheduled_at).limit(1)
+    if db.bind.dialect.name=='postgresql':
+        q=q.with_for_update(skip_locked=True)
+    d=db.execute(q).scalars().first()
+    if not d:return {'manual_music':'none_due'}
+    if not d.rights_reviewed or not d.photo_license or not d.image_credit:
+        return {'manual_music':'blocked','reason':'Photo rights/credits incomplete'}
+    try:
+        if not d.image_url and d.image_local_path:
+            d.image_url=upload_public_jpeg(d.image_local_path,f'{d.id}/v{d.version}.jpg')
+        caption=manual_music_caption(d)
+        message=manual_music_message(d,db.get(Story,d.story_id))
+        bot=TelegramClient(CONFIG.telegram_token)
+        bot.message(CONFIG.chat_id,message)
+        bot.message(CONFIG.chat_id,'📝 CAPTION SIAP SALIN\n\n'+caption)
+        bot.message(CONFIG.chat_id,'Sudah menambahkan musik dan posting di Instagram? '
+                    'Tekan konfirmasi lalu kirim tautan post.',{
+            'inline_keyboard':[[{
+                'text':'🎵 Konfirmasi Post Instagram',
+                'callback_data':f'musicdone:{d.id}:{d.version}'
+            }]]
+        })
+        d.publish_state='manual_music_pending'
+        db.add(Audit(draft_id=d.id,event='manual_music_handoff',
+                     actor='cron',detail={'version':d.version,
+                                         'scheduled_at':str(d.scheduled_at),
+                                         'native_music_required':True}))
+        db.commit()
+        return {'manual_music':'awaiting_editor','draft_id':d.id}
+    except (ValueError,RuntimeError,OSError,httpx.HTTPError) as exc:
+        db.rollback()
+        return {'manual_music':'handoff_error','draft_id':d.id,
+                'error_type':type(exc).__name__}
+
+
 @app.post('/jobs/publish',dependencies=[Depends(worker_auth)])
 def publish_job(db=Depends(session)):
+    if CONFIG.photo_music_mode=='manual':
+        return _manual_photo_music_handoff(db)
+    if CONFIG.photo_music_mode!='off':
+        return {'blocked':'Invalid PHOTO_MUSIC_MODE'}
     if not CONFIG.live_publish:
         return {'live_publish':False,'due_count':len(due(db)),
                 'note':'DRY RUN: tidak ada permintaan dikirim ke Instagram'}
