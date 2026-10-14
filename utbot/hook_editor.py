@@ -12,7 +12,9 @@ from .editorial import editorial_instructions
 HOOK_SYSTEM = """Anda copy editor Unfounded Theory. Hasilkan TIGA alternatif HIGHLIGHT Instagram bahasa Indonesia dari evidence resmi, sesuai PANDUAN MARKDOWN.
 Satu kalimat Title Case, tidak repetitif, tidak terlalu pendek, tidak membocorkan jawaban, dan bukan ringkasan press release. Utamakan fakta spesifik, angka/skalanya jika terverifikasi, rasa ingin tahu, dan pemilihan kata yang natural.
 Gunakan contoh hook yang disetujui dari Markdown sebagai petunjuk GAYA, tetapi jangan menyalin atau menambah fakta. Hindari kesan ancaman palsu, kata vulgar, metafora ambigu, dan kata administratif.
-Pilih tiga sudut berbeda: (1) kejutan/kontras terverifikasi, (2) pertanyaan atau misteri ilmiah, (3) kaitan dengan pembaca atau implikasi yang benar-benar didukung sumber.
+Pilih tiga sudut berbeda: (1) kejutan/kontras terverifikasi, (2) pertanyaan atau misteri ilmiah yang JAWABANNYA tidak ada di headline, (3) pengalaman pembaca yang faktual dan dekat dengan kehidupan manusia.
+Kata "Mengapa" tidak otomatis menghasilkan curiosity gap. Contoh headline BAD: "Mengapa Satu Tahun Penuh di Planet Merah Berlangsung Selama Hampir Dua Kali Lipat Waktu Bumi" karena inti fakta sudah dibocorkan, framing tidak personal dan terlalu akademis. Arah lebih kuat: "Kalau Kamu Tinggal di Mars Kapan Ulang Tahunmu Akan Datang Lagi" (jangan ubah klaim sains atau mengarang angka).
+Jangan membingungkan hari Mars dan tahun Mars; klaim "satu hari di Mars menjadi 48 jam" tidak benar. Sesuaikan semua angka dan satuannya dengan sumber primer.
 Jangan mengarang angka/tanggal/risiko/bencana, jangan menyamakan rencana atau pengujian dengan penemuan. Tanpa em dash. Harus dapat muat tepat 4 baris pada cover Instagram 1080x1350.
 Gunakan 🚨 dan kata penanda waktu hanya untuk informasi time-sensitive yang sumbernya mendukung.
 Hasil HANYA JSON: {"options":["hook 1","hook 2","hook 3"]}.

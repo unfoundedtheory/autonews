@@ -1,5 +1,6 @@
 """Editorial QC gate. Conservative automated checks, not a substitute for fact checking."""
 import re
+import httpx
 from .editorial import lint, evidence_ready
 from .renderer import cover_fits
 from .config import CONFIG
@@ -135,7 +136,7 @@ def run_draft_qc(db,draft,story,*,llm=None):
                                tragedy=bool(draft.is_tragedy),llm=llm)
             report['issues']=sorted(set(report['issues']+style['issues']))
             report['passed']=report['passed'] and style['passed']
-        except (ValueError,RuntimeError) as exc:
+        except (ValueError,RuntimeError,httpx.HTTPError) as exc:
             report['passed']=False
             report['issues']=sorted(set(report['issues']+['independent_style_qc_unavailable']))
             report['note']=str(exc)[:180]

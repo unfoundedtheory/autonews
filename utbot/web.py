@@ -540,12 +540,21 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 if bot:send_preview(bot,chat_id,d,st)
                 send('✨ Hook diperbarui. QC dan approval harus diperiksa lagi.')
             elif action=='qc':
-                from .quality_control import report_for_draft
-                report=report_for_draft(db,d,st)
+                from .quality_control import report_for_draft,run_draft_qc
+                if bot:bot.answer(cb_id,'Memeriksa SOP editorial terbaru')
+                previous=report_for_draft(db,d,st)
+                if previous['passed']:
+                    report=previous
+                else:
+                    report=run_draft_qc(db,d,st)
+                    db.commit()
+                gap=(report.get('checks') or {}).get('curiosity_gap',{})
                 send('📋 Editorial QC | Draf '+d.id[:8]+' v'+str(d.version)+
                      '\\nStatus: '+report.get('status','unknown')+
-                     '\\nPercobaan: '+str(report.get('attempts','n/a'))+
                      '\\nMasalah: '+(', '.join(report.get('issues',[])) or 'Tidak ada')+
+                     '\\nCuriosity Gap: '+('✅' if gap.get('passed') else '❌ Belum valid')+
+                     '\\nPertanyaan tersisa: '+str(gap.get('unanswered_question') or 'Belum ditemukan')[:180]+
+                     '\\nPenjelasan: '+str(gap.get('reason') or report.get('note') or '-')[:220]+
                      '\\nPeriksa manual: '+', '.join(report.get('manual_checks',[])))
             elif action=='approve':
                 approve(db,d,uid)
@@ -599,7 +608,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 db.commit();send_preview(bot,chat_id,d,st) if bot else None
                 send('Foto diganti. Tinjau lisensi sebelum Approve; approval lama sudah batal.')
             else:raise ValueError('Pilihan tidak dikenali.')
-            if bot and action not in ('hookideas','retrycover','autofit'):bot.answer(cb_id,'Diterima')
+            if bot and action not in ('hookideas','retrycover','autofit','qc'):bot.answer(cb_id,'Diterima')
         except (ValueError,RuntimeError,httpx.HTTPError,OSError) as exc:
             db.rollback()
             if bot:bot.answer(cb_id,'Permintaan perlu diperbaiki')
