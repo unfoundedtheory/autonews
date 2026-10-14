@@ -16,6 +16,7 @@ from .editorial import approve,revise,lint,evidence_ready
 from .scheduler import schedule_approved,due,WIB
 from .instagram import InstagramPublisher,caption_text
 from .photo_music import manual_music_message,manual_music_caption,instagram_post_url
+from .approval_flow import preflight_approval, approval_qc_message
 from .meta_delivery import publish_facebook_once
 from .telegram import TelegramClient,keyboard,send_preview,photo_keyboard,main_menu
 from .telegram_ui import pending_page,photo_candidate_message,PENDING_PAGE_SIZE
@@ -675,16 +676,26 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 send('↩️ Handoff dibatalkan. Draf kembali ke Pending Approval. '
                      'Periksa apakah posting sudah terbit di Instagram sebelum menyetujui ulang.')
             elif action=='approve':
-                # A single Approve covers the editorial review. Repair only
-                # missing render artifacts when a source image is available.
+                if d.status=='approved' and d.approved_version==d.version:
+                    send('✅ Berita ini sudah disetujui. Cek menu Jadwal Posting.')
+                    return {'ok':True,'approval':'already_approved'}
+                if d.status!='pending_approval' or d.publish_state!='unpublished':
+                    raise ValueError('Hanya draf pending yang belum dipublikasikan dapat disetujui.')
+                if bot:bot.answer(cb_id,'Memeriksa QC otomatis sebelum menjadwalkan')
+                # Repair missing immutable renders without changing 4:5 branding.
                 if not (d.image_url or d.image_local_path) and (
                         d.source_image_url or d.source_image_path):
                     render_draft(d)
+                report=preflight_approval(db,d,st)
+                if report is not None and not report['passed']:
+                    send(approval_qc_message(report))
+                    return {'ok':True,'approval':'qc_not_passed',
+                            'issues':(report.get('issues') or [])[:8]}
                 approve(db,d,uid)
                 schedule_approved(db,daily_limit=CONFIG.daily_limit)
                 db.commit()
                 at=d.scheduled_at.astimezone(WIB).strftime('%d %b %Y %H:%M WIB') if d.scheduled_at else 'belum tersedia'
-                send('✅ Disetujui untuk versi '+str(d.version)+'. Jadwal: '+at)
+                send('✅ Disetujui setelah QC untuk versi '+str(d.version)+'. Jadwal: '+at)
             elif action=='reject':
                 if d.status=='published' or d.publish_state in {'publishing','published','uncertain','awaiting_container'}:
                     raise ValueError('Posting sudah terbit atau sedang diproses, tidak dapat ditolak.')
@@ -744,7 +755,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 db.commit();send_preview(bot,chat_id,d,st) if bot else None
                 send('Foto diganti. Tinjau lisensi sebelum Approve; approval lama sudah batal.')
             else:raise ValueError('Pilihan tidak dikenali.')
-            if bot and action not in ('hookideas','retrycover','autofit','qc'):bot.answer(cb_id,'Diterima')
+            if bot and action not in ('hookideas','retrycover','autofit','qc','approve'):bot.answer(cb_id,'Diterima')
         except (ValueError,RuntimeError,httpx.HTTPError,OSError) as exc:
             db.rollback()
             if bot:bot.answer(cb_id,'Permintaan perlu diperbaiki')
