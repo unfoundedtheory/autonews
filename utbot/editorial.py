@@ -14,9 +14,11 @@ def read_editorial_guide():
         guide = GUIDE_PATH.read_text(encoding='utf-8')
     except OSError as exc:
         raise RuntimeError('Panduan Markdown editorial tidak tersedia. Proses AI/QC dihentikan.') from exc
-    required = ('## 1. Aturan Umum','## 2. Format Highlight',
-                '## 3. Format Caption','## 4. Aturan Tanda Baca',
-                '## 6. Prosedur Editorial QC')
+    required = ('# Panduan Penulisan Berita Unfounded Theory',
+                '## 1. Struktur Dasar', '## 2. Aturan Highlight',
+                '## 3. Aturan Caption', '## 5. Aturan Akurasi dan Verifikasi',
+                '## 6. Berita Bencana dan Tragedi Nyata',
+                '## 9. Checklist Sebelum Publikasi')
     if any(section not in guide for section in required):
         raise RuntimeError('Panduan editorial Markdown tidak lengkap.')
     return guide

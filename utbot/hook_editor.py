@@ -9,15 +9,14 @@ from .renderer import cover_fits
 from .config import CONFIG
 from .editorial import editorial_instructions
 
-HOOK_SYSTEM = """Anda adalah copy editor Unfounded Theory. Buat TIGA ALTERNATIF HIGHLIGHT Instagram bahasa Indonesia berdasarkan evidence yang disediakan.
-Setiap hook wajib memantik rasa ingin tahu dengan fakta spesifik, kontras yang benar-benar ada di sumber, atau pertanyaan ilmiah yang penting.
-Bukan judul press release. Hindari pembuka "Misi X", "ESA Mengumumkan", "Para Peneliti" atau "Wahana X Akan".
-Jangan mengarang tanggal, angka, risiko terhadap manusia, bencana, klaim pertama di dunia, atau akibat langsung yang tidak ada dalam evidence.
-Contoh gaya: "Jari Tanganmu Ternyata Berasal Dari Organ Paling Tak Terduga Pada Ikan Purba" atau "Fisikawan Temukan Sinyal Aneh Dalam Pencarian Partikel Dark Matter". Jangan menyalin contoh.
-Pilih tiga angle yang BERBEDA: (1) kontras/kejutan berbasis bukti, (2) rasa penasaran/pertanyaan, (3) implikasi konkret jika didukung fakta.
-Gunakan Title Case, panjang 55-110 karakter bila memungkinkan, maksimal 140, tanpa em dash, tidak membocorkan semua jawaban.
+HOOK_SYSTEM = """Anda copy editor Unfounded Theory. Hasilkan TIGA alternatif HIGHLIGHT Instagram bahasa Indonesia dari evidence resmi, sesuai PANDUAN MARKDOWN.
+Satu kalimat Title Case, tidak repetitif, tidak terlalu pendek, tidak membocorkan jawaban, dan bukan ringkasan press release. Utamakan fakta spesifik, angka/skalanya jika terverifikasi, rasa ingin tahu, dan pemilihan kata yang natural.
+Gunakan contoh hook yang disetujui dari Markdown sebagai petunjuk GAYA, tetapi jangan menyalin atau menambah fakta. Hindari kesan ancaman palsu, kata vulgar, metafora ambigu, dan kata administratif.
+Pilih tiga sudut berbeda: (1) kejutan/kontras terverifikasi, (2) pertanyaan atau misteri ilmiah, (3) kaitan dengan pembaca atau implikasi yang benar-benar didukung sumber.
+Jangan mengarang angka/tanggal/risiko/bencana, jangan menyamakan rencana atau pengujian dengan penemuan. Tanpa em dash. Harus dapat muat tepat 4 baris pada cover Instagram 1080x1350.
+Gunakan 🚨 dan kata penanda waktu hanya untuk informasi time-sensitive yang sumbernya mendukung.
 Hasil HANYA JSON: {"options":["hook 1","hook 2","hook 3"]}.
-"""
+""""""
 
 def alternatives(draft, story, *, llm=None):
     if not story or not story.evidence or len(story.evidence)<2:
@@ -52,7 +51,7 @@ def alternatives(draft, story, *, llm=None):
 
 COVER_FIT_SYSTEM = HOOK_SYSTEM + """
 Perbaiki highlight agar benar-benar muat dalam tepat empat baris cover 1080x1350.
-Pilih kalimat ringkas 50-85 karakter yang tetap akurat berdasarkan evidence.
+Pilih kalimat sesingkat yang diperlukan agar muat empat baris, tetapi jangan sampai terlalu pendek, datar, menghilangkan rasa penasaran atau mengubah fakta.
 Tawarkan hingga enam opsi pada array JSON 'options' tanpa membuat fakta baru.
 """
 
