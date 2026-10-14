@@ -260,10 +260,16 @@ def generate_test_news(db, bot, chat_id):
                 str(results[0].get('reason') or 'Periksa kutipan sumber dan relevansi.')[:320])
     checked=sum(f.get('seen',0) for f in normal+archived)
     duplicates=sum(f.get('duplicates',0) for f in normal+archived)
-    failures=[f for f in normal+archived if f.get('error')]
-    if failures and not checked:
-        details='; '.join(f"{f['feed']}: {str(f['error'])[:65]}" for f in failures)
-        return '⚠️ Sumber resmi belum bisa dibaca: '+details[:500]
+    failures=[f for f in normal if f.get('error')]
+    healthy=[f for f in normal if not f.get('error')]
+    details='; '.join(f"{f['feed']}: {str(f['error'])[:65]}" for f in failures)
+    if failures and not healthy:
+        return ('⚠️ Discovery: semua feed resmi bermasalah. '+details[:430]+
+                ' Arsip juga diperiksa; tidak ada kandidat siap.')
+    if failures:
+        return (f'⚠️ Belum ada kandidat siap; {len(failures)} feed bermasalah dan '
+                f'{len(healthy)} feed yang berhasil dibaca. '+
+                details[:360]+' Arsip juga diperiksa.')
     return (f'ℹ️ {checked} artikel dari feed dan arsip diperiksa; {duplicates} sudah tersimpan. '
             'Belum ada kandidat berbeda yang dapat diproses. '
             'Coba lagi nanti ketika halaman arsip berganti atau periksa sumber dan QC.')
