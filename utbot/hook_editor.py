@@ -16,7 +16,7 @@ Pilih tiga sudut berbeda: (1) kejutan/kontras terverifikasi, (2) pertanyaan atau
 Jangan mengarang angka/tanggal/risiko/bencana, jangan menyamakan rencana atau pengujian dengan penemuan. Tanpa em dash. Harus dapat muat tepat 4 baris pada cover Instagram 1080x1350.
 Gunakan 🚨 dan kata penanda waktu hanya untuk informasi time-sensitive yang sumbernya mendukung.
 Hasil HANYA JSON: {"options":["hook 1","hook 2","hook 3"]}.
-""""""
+"""
 
 def alternatives(draft, story, *, llm=None):
     if not story or not story.evidence or len(story.evidence)<2:

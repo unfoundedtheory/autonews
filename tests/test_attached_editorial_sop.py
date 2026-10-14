@@ -27,7 +27,7 @@ def test_retry_feedback_is_included_without_changing_evidence():
         recorded.update(json.loads(query))
         return {
             'highlight': 'Fisikawan Temukan Sinyal Aneh Dalam Pencarian Partikel Dark Matter',
-            'caption': 'Sebuah pengamatan menyimpan kejutan baru.\\n\\nPara ilmuwan mencatat data unik.\\n\\nNamun hasil awal belum final.\\n\\nApa yang perlu diuji selanjutnya?',
+            'caption': 'Sebuah pengamatan menyimpan kejutan baru.\n\nPara ilmuwan mencatat data unik.\n\nNamun hasil awal belum final.\n\nApa yang perlu diuji selanjutnya?',
             'hashtags':['#Sains','#Fisika','#Astronomi','#Riset','#UnfoundedTheory'],
             'evidence':[
                 {'claim':'pengamatan', 'quote':'Scientists studied observations from a distant telescope array.'},
@@ -45,7 +45,7 @@ def test_rewrite_and_style_review_receive_user_sop(monkeypatch):
         return {'text':'Revisi singkat sesuai bukti.'}
     monkeypatch.setattr('utbot.rewrite.generate_json',fake_generate)
     draft=SimpleNamespace(highlight='Fisikawan Temukan Sinyal Aneh Dalam Pencarian Partikel Dark Matter',
-                          caption='Awal.\\n\\nFakta.\\n\\nNamun.\\n\\nMengapa?',
+                          caption='Awal.\n\nFakta.\n\nNamun.\n\nMengapa?',
                           hashtags=['#Sains','#NASA','#Astronomi','#Riset','#UnfoundedTheory'])
     story=SimpleNamespace(title='Sains',evidence=[{'claim':'x','quote':'fakta resmi'}])
     assert rewrite('caption','perbaiki awal',draft,story)=='Revisi singkat sesuai bukti.'
