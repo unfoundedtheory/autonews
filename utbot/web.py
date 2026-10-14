@@ -439,6 +439,12 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 ideas=alternatives(d,st)
                 db.add(Audit(draft_id=d.id,event='hook_candidates',actor=str(uid),
                              detail={'version':d.version,'options':ideas}))
+                # A free-text reply to the suggested options is the editor's
+                # own hook, NOT an instruction for the AI to rewrite.
+                existing=db.get(TelegramSession,str(uid))
+                if existing:db.delete(existing);db.flush()
+                db.add(TelegramSession(user_id=str(uid),draft_id=d.id,
+                                       mode='manual_hook',version=d.version))
                 db.commit()
                 rows=[[{'text':f'Pilih Hook {i+1}','callback_data':f'pickh{i}:{d.id}:{d.version}'}]
                       for i in range(len(ideas))]
@@ -450,8 +456,9 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     bot.message(chat_id,
                         '✨ Alternatif hook dari sumber yang sama:\n\n'+
                         '\n\n'.join(f'{i+1}. {h}' for i,h in enumerate(ideas))+
-                        '\n\nPilih salah satu, atau ketik versi sendiri lewat tombol di bawah. '
-                        'Semua harus melalui QC editorial.',
+                        '\n\nPilih salah satu, atau LANGSUNG ketik hook buatan Anda '
+                        'sebagai pesan baru. Teks Anda tidak akan diubah AI. '
+                        'Semua tetap melalui QC editorial. /cancel untuk batal.',
                         {'inline_keyboard':rows})
             elif action=='redesign':
                 if d.status!='pending_approval' or d.publish_state in ('publishing','uncertain','published'):

@@ -82,7 +82,10 @@ def approve(db, draft, actor, *, human_fact_checked=False):
     # Existing AI-produced drafts must pass the CURRENT Markdown + curiosity rubric.
     # Pure manually imported drafts without automated QC are reviewed by their
     # human owner as before; mocked writers in isolated unit tests are unchanged.
-    if prior_qc and (prior_qc.detail or {}).get('style_review')!='skipped_for_mock_writer':
+    manual_hook=db.query(Audit).filter(
+        Audit.draft_id==draft.id,Audit.event=='manual_hook_submitted').first()
+    if (manual_hook or
+        (prior_qc and (prior_qc.detail or {}).get('style_review')!='skipped_for_mock_writer')):
         from .quality_control import report_for_draft
         report=report_for_draft(db,draft,story)
         if not report['passed']:

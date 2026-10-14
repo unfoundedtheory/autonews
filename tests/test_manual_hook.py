@@ -133,6 +133,13 @@ def test_hook_alternative_list_uses_real_line_breaks_and_custom_input_button(mon
         assert '\\n' not in msg
         assert any(button['text']=='✍️ Tulis Hook Sendiri'
                    for row in kb['inline_keyboard'] for button in row)
+        assert db.get(TelegramSession,'42').mode=='manual_hook'
+        # Typing immediately after seeing AI options is treated literally.
+        monkeypatch.setattr(web,'_revision_text',lambda *a,**k: (_ for _ in ()).throw(AssertionError('AI rewrite invoked')))
+        web.telegram_webhook(telegram_text(CUSTOM),db=db)
+        db.refresh(d)
+        assert d.highlight==CUSTOM
+        assert d.version==2
     finally:db.close()
 
 
@@ -145,4 +152,28 @@ def test_manual_validator_preserves_punctuation_and_checks_unverified_numbers():
         import pytest
         with pytest.raises(ValueError,match='Angka 48'):
             validate_typed_hook('Jika Kamu Tinggal Di Mars Apakah Sehari Menjadi 48 Jam Selamanya',st)
+    finally:db.close()
+
+
+def test_manual_hook_cannot_be_approved_without_fresh_qc(monkeypatch):
+    import pytest
+    from utbot.editorial import approve
+    db=seed_db()
+    try:
+        st,d=build_story(db)
+        configure(monkeypatch)
+        web.telegram_webhook(telegram_callback(d,'manualhook'),db=db)
+        web.telegram_webhook(telegram_text(CUSTOM),db=db)
+        db.refresh(d)
+        # Even with otherwise complete image rights, old QC does not suffice.
+        d.rights_reviewed=True
+        d.image_url='https://example.org/final-v2.jpg'
+        d.photo_license='CC BY 4.0'
+        st.evidence=[
+            {'claim':'Mars year','quote':'The year on Mars is longer than on Earth.',
+             'url':st.source_url,'evidence_checked':True},
+            {'claim':'Mars orbit','quote':'Mars orbits the Sun.',
+             'url':st.source_url,'evidence_checked':True}]
+        with pytest.raises(ValueError,match='QC editorial'):
+            approve(db,d,'42')
     finally:db.close()
