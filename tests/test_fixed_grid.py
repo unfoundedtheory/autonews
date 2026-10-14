@@ -3,6 +3,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 from utbot.renderer import (
     BADGE_BOX, HEADLINE_TOP, HEADLINE_BOTTOM, TRACKING_EM, LINE_SPACING, WORD_GAP_EM,
+    SIDE_MARGIN, BOTTOM_MARGIN, GROUP_RAISE_PX, _draw_title_line,
     _font, _headline_layout, _title_draw_y, _word_gap, _letter_tracking,
     _line_width, _ink_height, render, MARGIN, WIDTH
 )
@@ -16,11 +17,14 @@ HEADLINES = [
 ]
 
 
-def test_original_six_reference_badge_is_same_position():
-    assert BADGE_BOX == (402, 900, 678, 948)
-    assert HEADLINE_TOP == 981
-    assert HEADLINE_BOTTOM == 1307
-    assert (HEADLINE_TOP-BADGE_BOX[3]) >= 32
+def test_badge_and_headline_move_as_one_group_with_uniform_safe_margins():
+    assert GROUP_RAISE_PX==24
+    assert BADGE_BOX==(402,876,678,924)
+    assert HEADLINE_TOP==957
+    assert HEADLINE_BOTTOM==1350-56
+    assert SIDE_MARGIN==BOTTOM_MARGIN==MARGIN==56
+    assert HEADLINE_TOP-BADGE_BOX[3]==33
+    assert BADGE_BOX[0]+BADGE_BOX[2]==WIDTH
 
 
 def test_text_fits_fixed_box_independent_of_line_count():
@@ -44,7 +48,7 @@ def test_tracking_tightens_characters_but_preserves_real_word_gap():
     font = _font(82)
     draw = ImageDraw.Draw(Image.new('RGB',(1080,1350)))
     assert TRACKING_EM == -0.047
-    assert LINE_SPACING == 1.05
+    assert LINE_SPACING == 1.08
     assert _letter_tracking(font) < 0
     assert 0.17 <= WORD_GAP_EM <= 0.24
     assert _word_gap(draw,font) >= 12
@@ -60,8 +64,8 @@ def test_identical_badge_pixels_for_varying_four_line_font_sizes(tmp_path):
         render(bg,headline,out,accent_words=['TANGAN','TUHAN'])
         image=Image.open(out)
         # slight lossy JPEG coupling outside badge region, compare center area only
-        regions.append(image.crop((400,900,680,946)))
-    # JPEG compression may differ slightly by layout below y=981; badge itself unchanged.
+        regions.append(image.crop((400,876,680,922)))
+    # JPEG compression may differ slightly from distinct headlines; badge itself is identical.
     from PIL import ImageChops
     for r in regions[1:]:
         diff = ImageChops.difference(r, regions[0])
@@ -83,3 +87,25 @@ def test_original_photo_top_region_is_not_reinvented(tmp_path):
     diff=ImageChops.difference(source.crop((80,80,990,440)),
                                result.crop((80,80,990,440)))
     assert max(ImageStat.Stat(diff).mean) < 3.0
+
+
+def test_rendered_ink_stays_inside_equal_side_and_bottom_safe_area():
+    """Check actual glyph pixels, not only calculated typeface widths."""
+    from PIL import ImageChops
+    for headline in HEADLINES + [
+        'Gugusan Galaksi Raksasa Ini Membelokkan Cahaya Hingga Menyerupai Rumah Kaca',
+        'Kamera Robotik Berhasil Merekam Lingkaran Cahaya Auroral Utuh Dari Luar Angkasa',
+    ]:
+        canvas=Image.new('RGB',(WIDTH,1350),'#000000')
+        draw=ImageDraw.Draw(canvas)
+        face,lines,pitch=_headline_layout(draw,headline)
+        for i,line in enumerate(lines):
+            _draw_title_line(draw,line,_title_draw_y(face,i,pitch),face,set())
+        bounds=ImageChops.difference(canvas,Image.new('RGB',canvas.size,'#000000')).getbbox()
+        assert bounds is not None and len(lines)==4
+        l,t,r,b=bounds
+        assert l>=SIDE_MARGIN-4, (headline,'left',l)
+        assert WIDTH-r>=SIDE_MARGIN-4,(headline,'right',WIDTH-r)
+        assert 1350-b>=BOTTOM_MARGIN,(headline,'bottom',1350-b)
+        assert abs(l-(WIDTH-r))<=12,(headline,'optical center',l,WIDTH-r)
+        assert t>=HEADLINE_TOP-3,(headline,'top',t)
