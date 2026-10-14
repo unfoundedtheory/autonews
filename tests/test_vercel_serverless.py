@@ -16,7 +16,7 @@ def test_cron_schedules_wib():
       ('/api/cron/tick/morning','0 23 * * *'),
       ('/api/cron/tick/noon','0 5 * * *'),
       ('/api/cron/tick/evening','0 11 * * *'),
-      ('/api/cron/maintenance','0 * * * *')]
+      ('/api/cron/maintenance','0 21 * * *')]
 
 def test_cron_secret_validation(monkeypatch):
     monkeypatch.setenv('CRON_SECRET','secret-local-test')
