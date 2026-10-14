@@ -182,7 +182,7 @@ Preview sementara yang memakai foto dari posting referensi **hanya untuk uji vis
 
 ## Tipografi dan kredit foto (Oktober 2026)
 
-- Cover memakai **League Spartan Black** (font weight 900) dengan **letter spacing -47** (tracking `-0.047 em`) dan **line spacing 1.05** sesuai pengaturan desain asli. Font dibundel secara legal dengan lisensi SIL Open Font License 1.1 agar hasil Vercel, Docker, dan desktop seragam. Jangan gunakan Anton atau font fallback sistem.
+- Cover memakai **League Spartan Bold** (font weight 700) dengan **letter spacing -47** (tracking `-0.047 em`) dan **line spacing 1.05** sesuai pengaturan desain asli. Font dibundel secara legal dengan lisensi SIL Open Font License 1.1 agar hasil Vercel, Docker, dan desktop seragam. Jangan gunakan Anton atau font fallback sistem.
 - Semua caption Telegram dan Instagram menampilkan `Photo by : {nama fotografer}` **setelah caption utama dan tepat sebelum lima hashtag**. Contoh akun media sosial asli: `Photo by : threads/ikhsanaditya_`. Field `image_credit` menjadi satu-satunya sumber nama kredit; URL foto tidak otomatis membuktikan pemilik hak.
 - Kredit foto wajib terisi sebelum approval. `Kredit: ...` pada menu Telegram tetap untuk mengisi pemilik asli (bukan lokasi atau nama media repost); peninjauan lisensi dan kecocokan foto tetap diperlukan. Jika lisensi mensyaratkan keterangan tambahan/tautan, editor harus mematuhinya selain kredit singkat tersebut.
 
@@ -192,3 +192,10 @@ Preview sementara yang memakai foto dari posting referensi **hanya untuk uji vis
 - Jika RSS terbaru sudah habis, **Generate Test News** memeriksa APOD archive NASA (halaman bergilir), sejarah NASA dan arkeologi Nature. Semua kandidat harus lulus pembacaan sumber primer, pencocokan kutipan, QC, pemeriksaan foto/lisensi dan approval manusia.
 - Daftar Pending Telegram memuat **5 draf per halaman** dengan tombol pendek dan halaman navigasi. Kandidat foto menampilkan detail pemilik dan lisensi di isi pesan serta pilihan singkat.
 - Artikel sejarah tidak boleh disebut breaking news; tahun penemuan dan status ilmu mutakhir harus dijelaskan di caption.
+
+### Aksen hijau headline (desain terkunci)
+
+- Gunakan warna hijau **#95F21E** hanya pada bagian yang penting secara semantik; boleh satu kata maupun frasa pendek yang **tersebar** pada awal, tengah, dan akhir headline. Bukan satu blok warna hijau yang panjang.
+- Prioritas operator: **subjek ilmiah**, **aksi kunci**, **objek/fenomena**. Contoh `Kamera Robotik Berhasil Merekam Lingkaran Cahaya Auroral Utuh Dari Luar Angkasa` → `KAMERA ROBOTIK`, `MEREKAM`, `AURORAL` hijau, selain itu putih.
+- Pemilihan semantik mengoreksi metadata aksen lama saat Render Ulang Cover; tidak menyunting isi headline atau mengabaikan approval/QC.
+- Font harus benar-benar keluarga **League Spartan** dari Google Fonts, bobot **Bold 700**, tracking `-47` dan leading `1.05`; custom `BRAND_FONT_PATH` yang bukan League Spartan diabaikan demi konsistensi cover.
