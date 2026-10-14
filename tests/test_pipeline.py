@@ -74,7 +74,8 @@ def test_queue_policy_day_caps(db):
         d=Draft(story_id=st.id,highlight='Fisikawan Temukan Sinyal Aneh Dalam Pencarian Partikel Dark Matter',
                 caption='Ada temuan baru.\n\nNASA menjelaskan.\n\nNamun tidak final.\n\nApa berikutnya?',
                 hashtags=['#Astronomi','#NASA','#Sains','#Riset','#UnfoundedTheory'],
-                rights_reviewed=True,image_url='https://example.org/ready.jpg',photo_license='CC0')
+                rights_reviewed=True,image_url='https://example.org/ready.jpg',
+                photo_license='CC0',image_credit='NASA')
         db.add(d);db.flush();approve(db,d,'owner')
     now=datetime(2026,10,9,17,tzinfo=timezone.utc)
     rows=schedule_approved(db,now=now,daily_limit=2)

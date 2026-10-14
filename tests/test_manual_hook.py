@@ -169,6 +169,7 @@ def test_manual_hook_cannot_be_approved_without_fresh_qc(monkeypatch):
         d.rights_reviewed=True
         d.image_url='https://example.org/final-v2.jpg'
         d.photo_license='CC BY 4.0'
+        d.image_credit='NASA'
         st.evidence=[
             {'claim':'Mars year','quote':'The year on Mars is longer than on Earth.',
              'url':st.source_url,'evidence_checked':True},
@@ -177,3 +178,48 @@ def test_manual_hook_cannot_be_approved_without_fresh_qc(monkeypatch):
         with pytest.raises(ValueError,match='QC editorial'):
             approve(db,d,'42')
     finally:db.close()
+
+
+def test_editor_photo_url_never_autofills_fake_license_or_credit(monkeypatch, tmp_path):
+    db=seed_db()
+    try:
+        _,d=build_story(db)
+        configure(monkeypatch)
+        monkeypatch.setattr('utbot.renderer.require_cover_fit',lambda *args:())
+        monkeypatch.setattr(web,'intake_image',
+                            lambda url,path: str(tmp_path/'source.jpg'))
+        monkeypatch.setattr('utbot.media.render_draft',
+                            lambda draft:setattr(draft,'image_url',
+                                                 'https://example.org/final.jpg'))
+        web._replace_photo(db,d,'https://example.org/user-photo.jpg','42')
+        assert d.image_credit is None and d.photo_license is None
+        assert not d.rights_reviewed
+        assert d.status=='pending_approval'
+    finally:
+        db.close()
+
+
+def test_approved_unpublished_draft_can_redraw_with_new_font(monkeypatch):
+    db=seed_db()
+    try:
+        _,d=build_story(db)
+        bot=configure(monkeypatch)
+        d.source_image_url='https://example.org/science-photo.jpg'
+        d.scheduled_at=None
+        buttons=[b['callback_data'] for row in keyboard(d)['inline_keyboard'] for b in row]
+        assert f'redesign:{d.id}:{d.version}' in buttons
+        monkeypatch.setattr(web,'render_draft',
+                            lambda draft:setattr(draft,'image_url',
+                                                 'https://example.org/cover-new-font.jpg'))
+        monkeypatch.setattr(web,'send_preview',lambda *args:None)
+        assert web.telegram_webhook(telegram_callback(d,'redesign'),db=db)['ok']
+        db.refresh(d)
+        assert d.version==2
+        assert d.status=='pending_approval'
+        assert d.approved_version is None
+        assert d.approved_by is None
+        assert d.image_url=='https://example.org/cover-new-font.jpg'
+        assert any('Approval dan jadwal sebelumnya dibatalkan' in text
+                   for text,_ in bot.messages)
+    finally:
+        db.close()

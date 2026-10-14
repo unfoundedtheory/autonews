@@ -12,12 +12,13 @@ import httpx
 from bs4 import BeautifulSoup
 from .editorial import trusted_source
 from .config import CONFIG
+from .photo_relevance import likely_same_subject
 
 COMMONS_API='https://commons.wikimedia.org/w/api.php'
 # Editorial redistribution is permitted by these licenses when attribution/other terms are satisfied.
 LICENSE_ALLOW={'CC0','CC BY 4.0','CC BY 3.0','CC BY 2.0','CC BY-SA 4.0','CC BY-SA 3.0','CC BY-SA 3.0 IGO','CC BY-SA 2.0','Public domain','PD-old','PD-USGov','PDM 1.0'}
 
-def find_article_photo(article_url,transport=None):
+def find_article_photo(article_url,transport=None,*,subject=None):
     """Candidate hero image *from the exact official source article*.
 
     This is only a preview candidate, not proof of reuse rights. Credits and
@@ -50,6 +51,28 @@ def find_article_photo(article_url,transport=None):
         lower=parsed.path.casefold()
         if any(word in lower for word in ('logo','favicon','default-share','placeholder','avatar','social-share')):
             continue
+        if subject:
+            # A page's og:image may be a generic social thumbnail (e.g. weather
+            # over Antarctica for an IceCube neutrino story). Do not render an
+            # unsubstantiated photo as if it were the actual scientific subject.
+            descriptions=[]
+            for tag,attr in (('og:image:alt','property'),('twitter:image:alt','name')):
+                for meta in soup.find_all('meta',attrs={attr:tag}):
+                    descriptions.append((meta.get('content') or '').strip())
+            for img in soup.find_all('img'):
+                linked=urljoin(article_url,img.get('src') or img.get('data-src') or '')
+                if linked.split('?',1)[0] != url.split('?',1)[0]:
+                    continue
+                descriptions.append(img.get('alt') or '')
+                figure=img.find_parent('figure')
+                if figure:
+                    caption=figure.find('figcaption')
+                    if caption:
+                        descriptions.append(caption.get_text(' ',strip=True))
+            candidate={'title':Path(parsed.path).stem,
+                       'description':' '.join(descriptions)}
+            if not likely_same_subject(subject,candidate):
+                continue
         return {'image_url':url,'original_url':url,'page_url':article_url,
                 'title':(soup.title.get_text(' ',strip=True) if soup.title else 'Foto artikel sumber')[:160],
                 'credit':None,'license':None,'license_url':None,
@@ -151,6 +174,10 @@ def render_draft(draft,source_path=None):
         else:
             raise ValueError('File foto sumber tidak tersedia; pilih foto lagi')
     out=Path(CONFIG.media_dir)/draft.id/f'v{draft.version}.jpg'
+    # Make green emphasis survive automatic hook fitting, manual revisions and
+    # imported drafts with stale or missing accent words.
+    from .manual_hook import accent_for_hook
+    draft.accent_words=accent_for_hook(draft.highlight,draft.accent_words)
     draft.image_local_path=render(src,draft.highlight,out,accent_words=draft.accent_words or [],
                       logo_path=CONFIG.brand_logo,font_path=CONFIG.font_path)
     if __import__('os').environ.get('VERCEL'):

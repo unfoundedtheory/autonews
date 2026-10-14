@@ -57,16 +57,16 @@ def test_gemini_quota_failure_never_implicitly_bills_deepseek(monkeypatch):
         generate_json('system',{'news':'test'},transport=transport)
 
 
-def test_serverless_font_fallback_is_truly_scalable(monkeypatch,tmp_path):
+def test_serverless_uses_bundled_league_spartan_without_system_fonts(monkeypatch,tmp_path):
     from utbot import renderer
-    from PIL import ImageFont
-    original=renderer.ImageFont.truetype
-    # Simulate Vercel: no system fonts are available.
-    monkeypatch.setattr(renderer.Path,'is_file',lambda _path:False)
+    # Simulate Vercel: only our licensed bundled font is available.
+    monkeypatch.setattr(renderer.Path,'is_file',
+                        lambda path: str(path)==str(renderer.DEFAULT_HEADLINE_FONT))
     renderer._font.cache_clear()
     try:
         fallback=renderer._font(78)
         assert fallback.size>=70
+        assert 'league spartan' in fallback.getname()[0].lower()
         assert renderer._ink_height(fallback)>=45
         heading='Kalau Kamu Tinggal di Mars Kapan Ulang Tahunmu Tiba Lagi'
         assert renderer.cover_fits(heading)

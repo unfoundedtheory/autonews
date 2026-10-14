@@ -11,7 +11,10 @@ def recover_article_cover(db,draft,story,actor='editor',*,finder=None,intake=Non
     if draft.status!='pending_approval' or draft.publish_state in {'publishing','published','uncertain','awaiting_container'}:
         raise ValueError('Hanya draf pending yang dapat diperbaiki.')
     require_cover_fit(draft.highlight,CONFIG.font_path)
-    candidate=(finder or find_article_photo)(story.source_url)
+    # Explicit test/preview providers keep their old one-argument interface.
+    # Automatic recovery must check subject relevance before rendering.
+    candidate=(finder(story.source_url) if finder is not None
+               else find_article_photo(story.source_url,subject=story.title))
     if not candidate or not candidate.get('image_url'):
         raise ValueError('Artikel sumber tidak menyediakan foto utama yang layak.')
     photo_url=candidate['image_url']

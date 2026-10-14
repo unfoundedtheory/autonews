@@ -2,7 +2,7 @@
 from pathlib import Path
 from PIL import Image, ImageDraw
 from utbot.renderer import (
-    BADGE_BOX, HEADLINE_TOP, HEADLINE_BOTTOM, TRACKING_EM, WORD_GAP_EM,
+    BADGE_BOX, HEADLINE_TOP, HEADLINE_BOTTOM, TRACKING_EM, LINE_SPACING, WORD_GAP_EM,
     _font, _headline_layout, _title_draw_y, _word_gap, _letter_tracking,
     _line_width, _ink_height, render, MARGIN, WIDTH
 )
@@ -39,7 +39,8 @@ def test_text_fits_fixed_box_independent_of_line_count():
 def test_tracking_tightens_characters_but_preserves_real_word_gap():
     font = _font(82)
     draw = ImageDraw.Draw(Image.new('RGB',(1080,1350)))
-    assert -.03 <= TRACKING_EM <= -.02
+    assert TRACKING_EM == -0.047
+    assert LINE_SPACING == 1.05
     assert _letter_tracking(font) < 0
     assert 0.17 <= WORD_GAP_EM <= 0.24
     assert _word_gap(draw,font) >= 12

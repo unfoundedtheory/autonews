@@ -179,3 +179,9 @@ Preview sementara yang memakai foto dari posting referensi **hanya untuk uji vis
 - CI runs unit tests **before** building a distribution; it does not deploy automatically.
 
 **Deployment walkthrough:** [`docs/GO_LIVE.md`](docs/GO_LIVE.md). This archive is not an active service; official accounts and secrets still need connection and E2E verification.
+
+## Tipografi dan kredit foto (Oktober 2026)
+
+- Cover memakai **League Spartan Black** (font weight 900) dengan **letter spacing -47** (tracking `-0.047 em`) dan **line spacing 1.05** sesuai pengaturan desain asli. Font dibundel secara legal dengan lisensi SIL Open Font License 1.1 agar hasil Vercel, Docker, dan desktop seragam. Jangan gunakan Anton atau font fallback sistem.
+- Semua caption Telegram dan Instagram menampilkan `Photo by : {nama fotografer}` **setelah caption utama dan tepat sebelum lima hashtag**. Contoh akun media sosial asli: `Photo by : threads/ikhsanaditya_`. Field `image_credit` menjadi satu-satunya sumber nama kredit; URL foto tidak otomatis membuktikan pemilik hak.
+- Kredit foto wajib terisi sebelum approval. `Kredit: ...` pada menu Telegram tetap untuk mengisi pemilik asli (bukan lokasi atau nama media repost); peninjauan lisensi dan kecocokan foto tetap diperlukan. Jika lisensi mensyaratkan keterangan tambahan/tautan, editor harus mematuhinya selain kredit singkat tersebut.

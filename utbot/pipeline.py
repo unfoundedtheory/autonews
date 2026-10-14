@@ -301,7 +301,7 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
     # never a random stock image. Its copyright remains unverified.
     if not (d.image_url or d.image_local_path):
         try:
-            hero=find_article_photo(story.source_url)
+            hero=find_article_photo(story.source_url,subject=story.title)
             if hero:
                 src=Path(CONFIG.media_dir)/d.id/'article_source.jpg'
                 d.source_image_path=image_intake(hero['image_url'],str(src))

@@ -20,7 +20,7 @@ def factory(db,n=1):
         url=f"https://www.nasa.gov/test/story{i}"
         story=Story(fingerprint=fingerprint(url),title=f"NASA story {i}",source_url=url,source_name="NASA",topic="astronomy",verification_status="verified",evidence=[{"claim":"NASA says this","url":url,"evidence_checked":True}])
         db.add(story);db.flush()
-        draft=Draft(story_id=story.id,highlight="Fisikawan Temukan Sinyal Aneh Dalam Pencarian Partikel Dark Matter",caption="Akhirnya beberapa ilmuwan menyaksikan sesuatu yang aneh.\n\nNASA menjelaskan temuan ini dalam laporan terbaru.\n\nNamun, pengamatan itu belum merupakan bukti akhir.\n\nApa lagi yang akan diungkap oleh pengamatan berikutnya?",hashtags=["#Astronomi","#NASA","#Sains","#AlamSemesta","#UnfoundedTheory"],image_url="https://example.org/photo.jpg",rights_reviewed=True,photo_license="NASA public domain")
+        draft=Draft(story_id=story.id,highlight="Fisikawan Temukan Sinyal Aneh Dalam Pencarian Partikel Dark Matter",caption="Akhirnya beberapa ilmuwan menyaksikan sesuatu yang aneh.\n\nNASA menjelaskan temuan ini dalam laporan terbaru.\n\nNamun, pengamatan itu belum merupakan bukti akhir.\n\nApa lagi yang akan diungkap oleh pengamatan berikutnya?",hashtags=["#Astronomi","#NASA","#Sains","#AlamSemesta","#UnfoundedTheory"],image_url="https://example.org/photo.jpg",rights_reviewed=True,photo_license="NASA public domain",image_credit="NASA")
         db.add(draft);db.flush();out.append(draft)
     db.commit()
     return out
