@@ -177,3 +177,22 @@ def test_manual_hook_cannot_be_approved_without_fresh_qc(monkeypatch):
         with pytest.raises(ValueError,match='QC editorial'):
             approve(db,d,'42')
     finally:db.close()
+
+
+def test_editor_photo_url_never_autofills_fake_license_or_credit(monkeypatch, tmp_path):
+    db=seed_db()
+    try:
+        _,d=build_story(db)
+        configure(monkeypatch)
+        monkeypatch.setattr('utbot.renderer.require_cover_fit',lambda *args:())
+        monkeypatch.setattr(web,'intake_image',
+                            lambda url,path: str(tmp_path/'source.jpg'))
+        monkeypatch.setattr('utbot.media.render_draft',
+                            lambda draft:setattr(draft,'image_url',
+                                                 'https://example.org/final.jpg'))
+        web._replace_photo(db,d,'https://example.org/user-photo.jpg','42')
+        assert d.image_credit is None and d.photo_license is None
+        assert not d.rights_reviewed
+        assert d.status=='pending_approval'
+    finally:
+        db.close()
