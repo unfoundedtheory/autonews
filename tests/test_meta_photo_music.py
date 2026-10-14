@@ -45,7 +45,7 @@ def test_native_photo_music_handoff_and_permalink():
     try:
         st,d=approved_draft(db)
         msg=manual_music_message(d,st)
-        assert 'Feed Post' in msg
+        assert 'feed foto 4:5' in msg
         assert 'Add music' in msg
         assert 'https://example.org/final-cover.jpg' in msg
         assert 'cosmic ambient' in msg
