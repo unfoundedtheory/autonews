@@ -23,7 +23,7 @@ def test_league_spartan_black_is_bundled_and_readable():
     assert DEFAULT_HEADLINE_FONT.is_file(), 'Production must bundle League Spartan TTF'
     font=_font(80)
     assert 'league spartan' in font.getname()[0].casefold()
-    assert TRACKING_EM == -0.047 and LINE_SPACING == 1.05
+    assert TRACKING_EM == -0.047 and LINE_SPACING == 1.08
     metrics=font_readability_status()
     assert metrics['readable'] is True
     assert 'league spartan' in metrics['font_family'].casefold()
