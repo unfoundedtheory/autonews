@@ -114,7 +114,7 @@ def parse_items(xml):
         out.append({'title':title,'url':canonicalize(link),'pub':pub,
                     'summary':html.unescape(entry.findtext(f'{ns}summary') or '')})
     # A valid XML feed may use RSS item namespaces we do not parse directly.
-    if not out and any(tag.rsplit('}',1)[-1].lower() in {'item','entry'} for tag in root.iter()):
+    if not out and any(node.tag.rsplit('}',1)[-1].lower() in {'item','entry'} for node in root.iter() if isinstance(node.tag,str)):
         recovered=feedparser.parse(payload,resolve_relative_uris=False)
         for entry in recovered.entries:
             title=html.unescape(str(entry.get('title') or '').strip())
@@ -170,14 +170,20 @@ def parse_eso_listing(content):
         # Date must be attached to its own release item, not page-wide text.
         context=a.parent
         stamp=None
-        for _ in range(3):
-            if context is None:break
+        for _ in range(4):
+            if context is None or context.name in ('body','html','main'):break
+            # A date may belong to a neighboring release: require that the
+            # smallest inspected container has just this one press-release link.
+            press_links=[el for el in context.find_all('a',href=True)
+                         if pattern.match(urlsplit(urljoin('https://www.eso.org',el['href'])).path)]
+            if len(press_links)>1:break
             piece=context.get_text(' ',strip=True)[:1200]
             found=date_re.search(piece)
             if found:
                 try:stamp=datetime.strptime(found.group(1).title(),'%d %B %Y').replace(tzinfo=timezone.utc)
                 except ValueError:pass
                 break
+            if context.name in ('article','li'):break
             context=context.parent
         title=a.get_text(' ',strip=True)
         if title and stamp:
