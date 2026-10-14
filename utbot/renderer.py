@@ -6,7 +6,6 @@ Refer to docs/DESIGN_SKILL.md before changing the template.
 from __future__ import annotations
 
 from pathlib import Path
-import os
 import re
 from functools import lru_cache
 from PIL import Image, ImageDraw, ImageFont, ImageOps
@@ -30,15 +29,9 @@ DEFAULT_HEADLINE_FONT = Path(__file__).resolve().parent / "assets" / "Anton-Regu
 
 @lru_cache(maxsize=100)
 def _font(size: int, font_path: str | None = None):
-    windows_fonts = Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts"
-    candidates = [
-        font_path,
-        DEFAULT_HEADLINE_FONT,  # deterministic branding on Vercel and desktop
-        windows_fonts / "arialbd.ttf",
-        windows_fonts / "bahnschrift.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf",
-        "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
-    ]
+    # Only a deliberately configured font or the bundled brand font. No OS
+    # fallback that changes the approved angular look across deployments.
+    candidates = [font_path, DEFAULT_HEADLINE_FONT]
     for candidate in candidates:
         if candidate and Path(candidate).is_file():
             return ImageFont.truetype(candidate, size)
