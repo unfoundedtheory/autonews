@@ -182,6 +182,6 @@ Preview sementara yang memakai foto dari posting referensi **hanya untuk uji vis
 
 ## Tipografi dan kredit foto (Oktober 2026)
 
-- Cover memakai **Anton** (SIL Open Font License 1.1) yang sudah dibundel dalam `utbot/assets`. Huruf kapital kuat, condensed dan tidak rounded seperti fallback Pillow lama. Asset font dipakai oleh Vercel, Docker, dan Python lokal tanpa dependensi font OS. Override `BRAND_FONT_PATH` hanya untuk font yang mengikuti identitas visual resmi.
+- Cover memakai **League Spartan Black** (font weight 900) dengan **letter spacing -47** (tracking `-0.047 em`) dan **line spacing 1.05** sesuai pengaturan desain asli. Font dibundel secara legal dengan lisensi SIL Open Font License 1.1 agar hasil Vercel, Docker, dan desktop seragam. Jangan gunakan Anton atau font fallback sistem.
 - Semua caption Telegram dan Instagram menampilkan `Photo by : {nama fotografer}` **setelah caption utama dan tepat sebelum lima hashtag**. Contoh akun media sosial asli: `Photo by : threads/ikhsanaditya_`. Field `image_credit` menjadi satu-satunya sumber nama kredit; URL foto tidak otomatis membuktikan pemilik hak.
 - Kredit foto wajib terisi sebelum approval. `Kredit: ...` pada menu Telegram tetap untuk mengisi pemilik asli (bukan lokasi atau nama media repost); peninjauan lisensi dan kecocokan foto tetap diperlukan. Jika lisensi mensyaratkan keterangan tambahan/tautan, editor harus mematuhinya selain kredit singkat tersebut.
