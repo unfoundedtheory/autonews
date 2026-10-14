@@ -1023,7 +1023,9 @@ def publish_job(db=Depends(session)):
         d.last_error='Gambar final belum tersedia';db.commit()
         return {'blocked':d.id,'error':d.last_error}
     if not d.rights_reviewed:
-        return {'blocked':d.id,'error':'Hak foto belum dikonfirmasi'}
+        from .stock_flow import photo_auto_safe, is_auto_approved
+        if not (manual_mode and is_auto_approved(db,d) and photo_auto_safe(d)):
+            return {'blocked':d.id,'error':'Hak foto belum dikonfirmasi'}
     # Lock claim before ANY external request. Stuck publishing requires manual reconciliation.
     d.publish_state='publishing';db.commit()
     bot=_bot()
