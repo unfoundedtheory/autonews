@@ -199,3 +199,5 @@ Preview sementara yang memakai foto dari posting referensi **hanya untuk uji vis
 - Prioritas operator: **subjek ilmiah**, **aksi kunci**, **objek/fenomena**. Contoh `Kamera Robotik Berhasil Merekam Lingkaran Cahaya Auroral Utuh Dari Luar Angkasa` → `KAMERA ROBOTIK`, `MEREKAM`, `AURORAL` hijau, selain itu putih.
 - Pemilihan semantik mengoreksi metadata aksen lama saat Render Ulang Cover; tidak menyunting isi headline atau mengabaikan approval/QC.
 - Font harus benar-benar keluarga **League Spartan** dari Google Fonts, bobot **Bold 700**, tracking `-47` dan leading `1.05`; custom `BRAND_FONT_PATH` yang bukan League Spartan diabaikan demi konsistensi cover.
+
+**Cover 4 baris responsif:** font League Spartan Bold 700 tidak memakai satu ukuran tetap. Renderer mencari ukuran terbesar yang muat tepat 4 baris pada grid, sambil mempertahankan tracking -47, line spacing 1.05, dan posisi logo. Jika tidak muat pada minimum yang layak dibaca, editor diminta memendekkan hook di Telegram; tidak ada fallback lima baris.
