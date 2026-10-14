@@ -33,13 +33,22 @@ def test_revisions_revoke_approval(db):
     assert d.status=="pending_approval" and d.approved_version is None and d.version==2
     assert d.scheduled_at is None
 
-def test_missing_rights_or_facts_never_approve(db):
+def test_approval_without_separate_photo_confirm(db):
     d=factory(db)[0]
     d.rights_reviewed=False
-    with pytest.raises(ValueError,match="foto"):approve(db,d,"42")
-    d.rights_reviewed=True
-    st=db.get(Story,d.story_id);st.verification_status="needs_fact_check"
+    approve(db,d,"42")
+    assert d.status=="approved"
+
+
+def test_facts_and_final_cover_remain_required(db):
+    d=factory(db)[0]
+    d.image_url=None
+    with pytest.raises(ValueError,match="Cover final"):approve(db,d,"42")
+    d.image_url="https://example.org/photo.jpg"
+    st=db.get(Story,d.story_id)
+    st.verification_status="needs_fact_check"
     with pytest.raises(ValueError,match="verifikasi"):approve(db,d,"42")
+
 
 def test_backlog_max_two_per_day_with_three_slots(db):
     ds=factory(db,5)
