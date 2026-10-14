@@ -44,7 +44,7 @@ def test_empty_queue_discovers_once_and_prepares_only_one(monkeypatch):
         db.close()
 
 
-def test_discovery_reports_empty_feed_and_never_loops(monkeypatch):
+def test_discovery_checks_one_bounded_archive_pass_and_never_loops(monkeypatch):
     db=db_session()
     try:
         calls=[]
@@ -54,8 +54,8 @@ def test_discovery_reports_empty_feed_and_never_loops(monkeypatch):
             yield {'feed':'NASA APOD','inserted':0}
         monkeypatch.setattr(research,'discover',discover)
         monkeypatch.setenv('ENABLE_LIVE_PUBLISH','false')
-        assert 'Belum ada berita baru' in web.generate_test_news(db,None,123)
-        assert calls==['prepare','discover']
+        assert 'Belum ada kandidat berbeda' in web.generate_test_news(db,None,123)
+        assert calls==['prepare','discover','discover']
     finally:
         db.close()
 
