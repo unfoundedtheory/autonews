@@ -5,7 +5,8 @@ from .instagram import caption_text
 
 def keyboard(draft):
     ref=draft.id;v=draft.version
-    if draft.status=='approved' and draft.publish_state in ('unpublished','manual_music_pending'):
+    if (draft.status=='approved' and draft.publish_state in ('unpublished','manual_music_pending')
+        and not str(draft.approved_by or '').startswith('system:24h_timeout')):
         return {'inline_keyboard':[
             [{'text':'📦 Kirim Paket Instagram','callback_data':f'musickit:{ref}:{v}'}],
             [{'text':'🎵 Konfirmasi Post Instagram','callback_data':f'musicdone:{ref}:{v}'}],
