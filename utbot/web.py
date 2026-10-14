@@ -66,14 +66,16 @@ def cron_auth(request: Request):
 @app.get('/cron/discover', dependencies=[Depends(cron_auth)])
 def cron_discover():
     """Discover candidates at approximately 01:00 WIB."""
-    from .runner import do_discover
-    return {'discovery':do_discover()}
+    from .runner import do_discover, do_maintenance
+    maintenance=do_maintenance()
+    return {'maintenance':maintenance, 'discovery':do_discover()}
 
 @app.get('/cron/prepare', dependencies=[Depends(cron_auth)])
 def cron_prepare():
     """Prepare a small editorial batch at approximately 03:00 WIB."""
-    from .runner import do_prepare
-    return {'prepared':do_prepare()}
+    from .runner import do_prepare, do_maintenance
+    maintenance=do_maintenance()
+    return {'maintenance':maintenance, 'prepared':do_prepare()}
 
 @app.get('/cron/prepare/afternoon', dependencies=[Depends(cron_auth)])
 def cron_prepare_afternoon():
@@ -86,12 +88,15 @@ def cron_tick(slot: str):
     """Publish only pre-approved eligible drafts around 06/12/18 WIB."""
     if slot not in ('morning','noon','evening'):
         raise HTTPException(404,'Invalid slot')
-    from .runner import do_reschedule, do_publish
+    from .runner import do_reschedule, do_publish, do_maintenance
     # Publish overdue-approved items before rebuilding future slots; Hobby cron
-    # can arrive up to 59 minutes after a slot begins.
+    # can arrive up to 59 minutes after a slot begins. Maintenance detects
+    # 24h timeouts and delivers old approved kits without an hourly Vercel cron.
     publication=do_publish()
+    maintenance=do_maintenance()
     scheduled=do_reschedule()
-    return {'queued':len(scheduled),'publication':publication}
+    return {'queued':len(scheduled),'publication':publication,
+            'maintenance':maintenance}
 
 @app.get('/cron/maintenance', dependencies=[Depends(cron_auth)])
 def cron_maintenance():
