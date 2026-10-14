@@ -146,18 +146,28 @@ def _ink_height(font):
 
 
 def _headline_layout(draw, highlight, font_path=None, max_width=WIDTH-2*MARGIN):
-    """Use the owner-approved four-line grid; never squeeze to five lines."""
+    """Fit four lines, or five for reference-style long scientific headlines.
+
+    The user's original five-line cover has 65px baseline pitch and ink from
+    y981 to y1292. Font 64px at 1.05 leading naturally approaches that rhythm.
+    Both formats share the same fixed badge and title box.
+    """
     words = _headline_tokens(highlight)
-    for size in range(104, 57, -2):
-        font = _font(size, font_path)
-        lines = _balanced_wrap(draw, words, font, max_width, max_lines=4, exact_lines=4)
-        pitch = round(size * LINE_SPACING)
-        if (len(lines) == 4 and
-            HEADLINE_TOP + (len(lines)-1)*pitch + _ink_height(font) <= HEADLINE_BOTTOM
-            and all(_line_width(draw, line, font) <= max_width for line in lines)
-            and (len(lines[-1].split())>1 or len(words)<4)):
-            return font, lines, pitch
-    raise ValueError('Highlight tidak muat dalam tepat empat baris; minta revisi melalui Telegram')
+    long_reference_style = len(words)>=16 and len(highlight)>=94
+    line_counts = (5,4) if long_reference_style else (4,5)
+    for count in line_counts:
+        top_size=66 if count==5 else 104
+        bottom_size=56 if count==5 else 58
+        for size in range(top_size,bottom_size-1,-2):
+            font=_font(size,font_path)
+            lines=_balanced_wrap(draw,words,font,max_width,max_lines=count,exact_lines=count)
+            pitch=round(size*LINE_SPACING)
+            if (len(lines)==count
+                and HEADLINE_TOP+(count-1)*pitch+_ink_height(font)<=HEADLINE_BOTTOM
+                and all(_line_width(draw,line,font)<=max_width for line in lines)
+                and (len(lines[-1].split())>1 or count==5 or len(words)<4)):
+                return font,lines,pitch
+    raise ValueError('Highlight tidak muat dalam empat baris atau lima baris cover; revisi melalui Telegram')
 
 
 @lru_cache(maxsize=256)
@@ -289,7 +299,7 @@ def render(input_image, highlight, outpath, accent_words=None, logo_path=None,
     draw = ImageDraw.Draw(img)
 
     # Reference geometry fixed: badge y900–948 and first title ink y981.
-    # All approved headlines use FOUR lines in the exact same fixed region.
+    # Both 4-line and 5-line headlines use the fixed badge and ink region.
     font, lines, pitch = _headline_layout(draw, highlight, font_path)
     if _ink_height(font) + HEADLINE_TOP + (len(lines)-1)*pitch > HEADLINE_BOTTOM:
         raise ValueError('Headline overflow: requires editorial revision')
