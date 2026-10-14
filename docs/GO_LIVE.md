@@ -42,3 +42,9 @@ Admin commands: `/help`, `/pending`, `/queue`, `/status`. In each draft: review 
 - Cross-source independent verification, semantic dedupe of repeated stories and Meta token rotation still require further development and live testing.
 - Telegram bot uses synchronous outbound actions; on a slow image search webhook processing may exceed provider deadlines. Prefer a task queue if volume increases.
 - Do not scale the worker beyond one replica without distributed locking and queue redesign.
+
+## Native music photo-feed mode (new)
+
+The owner selected Instagram **4:5 feed photo with native Instagram music**, NOT a Reel. The standard Graph API image container does not accept licensed catalog audio. Use `PHOTO_MUSIC_MODE=manual` and keep `ENABLE_LIVE_PUBLISH=false` while onboarding. Scheduled approved stories are sent as a Telegram posting kit; the operator uploads the original 4:5 photo and uses Instagram's Add Music flow, then confirms a valid `/p/<code>/` URL to the bot. This confirmation is explicitly user-attested and does not prove that the music was applied. Do not switch to silent photo API publication without a deliberate explicit change to `PHOTO_MUSIC_MODE=off`.
+
+Facebook Page auto-post is a distinct optional API action; link an actual Page with permissions and test read-only `GET /api/internal/meta/connection` before setting `FACEBOOK_CROSSPOST=true`. Check whether Meta Business Suite/Instagram already shares to Facebook so there is exactly ONE posting method. There is NO automatic transfer of the native Instagram track to a Facebook Page photo through the Graph API. On ambiguous Facebook POST results, audit records `facebook_uncertain` and never retries.
