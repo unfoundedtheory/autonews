@@ -82,3 +82,11 @@ Measured from the original 1080×1350 owner examples, not guessed from the v0.5 
 - Ukuran **League Spartan Bold 700** dipilih otomatis sebesar mungkin yang masih muat di area headline tetap (x=56–1024, y=981–1307), sambil menjaga tracking `-47` dan line spacing `1.05`.
 - Jika teks bahkan tidak muat pada ukuran minimum yang masih terbaca, bot wajib meminta revisi hook, **bukan** mengecilkan font sampai tak terbaca, mengubah kata, atau membuat baris kelima.
 - Referensi visual Mars/piramida adalah panduan bentuk glyph dan ritme; jumlah barisnya tidak mengubah persyaratan empat baris terbaru.
+
+## 12. Ergonomi cover — grup logo/teks dinaikkan (Oktober 2026)
+
+- **Aturan terkini mengungguli koordinat historis pada §9–11**: badge bergeser ke `(402,876,678,924)`, headline pertama mulai pada y=`957`; kedua elemen bergerak bersama **24px ke atas**, dengan celah tetap **33px**.
+- Margin aman seragam **56px** untuk kiri, kanan, dan bawah. Ukur batas berdasarkan glyph yang benar-benar tergambar, bukan hanya bounding box tipografi; area kosong optis dapat lebih besar ketika headline pendek.
+- League Spartan **Bold 700**, tracking **−47** (`-0.047em`), line spacing **1.08**. Ukuran font tetap otomatis sebesar mungkin selama headline empat baris aman di bidang gambar 1080×1350.
+- Batas bawah tinta teks adalah y ≤ `1294`; margin visual kiri/kanan minimal 56px. Tidak boleh mengecilkan font melebihi batas keterbacaan demi mengejar kesamaan optis yang mustahil untuk semua panjang judul.
+- Aksen hijau tetap menyoroti subjek, aksi, dan fenomena terpenting secara terpisah. Setelah Render Ulang Desain Cover dari Telegram, editor wajib memeriksa dan approve ulang versi baru.
