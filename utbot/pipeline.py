@@ -101,7 +101,7 @@ def author_from_source(story,source_text,llm=None,revision_feedback=None):
         def llm(query):
             return generate_json(SYSTEM + editorial_instructions(), json.loads(query), temperature=0.22, role="draft")
     query=json.dumps({'title':story.title,'source_url':story.source_url,
-                  'published_at':story.published_at.isoformat() if story.published_at else None,
+                  'published_at':getattr(story,'published_at',None).isoformat() if getattr(story,'published_at',None) else None,
                   'topic':story.topic,'source_text':source_text,
                   'editorial_context':(
                       'Cerita sains evergreen boleh berasal dari masa lampau. '
