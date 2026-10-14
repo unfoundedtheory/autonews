@@ -16,6 +16,7 @@ from .editorial import approve,revise,lint,evidence_ready
 from .scheduler import schedule_approved,due,WIB
 from .instagram import InstagramPublisher,caption_text
 from .telegram import TelegramClient,keyboard,send_preview,photo_keyboard,main_menu
+from .telegram_ui import pending_page,photo_candidate_message,PENDING_PAGE_SIZE
 from .research import discover,fingerprint
 from .rewrite import rewrite
 from .pipeline import prepare_batch
@@ -376,19 +377,27 @@ def telegram_webhook(payload:dict,db=Depends(session)):
             return {'ok':True,'ignored':'duplicate_telegram_update'}
     def send(s,menu=False):
         if bot:bot.message(chat_id,s,main_menu() if menu else None)
-    def show_pending():
+    def show_pending(page=0):
+        from sqlalchemy import func
+        total=db.execute(select(func.count(Draft.id)).where(
+            Draft.status=='pending_approval')).scalar_one()
+        page=max(0,min(page,max(0,(total-1)//PENDING_PAGE_SIZE)))
         pending=db.execute(select(Draft).where(Draft.status=='pending_approval')
-                  .order_by(Draft.created_at.desc()).limit(10)).scalars().all()
-        lines=[f'{draft.id[:8]} v{draft.version}: {draft.highlight}' for draft in pending]
-        body='📝 Pending Approval\\n'+('\\n'.join(lines) or 'Tidak ada draf menunggu approval')
+                   .order_by(Draft.created_at.desc(),Draft.id.desc())
+                   .offset(page*PENDING_PAGE_SIZE).limit(PENDING_PAGE_SIZE)).scalars().all()
         if bot:
-            actions=[[{'text':f'👁 Buka {draft.id[:8]}: {draft.highlight[:25]}',
-                       'callback_data':f'open:{draft.id}:{draft.version}'}]
-                     for draft in pending]
-            actions.append([{'text':'🏠 Menu Utama','callback_data':'nav:home'}])
-            bot.message(chat_id,body,{'inline_keyboard':actions})
+            body,actions=pending_page(pending,total,page)
+            bot.message(chat_id,body,actions)
     if cb and str(cb.get('data','')).startswith('nav:'):
         action=cb['data'][4:]
+        pending_index=0
+        if action.startswith('pending:'):
+            page_text=action.partition(':')[2]
+            if not page_text.isascii() or not page_text.isdigit() or len(page_text)>5:
+                if bot:bot.answer(cb.get('id'),'Halaman tidak valid')
+                return {'ok':True,'invalid_page':True}
+            pending_index=int(page_text)
+            action='pending'
         if action not in ('home','pending','queue','status','test_gemini','test_news','test_cover'):
             if bot:bot.answer(cb.get('id'),'Menu tidak valid')
             return {'ok':True}
@@ -409,7 +418,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
             groups=db.execute(select(Draft.status,func.count(Draft.id)).group_by(Draft.status)).all()
             send('📊 Status redaksi\\n'+('\\n'.join(f'{s}: {n}' for s,n in groups) or 'Belum ada berita'),True)
         elif action=='pending':
-            show_pending()
+            show_pending(pending_index)
         else:
             rows=db.execute(select(Draft).where(Draft.status=='approved',Draft.scheduled_at.is_not(None)).order_by(Draft.scheduled_at).limit(15)).scalars().all()
             send('📅 Jadwal WIB\\n'+('\\n'.join(f'{d.scheduled_at.astimezone(WIB):%d/%m %H:%M} - {d.highlight}' for d in rows) or 'Belum ada antrean'),True)
@@ -555,7 +564,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         lines.extend(str(i+1)+'. '+str(item.get('title') or 'Tanpa judul')[:100]+
                            ' | '+str(item.get('license') or 'Lisensi belum jelas')
                            for i,item in enumerate(d.photo_candidates))
-                        bot.message(chat_id,'\\n'.join(lines),photo_keyboard(d))
+                        bot.message(chat_id,photo_candidate_message(d),photo_keyboard(d))
             elif action.startswith('pickh') and action[5:].isdigit():
                 index=int(action[5:])
                 report=db.query(Audit).filter(Audit.draft_id==d.id,
