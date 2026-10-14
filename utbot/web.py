@@ -442,10 +442,17 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 db.commit()
                 rows=[[{'text':f'Pilih Hook {i+1}','callback_data':f'pickh{i}:{d.id}:{d.version}'}]
                       for i in range(len(ideas))]
-                if bot:bot.message(chat_id,'✨ Alternatif hook dari sumber yang sama: '+
-                    '\\n\\n'+'\\n\\n'.join(f'{i+1}. {h}' for i,h in enumerate(ideas))+
-                    '\\n\\nPilih salah satu. Semua tetap perlu pemeriksaan editorial.',
-                    {'inline_keyboard':rows})
+                rows.append([{'text':'✍️ Tulis Hook Sendiri',
+                              'callback_data':f'manualhook:{d.id}:{d.version}'}])
+                rows.append([{'text':'↩️ Kembali ke Preview',
+                              'callback_data':f'open:{d.id}:{d.version}'}])
+                if bot:
+                    bot.message(chat_id,
+                        '✨ Alternatif hook dari sumber yang sama:\n\n'+
+                        '\n\n'.join(f'{i+1}. {h}' for i,h in enumerate(ideas))+
+                        '\n\nPilih salah satu, atau ketik versi sendiri lewat tombol di bawah. '
+                        'Semua harus melalui QC editorial.',
+                        {'inline_keyboard':rows})
             elif action=='redesign':
                 if d.status!='pending_approval' or d.publish_state in ('publishing','uncertain','published'):
                     raise ValueError('Hanya cover draf pending yang boleh diperbarui.')
@@ -549,7 +556,10 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 from .renderer import require_cover_fit
                 require_cover_fit(choices[index],CONFIG.font_path)
                 revise(db,d,'highlight',choices[index],uid)
-                d.accent_words=[]
+                editing=db.get(TelegramSession,str(uid))
+                if editing:db.delete(editing)
+                from .manual_hook import accent_for_hook
+                d.accent_words=accent_for_hook(choices[index],d.accent_words)
                 db.add(Audit(draft_id=d.id,event='hook_selected',actor=str(uid),
                              detail={'version':d.version,'source_version':version,'choice':index+1}))
                 if d.source_image_url or d.source_image_path:
@@ -610,12 +620,27 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 db.add(Audit(draft_id=d.id,event='photo_rights_confirmed',actor=str(uid),
                              detail={'photo':d.media_page_url,'license':d.photo_license}))
                 db.commit();send('📄 Hak penggunaan foto dikonfirmasi. Anda bertanggung jawab memeriksa syarat lisensi dan kecocokan foto.')
-            elif action in ('highlight','caption','photo'):
+            elif action in ('highlight','caption','photo','manualhook'):
+                if d.status in ('published','rejected') or d.publish_state in ('publishing','published','uncertain'):
+                    raise ValueError('Draf ini tidak dapat diedit.')
                 sess=db.get(TelegramSession,str(uid))
                 if sess:db.delete(sess);db.flush()
-                db.add(TelegramSession(user_id=str(uid),draft_id=d.id,mode=action,version=d.version))
+                mode='manual_hook' if action=='manualhook' else action
+                db.add(TelegramSession(user_id=str(uid),draft_id=d.id,mode=mode,version=d.version))
                 db.commit()
-                send('Kirim instruksi revisi atau teks pengganti. Untuk foto, kirim gambar langsung, URL HTTPS yang boleh digunakan, atau kata kunci Commons. Foto yang Anda unggah perlu kredit dan lisensi. /cancel untuk batal.')
+                if action=='manualhook':
+                    send('✍️ Kirim satu headline baru dalam pesan Telegram berikutnya. '
+                         'Teks Anda akan dipakai PERSIS, tanpa ditulis ulang AI. '
+                         'Sistem memeriksa angka sumber, format, dan empat baris cover. '
+                         'Setelah tersimpan, gunakan 📋 Hasil QC. /cancel untuk batal.')
+                elif action=='highlight':
+                    send('✏️ Kirim instruksi agar AI merevisi hook, misalnya "Buat lebih personal". '
+                         'Untuk menulis sendiri tanpa AI, gunakan Tulis Hook Sendiri. /cancel untuk batal.')
+                elif action=='caption':
+                    send('📝 Kirim instruksi atau teks pengganti caption. /cancel untuk batal.')
+                else:
+                    send('🖼 Kirim foto langsung, URL HTTPS, atau kata kunci Commons. '
+                         'Foto memerlukan kredit dan pemeriksaan hak penggunaan. /cancel untuk batal.')
             elif action.startswith('pick') and action[4:].isdigit():
                 idx=int(action[4:]);opts=d.photo_candidates or []
                 if idx>=len(opts):raise ValueError('Pilihan foto tidak valid.')
@@ -690,13 +715,35 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         d.photo_license=lic.group(1).strip()[:120]
                         if link:d.media_page_url=link.group(1)
                         # Review button still required, never self-certify permission.
-                    elif sess.mode in ('highlight','caption'):
-                        value=_revision_text(sess.mode,txt,d,st)
-                        if sess.mode=='highlight':
-                            from .renderer import require_cover_fit
-                            require_cover_fit(value,CONFIG.font_path)
-                        revise(db,d,sess.mode,value,uid)
-                        if sess.mode=='highlight' and d.source_image_path:render_draft(d)
+                    elif sess.mode in ('highlight','caption','manual_hook'):
+                        if sess.mode=='manual_hook':
+                            from .manual_hook import validate_typed_hook,accent_for_hook
+                            value=validate_typed_hook(txt,st,CONFIG.font_path)
+                            if value==d.highlight:
+                                raise ValueError('Hook sama dengan yang sekarang. Tulis versi baru atau /cancel.')
+                            revise(db,d,'highlight',value,uid)
+                            d.accent_words=accent_for_hook(value,d.accent_words)
+                            db.add(Audit(draft_id=d.id,event='manual_hook_submitted',
+                                         actor=str(uid),detail={'version':d.version,
+                                          'source':'telegram_direct_text',
+                                          'editorial_qc_required':True}))
+                            if d.source_image_url or d.source_image_path:
+                                try:
+                                    render_draft(d)
+                                except (ValueError,RuntimeError,httpx.HTTPError,OSError) as exc:
+                                    d.image_url=None
+                                    d.image_local_path=None
+                                    d.last_error='Render cover: '+str(exc)[:220]
+                            else:
+                                d.last_error='Foto sumber belum tersedia. Gunakan Ganti Foto.'
+                        else:
+                            value=_revision_text(sess.mode,txt,d,st)
+                            if sess.mode=='highlight':
+                                from .renderer import require_cover_fit
+                                require_cover_fit(value,CONFIG.font_path)
+                            revise(db,d,sess.mode,value,uid)
+                            if sess.mode=='highlight' and (d.source_image_url or d.source_image_path):
+                                render_draft(d)
                     elif sess.mode=='photo':
                         if txt.startswith('https://'):
                             _replace_photo(db,d,txt,uid)
@@ -708,9 +755,17 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                                  '\n'.join(f'{i+1}. {opt["title"]}: {opt["page_url"]}' for i,opt in enumerate(opts)))
                             if bot:bot.message(chat_id,'Pilih foto:',photo_keyboard(d))
                             return {'ok':True,'photo_options':len(opts)}
+                    manual=(sess.mode=='manual_hook')
                     db.delete(sess);db.commit()
                     if bot:send_preview(bot,chat_id,d,st)
-                    send('✏️ Versi baru tersimpan. Approval versi sebelumnya dibatalkan.')
+                    if manual:
+                        send('✅ Hook tulisan Anda tersimpan tanpa perubahan oleh AI. '
+                             'Approval dan QC versi lama dibatalkan. '
+                             'Tekan 📋 Hasil QC untuk memeriksa curiosity gap serta akurasi. '+
+                             ('Cover terbaru siap diperiksa.' if d.image_url or d.image_local_path else
+                              'Cover belum tersedia: '+str(d.last_error or 'Pilih foto sumber.')))
+                    else:
+                        send('✏️ Versi baru tersimpan. Approval versi sebelumnya dibatalkan.')
                 except (ValueError,RuntimeError,httpx.HTTPError,OSError) as exc:
                     db.rollback();send('⚠️ '+str(exc)[:300]+' Coba ulangi atau /cancel.')
     return {'ok':True}

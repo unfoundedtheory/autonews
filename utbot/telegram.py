@@ -8,8 +8,8 @@ def keyboard(draft):
         [{'text':'✅ Approve','callback_data':f'approve:{ref}:{v}'},
          {'text':'❌ Tolak','callback_data':f'reject:{ref}:{v}'}],
         [{'text':'✨ Hook Alternatif','callback_data':f'hookideas:{ref}:{v}'},
-         {'text':'✏️ Highlight','callback_data':f'highlight:{ref}:{v}'}],
-        [
+         {'text':'✍️ Tulis Hook Sendiri','callback_data':f'manualhook:{ref}:{v}'}],
+        [{'text':'✏️ Revisi Hook via AI','callback_data':f'highlight:{ref}:{v}'},
          {'text':'📝 Caption','callback_data':f'caption:{ref}:{v}'}],
         [{'text':'🖼 Ganti Foto','callback_data':f'photo:{ref}:{v}'},
          {'text':'🔎 Sumber','callback_data':f'sources:{ref}:{v}'}],
@@ -110,20 +110,17 @@ class TelegramClient:
         return self.call('answerCallbackQuery',{'callback_query_id':callback_id,'text':text[:180],'show_alert':False})
 
 def preview_text(d,st):
-    from .scheduler import WIB
-    date=(d.scheduled_at.astimezone(WIB).strftime('%d %b %Y %H:%M WIB') if d.scheduled_at else 'Belum disetujui')
-    rights='Sudah dikonfirmasi' if d.rights_reviewed else 'BELUM dikonfirmasi'
-    return (f'📰 Unfounded Theory | Draf {d.id[:8]} v{d.version}\n'
-            f'Topik: {st.topic} | Fakta: kutipan sumber primer dicocokkan otomatis\n'
-            f'Hak foto: {rights} | Jadwal: {date}\n\n'
-            f'HIGHLIGHT\n{d.highlight}\n\nCAPTION\n{d.caption}\n\n'
-            f'{" ".join(d.hashtags)}\n\nSumber: {st.source_url}\n'
-            f'Foto: {d.media_page_url or "Belum dipilih"}\nLisensi: {d.photo_license or "Belum diperiksa"}')
+    """Clean owner-facing preview; technical details stay under the Sumber button."""
+    return ('HIGHLIGHT\n'+d.highlight+'\n\n'
+            'CAPTION\n'+d.caption+'\n\n'
+            +' '.join(d.hashtags))
+
+
 
 def send_preview(bot,chat_id,d,st):
     # Preview and caption are separately sent to avoid Telegram 1024-character photo caption limit.
     if d.image_local_path and Path(d.image_local_path).is_file():
-        bot.file_photo(chat_id,d.image_local_path,f'Preview gambar untuk draf {d.id[:8]} v{d.version}')
+        bot.file_photo(chat_id,d.image_local_path,' ')
     elif d.image_url and d.image_url.startswith('https://'):
-        bot.photo(chat_id,d.image_url,f'Preview final untuk draf {d.id[:8]} v{d.version}')
+        bot.photo(chat_id,d.image_url,' ')
     bot.message(chat_id,preview_text(d,st),keyboard(d))
