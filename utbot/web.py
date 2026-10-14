@@ -839,7 +839,10 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         send('Foto diterima. Balas dua baris seperti ini:\nKredit: NASA/Chandra\nLisensi: Public domain\nTambahkan URL sumber jika ada. /cancel untuk batal.')
                         return {'ok':True,'awaiting':'photo_credit'}
                     if sess.mode=='music_post_link':
-                        if d.status!='approved' or d.publish_state!='manual_music_pending':
+                        from .stock_flow import music_kit_sent, is_auto_approved
+                        if (d.status!='approved' or is_auto_approved(db,d) or
+                            not (d.publish_state=='manual_music_pending' or
+                                 (d.publish_state=='unpublished' and music_kit_sent(db,d)))):
                             raise ValueError('Handoff musik tidak lagi menunggu konfirmasi.')
                         link=instagram_post_url(txt)
                         d.status='published'
@@ -978,11 +981,15 @@ def _manual_photo_music_handoff(db):
 
 @app.post('/jobs/publish',dependencies=[Depends(worker_auth)])
 def publish_job(db=Depends(session)):
-    if CONFIG.photo_music_mode=='manual':
-        return _manual_photo_music_handoff(db)
-    if CONFIG.photo_music_mode!='off':
+    manual_mode=CONFIG.photo_music_mode=='manual'
+    if manual_mode:
+        reminder=_manual_photo_music_handoff(db)
+        if reminder.get('manual_music')!='none_due':
+            return reminder
+    elif CONFIG.photo_music_mode!='off':
         return {'blocked':'Invalid PHOTO_MUSIC_MODE'}
     if not CONFIG.live_publish:
+        if manual_mode:return {'manual_music':'none_due', 'live_publish':False}
         return {'live_publish':False,'due_count':len(due(db)),
                 'note':'DRY RUN: tidak ada permintaan dikirim ke Instagram'}
     if not CONFIG.brand_logo or not Path(CONFIG.brand_logo).is_file():
@@ -992,9 +999,14 @@ def publish_job(db=Depends(session)):
     # Single-worker deployment is mandatory with SQLite; Postgres supports skip_locked.
     q=select(Draft).where(Draft.status=='approved',Draft.approved_version==Draft.version,
           Draft.publish_state.in_(['unpublished','awaiting_container']),
-          Draft.scheduled_at <= datetime.now(timezone.utc)).order_by(Draft.scheduled_at).limit(1)
+          Draft.scheduled_at <= datetime.now(timezone.utc)).order_by(Draft.scheduled_at).limit(30 if manual_mode else 1)
     if db.bind.dialect.name=='postgresql':q=q.with_for_update(skip_locked=True)
-    d=db.execute(q).scalars().first()
+    rows=db.execute(q).scalars().all()
+    if manual_mode:
+        from .stock_flow import is_auto_approved
+        d=next((row for row in rows if is_auto_approved(db,row)),None)
+    else:
+        d=rows[0] if rows else None
     if not d:return {'due':0}
     if d.expires_at:
         expires=d.expires_at.replace(tzinfo=timezone.utc) if d.expires_at.tzinfo is None else d.expires_at
