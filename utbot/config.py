@@ -13,10 +13,17 @@ class Config:
     admin_ids: frozenset[int] = frozenset(int(s.strip()) for s in os.getenv('TELEGRAM_ADMIN_USER_IDS','').split(',') if s.strip().isdigit())
     chat_id: str = os.getenv('TELEGRAM_CHAT_ID','')
     worker_secret: str = os.getenv('WORKER_SECRET','')
-    ig_base: str = os.getenv('INSTAGRAM_GRAPH_BASE','https://graph.instagram.com')
+    ig_base: str = os.getenv('INSTAGRAM_GRAPH_BASE','https://graph.facebook.com')
     ig_version: str = os.getenv('INSTAGRAM_GRAPH_VERSION','v24.0')
     ig_user_id: str = os.getenv('INSTAGRAM_USER_ID','')
     ig_token: str = os.getenv('INSTAGRAM_ACCESS_TOKEN','')
+    # Native Instagram music for 4:5 photo posts is a deliberate manual step.
+    # No silent fallback to photo-only publishing.
+    photo_music_mode: str = os.getenv('PHOTO_MUSIC_MODE','manual')
+    facebook_page_id: str = os.getenv('FACEBOOK_PAGE_ID','')
+    facebook_page_token: str = os.getenv('FACEBOOK_PAGE_ACCESS_TOKEN','')
+    facebook_graph_version: str = os.getenv('FACEBOOK_GRAPH_VERSION','v24.0')
+    facebook_crosspost: bool = os.getenv('FACEBOOK_CROSSPOST','false').lower() == 'true'
     live_publish: bool = os.getenv('ENABLE_LIVE_PUBLISH','false').lower() == 'true'
     daily_limit: int = int(os.getenv('DAILY_PUBLISH_LIMIT','2'))
     ai_provider: str = os.getenv('AI_PROVIDER','gemini')
