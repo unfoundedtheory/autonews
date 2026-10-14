@@ -44,7 +44,7 @@ def test_true_league_spartan_bold_seven_hundred():
     assert regular<active<black, (regular,active,black)
     assert active==ink_at(700)
     assert renderer.TRACKING_EM == -0.047
-    assert renderer.LINE_SPACING == 1.05
+    assert renderer.LINE_SPACING == 1.08
 
 
 def test_long_reference_adapts_font_for_four_lines_and_preserves_semantic_accents(tmp_path,monkeypatch):
