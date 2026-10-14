@@ -121,7 +121,8 @@ def readiness(db=Depends(session)):
     if CONFIG.facebook_crosspost:
         required.append('facebook_page_configured')
     blockers=[key for key in required if not checks[key]]
-    return {'ready_for_live':len(blockers)==0 and (CONFIG.photo_music_mode=='manual' or CONFIG.live_publish),
+    return {'ready_for_live':len(blockers)==0 and CONFIG.photo_music_mode=='off' and CONFIG.live_publish,
+            'ready_for_manual_handoff':len(blockers)==0 and CONFIG.photo_music_mode=='manual',
             'live_publish_enabled':CONFIG.live_publish,
             'checks':checks,'configured_ai':configured_ai,'blockers':blockers,
             'photo_music_mode':CONFIG.photo_music_mode,
