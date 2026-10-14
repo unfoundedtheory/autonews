@@ -33,7 +33,7 @@ def pending_page(drafts,total,page=0):
 
 def photo_candidate_message(draft):
     lines=['🖼 Pilih Foto Cover','',
-           'Periksa kecocokan objek dan hak penggunaan sebelum memilih.']
+           'Pilih satu kandidat cover. Periksa objek dan hak penggunaan sebelum memilih.']
     for index,photo in enumerate((draft.photo_candidates or [])[:6],1):
         title=clean_text(photo.get('title') or 'Foto tanpa judul',75)
         title=re.sub(r'(?i)\.(?:jpe?g|png|gif|tiff?|webp)$','',title)
