@@ -20,6 +20,9 @@ def keyboard(draft):
         rows.append([{'text':'🖼 Buat Cover dari Sumber','callback_data':f'retrycover:{ref}:{v}'}])
     if (draft.source_image_url or draft.image_url) and (not draft.photo_license or not draft.image_credit):
         rows.append([{'text':'🧾 Isi Kredit & Lisensi','callback_data':f'credit:{ref}:{v}'}])
+    if (draft.image_url or draft.image_local_path) and draft.status=='pending_approval':
+        rows.append([{'text':'🎨 Render Ulang Desain Cover',
+                      'callback_data':f'redesign:{ref}:{v}'}])
     if draft.photo_license and draft.image_credit and not draft.rights_reviewed:
         rows.append([{'text':'📄 Verifikasi Hak Foto','callback_data':f'rights:{ref}:{v}'}])
     return {'inline_keyboard':rows}

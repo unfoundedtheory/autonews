@@ -446,6 +446,24 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     '\\n\\n'+'\\n\\n'.join(f'{i+1}. {h}' for i,h in enumerate(ideas))+
                     '\\n\\nPilih salah satu. Semua tetap perlu pemeriksaan editorial.',
                     {'inline_keyboard':rows})
+            elif action=='redesign':
+                if d.status!='pending_approval' or d.publish_state in ('publishing','uncertain','published'):
+                    raise ValueError('Hanya cover draf pending yang boleh diperbarui.')
+                if not d.source_image_url:
+                    raise ValueError('Sumber foto tidak tersedia. Gunakan Ganti Foto atau Cari Ulang Cover.')
+                from .renderer import require_cover_fit
+                require_cover_fit(d.highlight,CONFIG.font_path)
+                # Allocate a NEW immutable URL: Supabase disallows overwriting
+                # old vN jpg objects. Old approval is revoked.
+                revise(db,d,'highlight',d.highlight,uid)
+                render_draft(d)
+                d.last_error=None
+                db.add(Audit(draft_id=d.id,event='cover_design_updated',actor=str(uid),
+                             detail={'version':d.version,'note':'new scalable typography'}))
+                db.commit()
+                if bot:send_preview(bot,chat_id,d,st)
+                send('🎨 Cover sudah dibuat ulang dengan tipografi terbaru. '
+                     'Periksa preview dan jalankan Hasil QC sebelum Approve.')
             elif action=='autofit':
                 if d.status!='pending_approval' or d.publish_state in ('publishing','uncertain','published'):
                     raise ValueError('Hanya draf pending yang boleh diperbaiki.')

@@ -80,6 +80,19 @@ def test_serverless_font_fallback_is_truly_scalable(monkeypatch,tmp_path):
         renderer._font.cache_clear()
 
 
+def test_regular_fallback_headline_uses_readable_emphasis():
+    from PIL import ImageFont
+    from utbot.renderer import _draw_word_tracked
+    font=ImageFont.load_default(size=78)
+    image=Image.new('RGB',(450,150),'#000000')
+    draw=ImageDraw.Draw(image)
+    _draw_word_tracked(draw,'MARS',30,15,font,'#FFFFFF')
+    # A full-width, bold-ish title cannot collapse into 10 px bitmap glyphs.
+    bounds=image.getbbox()
+    assert bounds is not None
+    assert bounds[3]-bounds[1] >= 50
+
+
 def test_words_have_physical_gap_not_just_unicode_spaces():
     from utbot.renderer import _word_gap, _word_width, _line_width, _draw_title_line, WIDTH, MARGIN
     canvas = Image.new('RGB',(1080,1350),'#000000')

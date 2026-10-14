@@ -177,9 +177,14 @@ def _accent_check(word: str, accent: set[str]):
 def _draw_word_tracked(draw, word, x, y, font, color):
     """Draw at one fixed baseline. Glyph kerning applies only between characters."""
     cursor = x
+    style=font.getname()[1].lower()
+    # When a serverless host lacks condensed bold fonts, Pillow uses its
+    # bundled scalable regular family; moderate stroke restores headline
+    # hierarchy without raster stretching. True bold fonts need no stroke.
+    stroke=0 if ('bold' in style or 'black' in style or 'heavy' in style) else min(3,max(1,round(font.size*0.035)))
     for ch in word:
         draw.text((round(cursor),round(y)), ch, font=font, fill=color,
-                  stroke_width=0, anchor='la')
+                  stroke_width=stroke, stroke_fill=color, anchor='la')
         cursor += draw.textlength(ch, font=font) + _letter_tracking(font)
     return _word_width(draw, word, font)
 
