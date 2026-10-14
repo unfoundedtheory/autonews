@@ -24,7 +24,7 @@ Host the API behind HTTPS on port 443 and proxy to `api:8000`. Never expose port
 
 Set the Telegram webhook URL to `https://YOUR-HOST/telegram/webhook` and `secret_token` to your `TELEGRAM_WEBHOOK_SECRET`. Use the Telegram API `setWebhook` from your own machine. Do **not** paste the complete command with a bot token into a shared log or chat.
 
-Admin commands: `/help`, `/pending`, `/queue`, `/status`. In each draft: review image, source and photo license, edit text/photo, confirm rights, and explicitly Approve. Direct photo uploads prompt for credit/license. Approval becomes invalid on each revision.
+Admin commands: `/help`, `/pending`, `/queue`, `/status`. In each draft: review image and source, optionally supplement photo credit/license, then explicitly Approve once. No separate rights-verification callback is needed in the manual photo+music mode. The editor remains responsible for lawful use; no missing license is deemed automatically verified. Approval becomes invalid on each revision.
 
 ## Mandatory pre-publish checks
 
