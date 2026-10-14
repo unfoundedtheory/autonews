@@ -201,3 +201,5 @@ Preview sementara yang memakai foto dari posting referensi **hanya untuk uji vis
 - Font harus benar-benar keluarga **League Spartan** dari Google Fonts, bobot **Bold 700**, tracking `-47` dan leading `1.05`; custom `BRAND_FONT_PATH` yang bukan League Spartan diabaikan demi konsistensi cover.
 
 **Cover 4 baris responsif:** font League Spartan Bold 700 tidak memakai satu ukuran tetap. Renderer mencari ukuran terbesar yang muat tepat 4 baris pada grid, sambil mempertahankan tracking -47, line spacing 1.05, dan posisi logo. Jika tidak muat pada minimum yang layak dibaca, editor diminta memendekkan hook di Telegram; tidak ada fallback lima baris.
+
+**Ergonomi cover (v0.7):** badge dan blok headline naik 24px bersama-sama; safe area kiri/kanan/bawah sama-sama 56px; line spacing proporsional 1.08. Font tetap League Spartan Bold 700, tracking -47, dan persis empat baris dengan ukuran dinamis. Pemilihan kata hijau tetap semantik. Untuk konten pendek, whitespace nyata bisa melebihi 56px; angka tersebut adalah **minimum safety margin**, bukan target merenggangkan atau men-stretch huruf.
