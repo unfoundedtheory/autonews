@@ -82,7 +82,7 @@ def approve(db, draft, actor, *, human_fact_checked=False):
         raise ValueError("URL cover final wajib HTTPS.")
     issues=lint(draft.highlight,draft.caption,draft.hashtags,tragedy=bool(draft.is_tragedy))
     if issues: raise ValueError("Aturan editorial belum terpenuhi: "+", ".join(issues))
-    prior_qc=db.query(Audit).filter(Audit.draft_id==draft.id,Audit.event=='editorial_qc').first()
+    prior_qc=db.query(Audit).filter(Audit.draft_id==draft.id,Audit.event=='editorial_qc').order_by(Audit.id.desc()).first()
     # Existing AI-produced drafts must pass the CURRENT Markdown + curiosity rubric.
     # Pure manually imported drafts without automated QC are reviewed by their
     # human owner as before; mocked writers in isolated unit tests are unchanged.
