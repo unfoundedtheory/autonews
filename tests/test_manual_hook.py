@@ -169,6 +169,7 @@ def test_manual_hook_cannot_be_approved_without_fresh_qc(monkeypatch):
         d.rights_reviewed=True
         d.image_url='https://example.org/final-v2.jpg'
         d.photo_license='CC BY 4.0'
+        d.image_credit='NASA'
         st.evidence=[
             {'claim':'Mars year','quote':'The year on Mars is longer than on Earth.',
              'url':st.source_url,'evidence_checked':True},
