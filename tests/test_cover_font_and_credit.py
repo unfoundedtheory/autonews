@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import pytest
 
 from utbot.instagram import photo_credit_line, caption_text
-from utbot.renderer import DEFAULT_HEADLINE_FONT, font_readability_status, _font
+from utbot.renderer import DEFAULT_HEADLINE_FONT, font_readability_status, _font, TRACKING_EM, LINE_SPACING
 from utbot.telegram import preview_text
 
 TAGS=['#Astronomi','#NASA','#Sains','#Riset','#UnfoundedTheory']
@@ -19,13 +19,14 @@ def draft(*, credit='NASA', photo_url='https://science.nasa.gov/mission', captio
                            caption=caption,hashtags=TAGS,
                            image_credit=credit,media_page_url=photo_url)
 
-def test_anton_square_display_font_is_bundled_and_readable():
-    assert DEFAULT_HEADLINE_FONT.is_file(), 'The production bundle must include Anton TTF'
+def test_league_spartan_black_is_bundled_and_readable():
+    assert DEFAULT_HEADLINE_FONT.is_file(), 'Production must bundle League Spartan TTF'
     font=_font(80)
-    assert 'anton' in font.getname()[0].casefold()
+    assert 'league spartan' in font.getname()[0].casefold()
+    assert TRACKING_EM == -0.047 and LINE_SPACING == 1.05
     metrics=font_readability_status()
     assert metrics['readable'] is True
-    assert metrics['font_family'].casefold()=='anton'
+    assert 'league spartan' in metrics['font_family'].casefold()
 
 def test_instagram_caption_has_short_photo_credit_before_last_five_hashtags():
     d=draft()
