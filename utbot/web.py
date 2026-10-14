@@ -792,6 +792,24 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         if bot:send_preview(bot,chat_id,d,st)
                         send('Foto diterima. Balas dua baris seperti ini:\nKredit: NASA/Chandra\nLisensi: Public domain\nTambahkan URL sumber jika ada. /cancel untuk batal.')
                         return {'ok':True,'awaiting':'photo_credit'}
+                    if sess.mode=='music_post_link':
+                        if d.status!='approved' or d.publish_state!='manual_music_pending':
+                            raise ValueError('Handoff musik tidak lagi menunggu konfirmasi.')
+                        link=instagram_post_url(txt)
+                        d.status='published'
+                        d.publish_state='published'
+                        db.add(Audit(draft_id=d.id,event='ig_music_manual_confirmed',
+                                     actor=str(uid),detail={'version':d.version,
+                                        'post_url':link,
+                                        'note':'Confirmed by human editor, not independently API verified'}))
+                        db.delete(sess)
+                        db.commit()
+                        fb=publish_facebook_once(db,d,actor=str(uid))
+                        send('✅ Post Instagram dicatat sesuai konfirmasi Anda.\\n'
+                             'URL: '+link+'\\nFacebook: '+str(fb.get('facebook'))+
+                             '\\nTidak ada publikasi foto tanpa musik oleh bot.')
+                        return {'ok':True,'instagram':'editor_confirmed',
+                                'facebook':fb.get('facebook')}
                     if sess.mode=='photo_credit':
                         # Deliberately requires manual attribution information from owner.
                         import re
