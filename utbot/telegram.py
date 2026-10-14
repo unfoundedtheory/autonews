@@ -1,6 +1,7 @@
 """Telegram bot with preview uploads and version-bound edit actions."""
 from pathlib import Path
 import httpx
+from .instagram import caption_text
 
 def keyboard(draft):
     ref=draft.id;v=draft.version
@@ -112,8 +113,7 @@ class TelegramClient:
 def preview_text(d,st):
     """Clean owner-facing preview; technical details stay under the Sumber button."""
     return ('HIGHLIGHT\n'+d.highlight+'\n\n'
-            'CAPTION\n'+d.caption+'\n\n'
-            +' '.join(d.hashtags))
+            'CAPTION\n'+caption_text(d,allow_missing_credit=True))
 
 
 
