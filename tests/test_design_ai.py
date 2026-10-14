@@ -57,6 +57,29 @@ def test_gemini_quota_failure_never_implicitly_bills_deepseek(monkeypatch):
         generate_json('system',{'news':'test'},transport=transport)
 
 
+def test_serverless_font_fallback_is_truly_scalable(monkeypatch,tmp_path):
+    from utbot import renderer
+    from PIL import ImageFont
+    original=renderer.ImageFont.truetype
+    # Simulate Vercel: no system fonts are available.
+    monkeypatch.setattr(renderer.Path,'is_file',lambda _path:False)
+    renderer._font.cache_clear()
+    try:
+        fallback=renderer._font(78)
+        assert fallback.size>=70
+        assert renderer._ink_height(fallback)>=45
+        heading='Kalau Kamu Tinggal di Mars Kapan Ulang Tahunmu Tiba Lagi'
+        assert renderer.cover_fits(heading)
+        bg=tmp_path/'hero.jpg'; out=tmp_path/'ready.jpg'
+        Image.new('RGB',(1080,1350),'#181818').save(bg)
+        renderer.render(bg,heading,out,accent_words=['MARS'])
+        crop=Image.open(out).crop((100,980,980,1308))
+        bright=sum(1 for p in crop.getdata() if min(p)>185)
+        assert bright>3500, 'Headline still rendered as tiny text'
+    finally:
+        renderer._font.cache_clear()
+
+
 def test_words_have_physical_gap_not_just_unicode_spaces():
     from utbot.renderer import _word_gap, _word_width, _line_width, _draw_title_line, WIDTH, MARGIN
     canvas = Image.new('RGB',(1080,1350),'#000000')

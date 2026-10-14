@@ -38,7 +38,22 @@ def _font(size: int, font_path: str | None = None):
     for candidate in candidates:
         if candidate and Path(candidate).is_file():
             return ImageFont.truetype(candidate, size)
-    return ImageFont.load_default()
+    # Serverless images frequently omit Linux font packages. Pillow's old
+    # unscaled bitmap default is ~10 px regardless of the requested size,
+    # which produces unreadable cover headlines while geometry falsely passes.
+    # Pillow 11+ ships a scalable Aileron fallback; honor the ACTUAL size.
+    fallback = ImageFont.load_default(size=size)
+    if getattr(fallback,'size',0) < size * .90:
+        raise RuntimeError('Font cover tidak mendukung ukuran yang diminta')
+    return fallback
+
+
+def font_readability_status(font_path: str | None = None):
+    """Report actual glyph size so deploy/readiness can catch tiny serverless fonts."""
+    font = _font(80, font_path)
+    cap_height = _ink_height(font)
+    return {'requested_px':80, 'actual_font_px':font.size,
+            'cap_height_px':cap_height, 'readable':cap_height>=46}
 
 
 def _letter_tracking(font):
