@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 from functools import lru_cache
 from PIL import Image, ImageDraw, ImageFont, ImageOps
+from .accent import accent_for_hook
 
 WIDTH, HEIGHT = 1080, 1350
 GREEN = "#95F21E"
@@ -23,22 +24,29 @@ TRACKING_EM = -0.047              # League Spartan letter spacing -47 (thousandt
 LINE_SPACING = 1.05             # line spacing is 1.05 x font size
 WORD_GAP_EM = 0.20               # distinct visual spaces remain between whole words
 DEFAULT_BADGE = Path(__file__).resolve().parent / "assets" / "reference_badge.png"
-# Bundled SIL OFL League Spartan variable face; apply the Black (900) weight.
+# Genuine Google Fonts League Spartan variable face: use the Bold 700 axis.
 # A bundled font is essential: Vercel's minimal runtime has no dependable OS fonts.
 DEFAULT_HEADLINE_FONT = Path(__file__).resolve().parent / "assets" / "LeagueSpartan-Variable.ttf"
 
 
 @lru_cache(maxsize=100)
 def _font(size: int, font_path: str | None = None):
-    # Only a deliberately configured font or the bundled brand font. No OS
-    # fallback that changes the approved angular look across deployments.
-    candidates = [font_path, DEFAULT_HEADLINE_FONT]
+    # An old BRAND_FONT_PATH must not silently override the approved brand.
+    # Both local and Vercel render with the exact bundled League Spartan Bold.
+    candidates = [DEFAULT_HEADLINE_FONT]
+    if font_path and Path(font_path).is_file():
+        custom = ImageFont.truetype(font_path,size)
+        if 'league spartan' in custom.getname()[0].casefold():
+            candidates.insert(0,Path(font_path))
     for candidate in candidates:
-        if candidate and Path(candidate).is_file():
+        if candidate.is_file():
             face=ImageFont.truetype(candidate,size)
-            if Path(candidate)==DEFAULT_HEADLINE_FONT:
-                # Make weight deterministic: Google's variable font defaults to Thin/Regular.
-                face.set_variation_by_axes([900])
+            try:
+                face.set_variation_by_axes([700])
+            except OSError:
+                # A static Bold League Spartan file also meets the brand rule.
+                if 'bold' not in face.getname()[1].casefold():
+                    continue
             return face
     # Never silently switch to Pillow's rounded Aileron default. The operator
     # would approve a different cover from the reference brand.
@@ -69,7 +77,9 @@ def _word_gap(draw, font):
 def _cached_word_width(word, font):
     # Fonts are cached above; individual word metrics are reused across
     # every possible wrap candidate and font size.
-    return (sum(font.getlength(ch) for ch in word)
+    # Use kerning-aware full-word measurement so our manual tracking matches
+    # League Spartan's real glyph widths, not isolated-letter approximations.
+    return (font.getlength(word)
             + max(0, len(word) - 1) * _letter_tracking(font))
 
 def _word_width(draw, word, font):
@@ -185,10 +195,12 @@ def _draw_word_tracked(draw, word, x, y, font, color):
     family=font.getname()[0].lower()
     stroke=0 if ('league spartan' in family or 'bold' in style or 'black' in style
                  or 'heavy' in style) else min(3,max(1,round(font.size*0.035)))
-    for ch in word:
+    for index,ch in enumerate(word):
         draw.text((round(cursor),round(y)), ch, font=font, fill=color,
                   stroke_width=stroke, stroke_fill=color, anchor='la')
-        cursor += draw.textlength(ch, font=font) + _letter_tracking(font)
+        # Difference of full-prefix lengths includes kerning between glyphs.
+        cursor += (font.getlength(word[:index+1])
+                   - font.getlength(word[:index]) + _letter_tracking(font))
     return _word_width(draw, word, font)
 
 
@@ -283,7 +295,9 @@ def render(input_image, highlight, outpath, accent_words=None, logo_path=None,
         raise ValueError('Headline overflow: requires editorial revision')
     _draw_badge(img, logo_path)
     accent = set()
-    for phrase in accent_words or []:
+    # Re-evaluate even existing legacy accents: the old bot could persist
+    # only "LINGKARAN" and lose the key phrase "CAHAYA AURORAL UTUH".
+    for phrase in accent_for_hook(highlight,accent_words):
         accent.update(re.sub(r"[^\w\s-]", "", phrase.upper()).split())
     for i, line in enumerate(lines):
         _draw_title_line(draw, line, _title_draw_y(font,i,pitch), font, accent)
