@@ -11,6 +11,12 @@ SUBJECT_PHRASES=(
     'ILMUWAN PURBA', 'KECERDASAN BUATAN',
     'EVOLUSI MANUSIA', 'KEHIDUPAN PURBA', 'ROBOT HUMANOID',
 )
+REFERENCE_COMPARISONS = (
+    'LEBIH TUA DARI PIRAMIDA MESIR',
+    'LEBIH TUA DARI PIRAMIDA',
+    'LEBIH TUA DARI',
+)
+REFERENCE_PLACES = ('LAUT JEPANG', 'DASAR LAUT JEPANG')
 ACTION_WORDS=frozenset("""
 MEREKAM MEMOTRET MENEMUKAN DITEMUKAN MENGUNGKAP TERUNGKAP
 MENCIPTAKAN MENGHIDUPKAN MENGUBAH MEMBUKTIKAN MENDETEKSI
@@ -55,7 +61,7 @@ def _phrase_match(words, candidates, occupied):
     return index,match
 
 def accent_for_hook(text, existing=()):
-    """Choose up to three separated emphasis groups, maximum five highlighted words.
+    """Choose up to three separated semantic accents; references may span lines.
 
     Prefer *who/what* (subject), *what happened* (action), and *why it
     matters* (science phenomenon). A phrase may be one or two words.
@@ -68,12 +74,24 @@ def accent_for_hook(text, existing=()):
 
     def add(start,selected):
         indices=range(start,start+len(selected))
-        if (len(groups)>=3 or sum(len(g[1]) for g in groups)+len(selected)>5
+        if (len(groups)>=3 or sum(len(g[1]) for g in groups)+len(selected)>10
                 or any(i in used for i in indices)):
             return False
         groups.append((start,selected))
         used.update(indices)
         return True
+
+    # The approved historical-comparison reference intentionally emphasizes
+    # subject, location and key comparison, not its generic action "TERKUBUR".
+    # The last phrase may continue onto the fifth line.
+    reference_comparison=_phrase_match(words,REFERENCE_COMPARISONS,used)
+    if reference_comparison:
+        subject=_phrase_match(words,SUBJECT_PHRASES,used)
+        if subject:add(*subject)
+        location=_phrase_match(words,REFERENCE_PLACES,used)
+        if location:add(*location)
+        add(*reference_comparison)
+        return [' '.join(span) for _,span in sorted(groups,key=lambda x:x[0])]
 
     # One subject phrase in the early part, if present.
     subject=_phrase_match(words,SUBJECT_PHRASES,used)
