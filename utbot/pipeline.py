@@ -101,7 +101,13 @@ def author_from_source(story,source_text,llm=None,revision_feedback=None):
         def llm(query):
             return generate_json(SYSTEM + editorial_instructions(), json.loads(query), temperature=0.22, role="draft")
     query=json.dumps({'title':story.title,'source_url':story.source_url,
+                  'published_at':story.published_at.isoformat() if story.published_at else None,
                   'topic':story.topic,'source_text':source_text,
+                  'editorial_context':(
+                      'Cerita sains evergreen boleh berasal dari masa lampau. '
+                      'Jangan mengklaim penemuan lama terjadi hari ini atau baru saja. '
+                      'Sebutkan tahun/era tepat jika sumber menyediakannya. '
+                      'Verifikasi status teori dan jangan samakan perkiraan dengan fakta.'),
                   'revision_feedback':revision_feedback},ensure_ascii=False)
     data=llm(query)
     verified=check_evidence(data,story.source_url,source_text)
