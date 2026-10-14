@@ -113,7 +113,10 @@ def test_timeout_rejects_missing_qc_and_unclear_or_attribution_licenses(db,tmp_p
     d.updated_at=now-timedelta(hours=26);db.commit()
     assert auto_approve_overdue(db,now=now,config=settings)['approved']==[]
     d.rights_reviewed=True
-    d.updated_at=now-timedelta(hours=26)  # A rights edit resets the 24-hour clock.
+    db.commit()
+    assert auto_approve_overdue(db,now=now,config=settings)['approved']==[]
+    # For this eligibility unit test, move the last edit back past the deadline.
+    d.updated_at=now-timedelta(hours=26)
     db.commit()
     assert auto_approve_overdue(db,now=now,config=settings)['approved']==[d.id]
     _,unclear=seed(db,commons=False)
