@@ -74,6 +74,9 @@ def approve(db, draft, actor, *, human_fact_checked=False):
         raise ValueError("Berita belum lolos verifikasi klaim. Approval ditolak.")
     if not draft.rights_reviewed or not (draft.image_url or draft.image_local_path) or not draft.photo_license:
         raise ValueError("Hak foto dan URL gambar final belum diverifikasi.")
+    # The public Instagram caption now explicitly cites the real photographer.
+    from .instagram import photo_credit_line
+    photo_credit_line(draft)
     if draft.image_url and not draft.image_url.startswith("https://"):
         raise ValueError("URL gambar Instagram wajib HTTPS.")
     issues=lint(draft.highlight,draft.caption,draft.hashtags,tragedy=bool(draft.is_tragedy))
