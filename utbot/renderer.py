@@ -17,7 +17,7 @@ WHITE = "#FFFFFF"
 SIDE_MARGIN = 56
 BOTTOM_MARGIN = 56
 MARGIN = SIDE_MARGIN              # backward-compatible horizontal safe area
-LAYOUT_STYLE = "responsive_four_line_editorial_v07"
+LAYOUT_STYLE = "responsive_four_line_editorial_v08_equal_bottom_margin"
 # Lift badge and headline together by 24px; preserve their 33px separation.
 # Screen edges share one 56px safe area on left, right and bottom.
 GROUP_RAISE_PX = 24
@@ -168,7 +168,7 @@ def _headline_layout(draw, highlight, font_path=None, max_width=WIDTH-2*MARGIN):
     words=_headline_tokens(highlight)
     # Large/simple hooks can expand; longer ones shrink until four lines fit.
     # If even 48 px cannot fit, send it back to Telegram for copy editing.
-    for size in range(112,47,-2):
+    for size in range(132,47,-2):
         font=_font(size,font_path)
         lines=_balanced_wrap(draw,words,font,max_width,max_lines=4,exact_lines=4)
         pitch=_reference_line_pitch(font)
@@ -240,15 +240,28 @@ def _draw_title_line(draw, line, y, font, accent):
     return (WIDTH-width)/2, (WIDTH+width)/2
 
 
+def _headline_vertical_shift(font, pitch):
+    """Move logo and headline together so rendered bottom ink ends at 56px.
+
+    Headline font is already the largest that fits the 56px side margins.
+    Horizontal space can prevent further font growth; in that case don't
+    invent stretched glyphs or excessively loose leading. Move the entire
+    fixed-gap logo/title group down into the previously unused lower space.
+    """
+    return max(0, HEADLINE_BOTTOM -
+               (HEADLINE_TOP + 3*pitch + _ink_height(font)))
+
+
 def _title_draw_y(font, line_index, pitch):
-    # PIL's ascender origin differs from actual visible ink top. Anchor *ink* at
-    # HEADLINE_TOP regardless of number of lines or font size.
-    return HEADLINE_TOP - font.getbbox('HM', anchor='la')[1] + line_index*pitch
+    return (HEADLINE_TOP + _headline_vertical_shift(font,pitch)
+            - font.getbbox('HM', anchor='la')[1] + line_index*pitch)
 
 
-def _draw_badge(img, logo_path=None):
-    """Badge moves up 24px with headline; always horizontally centered."""
+def _draw_badge(img, logo_path=None, *, vertical_shift=0):
+    """Badge follows the title while preserving their 33px optical gap."""
     left, top, right, bottom = BADGE_BOX
+    top+=vertical_shift
+    bottom+=vertical_shift
     logo_file = Path(logo_path) if logo_path else DEFAULT_BADGE
     if logo_file.is_file():
         badge = Image.open(logo_file).convert('RGBA')
@@ -299,8 +312,8 @@ def render(input_image, highlight, outpath, accent_words=None, logo_path=None,
     if source_type not in ("documentary", "illustration"):
         raise ValueError("source_type must be documentary or illustration")
     img = Image.open(input_image)
-    if min(img.size) < 800:
-        raise ValueError("Foto terlalu kecil untuk cover 1080 × 1350; pilih resolusi tinggi")
+    if min(img.size) < 600:
+        raise ValueError("Foto sumber kurang dari 600px; pilih pengganti atau tinjauan editor")
     if not highlight or len(highlight.strip()) > 245:
         raise ValueError("Highlight kosong atau terlalu panjang")
     img = _place_photo(img, photo_focus)
@@ -313,7 +326,7 @@ def render(input_image, highlight, outpath, accent_words=None, logo_path=None,
     font, lines, pitch = _headline_layout(draw, highlight, font_path)
     if _ink_height(font) + HEADLINE_TOP + (len(lines)-1)*pitch > HEADLINE_BOTTOM:
         raise ValueError('Headline overflow: requires editorial revision')
-    _draw_badge(img, logo_path)
+    _draw_badge(img, logo_path, vertical_shift=_headline_vertical_shift(font,pitch))
     accent = set()
     # Re-evaluate even existing legacy accents: the old bot could persist
     # only "LINGKARAN" and lose the key phrase "CAHAYA AURORAL UTUH".
