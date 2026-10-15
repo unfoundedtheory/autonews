@@ -105,9 +105,25 @@ def connect_start(request:Request,password:str=Form(...)):
     response.headers['Cache-Control']='no-store'
     return response
 
-def _get(client,url,params):
+class MetaStageError(Exception):
+    def __init__(self,stage,status,code=None,subcode=None):
+        self.stage=stage
+        self.status=status
+        self.code=code
+        self.subcode=subcode
+        super().__init__(stage)
+
+
+def _get(client,url,params,stage):
     res=client.get(url,params=params,timeout=20,follow_redirects=False)
-    res.raise_for_status()
+    if res.is_error:
+        try:
+            failure=res.json().get('error',{})
+            code=failure.get('code') if isinstance(failure,dict) else None
+            subcode=failure.get('error_subcode') if isinstance(failure,dict) else None
+        except (ValueError,TypeError):
+            code=subcode=None
+        raise MetaStageError(stage,res.status_code,code,subcode)
     data=res.json()
     if not isinstance(data,dict) or 'error' in data:
         raise ValueError('Meta response invalid')
@@ -130,9 +146,23 @@ def callback(request:Request,code:str='',state:str='',error:str=''):
     # Only the exact redirect URI registered in Meta is accepted.
     try:
         return _complete_callback(request,app_id,secret,encryption,base,code)
-    except httpx.HTTPStatusError as exc:
-        log.warning('Meta OAuth upstream HTTP %s',exc.response.status_code)
-        return _page('Meta menolak permintaan', '<p>Facebook menerima login, tetapi API Meta menolak permintaan berikutnya (HTTP '+str(exc.response.status_code)+'). Periksa izin dan koneksi Page di Meta Developer.</p><a href="/api/meta/connect">← Coba lagi</a>',status_code=502)
+    except MetaStageError as exc:
+        stages={'code_exchange':'menukar kode login menjadi token',
+                'long_lived_exchange':'memperpanjang masa berlaku token',
+                'page_lookup':'mencari Facebook Page dan Instagram tertaut'}
+        description=stages.get(exc.stage,'memproses otorisasi')
+        details='HTTP '+str(exc.status)
+        if isinstance(exc.code,int):
+            details+=' · Meta code '+str(exc.code)
+        if isinstance(exc.subcode,int):
+            details+=' · subcode '+str(exc.subcode)
+        log.warning('Meta OAuth stage=%s http=%s code=%s subcode=%s',
+                    exc.stage,exc.status,exc.code,exc.subcode)
+        return _page('Meta menolak permintaan',
+          '<p>Login Facebook berhasil, tetapi Meta menolak saat '+html.escape(description)+'.</p>'
+          '<div class="alert">'+html.escape(details)+'</div>'
+          '<p>Kirim screenshot kode error ini (bukan URL/token) untuk menentukan perbaikan berikutnya.</p>'
+          '<a href="/api/meta/connect">← Coba lagi</a>',status_code=502)
     except (httpx.HTTPError,ValueError,KeyError,TypeError) as exc:
         log.warning('Meta OAuth callback failure: %s',type(exc).__name__)
         return _page('Proses koneksi belum berhasil','<p>Terjadi kesalahan ketika membaca respons dari Meta. Token tidak ditampilkan atau disimpan secara parsial.</p><a href="/api/meta/connect">← Coba lagi</a>',status_code=502)
@@ -145,17 +175,17 @@ def _complete_callback(request,app_id,secret,encryption,base,code):
     with httpx.Client() as client:
         raw=_get(client,'https://graph.facebook.com/'+CONFIG.ig_version+'/oauth/access_token',{
             'client_id':app_id,'client_secret':secret,'redirect_uri':base+'/api/meta/callback',
-            'code':code})
+            'code':code},'code_exchange')
         short=raw.get('access_token')
         if not short:raise HTTPException(502,'Meta did not return an access token')
         exchanged=_get(client,'https://graph.facebook.com/'+CONFIG.ig_version+'/oauth/access_token',{
             'grant_type':'fb_exchange_token','client_id':app_id,
-            'client_secret':secret,'fb_exchange_token':short})
+            'client_secret':secret,'fb_exchange_token':short},'long_lived_exchange')
         user_token=exchanged.get('access_token')
         if not user_token:raise HTTPException(502,'Meta token exchange failed')
         accounts=_get(client,'https://graph.facebook.com/'+CONFIG.ig_version+'/me/accounts',{
             'fields':'id,name,access_token,instagram_business_account',
-            'access_token':user_token,'limit':100}).get('data',[])
+            'access_token':user_token,'limit':100},'page_lookup').get('data',[])
     if not isinstance(accounts,list):
         raise ValueError('Unexpected Page list response')
     matches=[p for p in accounts if (p.get('instagram_business_account') or {}).get('id') and p.get('access_token')]
