@@ -234,7 +234,7 @@ def _complete_callback(request,app_id,secret,encryption,base,code):
                                   expires_at=now+timedelta(minutes=10)))
             db.commit()
         controls=''.join('<label style="display:flex;gap:10px;align-items:center;padding:12px 0">'
-              '<input type="radio" name="page_id" value="'+html.escape(p['id'],quote=True)+'" required>'
+              '<input style="width:18px;flex:none;accent-color:#d62976" type="radio" name="page_id" value="'+html.escape(p['id'],quote=True)+'" required>'
               '<span>'+html.escape(p['name'])+'</span></label>' for p in candidates)
         response=_page('Pilih Facebook Page',
             '<p>Pilih Page yang akan digunakan AutoNews. Akun Instagram harus sudah tertaut.</p>'
