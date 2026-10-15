@@ -197,15 +197,29 @@ Dirangkum dari koreksi, teori hook, dan diskusi selama proses pembuatan konten. 
 
 ---
 
-## 10. Aksen Hijau pada Cover — Tonjolkan Lebih Banyak Frasa Penting
+## 10. Aksen Hijau pada Cover — *Story Skeleton* (Acuan Pemilik 15 Oktober 2026)
 
-- Gunakan hijau brand `#95F21E` untuk **2–4 frasa penting yang berbeda** bila isi headline mendukung; jangan otomatis mewarnai hanya satu frasa terakhir.
-- Target visual sekitar **25–35% kata headline** dalam warna hijau, tetapi angka ini adalah panduan komposisi, bukan kewajiban kaku. Utamakan keterbacaan dan makna; jangan mewarnai kata penghubung hanya untuk memenuhi kuota.
-- Prioritaskan **subjek/objek utama**, **fenomena atau aksi penting**, dan **kontras/keunikan penemuan**. Sebarkan aksen di bagian awal, tengah, dan akhir bila memungkinkan supaya hierarki visual tidak berat sebelah.
-- Pilih kelompok kata utuh, bukan huruf acak, dan jangan mengubah ejaan, fakta, atau urutan headline demi pewarnaan. Kata yang tidak penting tetap putih.
-- Contoh headline struktur radio dan gugus galaksi: kandidat aksen adalah **STRUKTUR RADIO**, **SIMBOL MUSIK**, dan **GUGUS GALAKSI**; dapat menonjolkan **TUMBUKAN** jika komposisi dan bukti klaim mendukung. Pilih kombinasi terbaik, bukan mewarnai seluruh frasa sekaligus tanpa pertimbangan.
-- Aksen harus tetap kuat pada thumbnail Instagram; bila headline pendek atau pewarnaan 4 frasa terasa berlebihan, cukup 2–3 frasa bermakna.
-- Jangan mengorbankan grid empat baris, kontras putih-hijau, font, atau keakuratan editorial. Setelah perubahan aksen/desain, periksa preview dan minta approval ulang jika cover final berubah.
+**Aturan utama: jika semua kata putih disembunyikan, rangkaian kata hijau yang tersisa harus menyampaikan inti berita secara singkat, akurat, dan masuk akal.** Warna hijau bukan penghias maupun pemilihan keyword acak; ini *mini-summary* yang memberi alasan untuk membaca headline/caption lengkap tanpa membocorkan seluruh jawabannya.
+
+**Cara memilih aksen**
+1. Identifikasi tulang punggung berita: **siapa/apa** (subjek) → **apa yang terjadi/dampaknya** → **apa penyebab atau fenomena**; sertakan **waktu/lokasi/angka atau skala** bila penting untuk memahami peristiwa.
+2. Pilih hanya kata/frasa yang **benar-benar ada dalam headline**, susun menurut urutan baca aslinya; setiap frasa harus bermakna sendiri dan seluruh frasa bersama-sama harus terbaca sebagai satu ide. Jangan mengubah, menambah, memindahkan, atau memelintir fakta.
+3. Uji baca hijau-saja: jika hasilnya menggantung, tidak menyebut dampak/kejadian utama, atau salah mengesankan isi berita, **pilih ulang**. Jangan otomatis memilih frasa paling awal, paling panjang, atau istilah sains di akhir.
+4. Gunakan biasanya **2–4 kelompok semantik**, tidak harus berjarak sama; satu kelompok boleh terdiri dari beberapa kata yang memang tidak boleh dipisah (misalnya `ASAP PEKAT` atau `RATUSAN METEOR PER JAM`). Tidak ada batas kaku satu atau dua kata per kelompok.
+5. Boleh menandai kata dasar yang sangat bermakna seperti `KOTA`, `LUMPUH`, `KOMET`, dan `MARS` selama susunan lengkap tetap bercerita. Hindari penghubung yang tidak membentuk makna sendiri.
+6. **Putih harus tetap warna dominan.** Untuk komposisi tipikal bidik sekitar **70–80% putih** dan **20–30% hijau** secara *visual*, bukan aturan absolut per jumlah kata. Komposisi boleh sedikit berbeda bila diperlukan untuk menjaga mini-summary yang benar; jangan korbankan makna hanya untuk mengejar persentase.
+7. Warna final: **putih solid `#FFFFFF`**, hijau brand **`#95F21E`**, teks berada di atas foto dan semua gradient/overlay. Jangan redupkan seluruh headline dengan opacity atau overlay setelah teks. Periksa keterbacaan pada thumbnail, bukan hanya ukuran 1080 × 1350.
+
+**Contoh yang benar**
+- Berita kota tertutup asap: `KOTA` → `LUMPUH` → `ASAP PEKAT`. Jika angka skala benar-benar penting dan layout aman, boleh `KOTA` → `DUA JUTA JIWA` → `LUMPUH` → `ASAP PEKAT`.
+- **Salah**: `KOTA BERPENDUDUK DUA` → `ASAP`; ini menggantung dan menghilangkan fakta dampak `LUMPUH` serta intensitas `PEKAT`.
+- Referensi meteor milik pemilik: `MALAM INI` → `JEJAK KOMET` → `RATUSAN METEOR PER JAM`. Kata `PER JAM` boleh tampil melanjutkan blok hijau di baris berikutnya, mengikuti layout headline.
+- Berita radioastronomi: `STRUKTUR RADIO` → `SIMBOL MUSIK` → `GUGUS GALAKSI` bila terverifikasi.
+
+**QC dan revisi**
+- Periksa secara terpisah: (a) **story-skeleton accuracy**, (b) keseimbangan putih dominan/hijau, (c) kata/fakta asli tanpa perubahan, dan (d) lapisan teks solid tanpa redup oleh gambar/gradient.
+- Jika aksen otomatis gagal uji hijau-saja, jangan menganggapnya benar hanya karena frasa ada di headline; lakukan pemilihan ulang atau minta review editor. Jangan menolak keseluruhan berita hanya karena target persentase tidak tercapai.
+- Edit aksen yang mengubah render final harus menghasilkan preview versi baru serta mencabut approval lama sesuai alur revisi yang berlaku.
 
 ---
 
@@ -228,4 +242,7 @@ Dirangkum dari koreksi, teori hook, dan diskusi selama proses pembuatan konten. 
 - [ ] Identitas foto, citra/komposit, sumber primer, kredit, hak penggunaan, dan crop sudah diperiksa
 - [ ] Jika foto sumber berukuran 600–719 px pada sisi terpendek, pengecualian mutu telah ditinjau; final tetap 1080 × 1350
 - [ ] Foto tidak relevan atau rusak setelah crop/upscale: QC visual gagal dan draf ditahan, bukan dipublikasikan
-- [ ] Highlight hijau memilih sekitar 2–4 frasa bermakna, tersebar jika cocok, tanpa mewarnai kata pengisi atau mengubah fakta
+- [ ] Jika kata putih diabaikan, kata hijau sendiri membentuk ringkasan inti berita yang benar (subjek, kejadian/dampak, dan fenomena; waktu/angka jika penting)
+- [ ] Warna putih tetap dominan; hijau hanya menandai bagian cerita terpenting, bukan frasa acak/potongan kalimat yang menggantung
+- [ ] `#FFFFFF` dan `#95F21E` solid, di layer teratas di atas foto/gradient; preview thumbnail sudah dicek
+- [ ] Kelompok kata hijau tetap mengikuti naskah asli dan perubahan cover dicatat untuk approval ulang
