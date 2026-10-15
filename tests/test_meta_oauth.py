@@ -246,3 +246,17 @@ def test_container_url_rejects_private_ip_and_userinfo():
         with pytest.raises(ValueError):
             _test_image_url(link)
     assert _test_image_url('https://example.com/image.jpg')=='https://example.com/image.jpg'
+
+
+def test_container_status_form_and_auth_gates(monkeypatch):
+    setup(monkeypatch)
+    from utbot.meta_oauth import _container_status_view
+    page=_container_status_view('1234567890','IN_PROGRESS')
+    assert 'Cek Status Container' in page.body.decode()
+    assert '1234567890' in page.body.decode()
+    assert 'media_publish' not in page.body.decode()
+    with TestClient(app) as client:
+        wrong=client.post('/meta/check-container',data={'password':'wrong','container_id':'1234567890'})
+        assert wrong.status_code==403
+        invalid=client.post('/meta/check-container',data={'password':'test-dedicated-password','container_id':'../media_publish'})
+        assert invalid.status_code==400
