@@ -139,6 +139,11 @@ def accent_for_hook(text, existing=()):
     desired={w for phrase in (existing or ()) for w in _tokens(phrase)}
     for i,w in enumerate(words):
         if len(groups)>=4:break
+        # An obsolete arbitrary accent should not displace semantic highlights
+        # that already occupy a meaningful share of the title.
+        if (len(groups)>=2 and
+                sum(len(span) for _,span in groups)/len(words)>=0.22):
+            break
         if w in desired and w not in STOPWORDS and i not in used:
             add(i,[w])
 
