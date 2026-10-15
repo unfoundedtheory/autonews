@@ -248,7 +248,7 @@ def _headline_vertical_shift(font, pitch):
     invent stretched glyphs or excessively loose leading. Move the entire
     fixed-gap logo/title group down into the previously unused lower space.
     """
-    return max(0, HEADLINE_BOTTOM -
+    return max(0, HEADLINE_BOTTOM - 2 -
                (HEADLINE_TOP + 3*pitch + _ink_height(font)))
 
 
@@ -313,7 +313,7 @@ def render(input_image, highlight, outpath, accent_words=None, logo_path=None,
         raise ValueError("source_type must be documentary or illustration")
     img = Image.open(input_image)
     if min(img.size) < 600:
-        raise ValueError("Foto sumber kurang dari 600px; pilih pengganti atau tinjauan editor")
+        raise ValueError("Foto terlalu kecil (sisi < 600px); pilih resolusi lebih tinggi atau tinjauan editor")
     if not highlight or len(highlight.strip()) > 245:
         raise ValueError("Highlight kosong atau terlalu panjang")
     img = _place_photo(img, photo_focus)
