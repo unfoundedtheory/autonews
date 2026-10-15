@@ -1004,7 +1004,7 @@ def publish_job(db=Depends(session)):
         raise HTTPException(503,'Logo resmi belum dikonfigurasi; tidak boleh live memakai placeholder')
     from .instagram_credentials import resolve_instagram_credentials
     try:
-        ig_user_id,ig_token=resolve_instagram_credentials(db)
+        ig_user_id,ig_token=resolve_instagram_credentials(db, CONFIG)
     except ValueError:
         raise HTTPException(503,'Instagram credential connection is not ready') from None
     # Single-worker deployment is mandatory with SQLite; Postgres supports skip_locked.
