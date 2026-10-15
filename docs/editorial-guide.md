@@ -185,7 +185,7 @@ Dirangkum dari koreksi, teori hook, dan diskusi selama proses pembuatan konten. 
 - **Diterima**: sisi terpendek ≥ 720 px jika objek tetap jelas setelah crop.
 - **Pengecualian terbatas**: sisi terpendek ≥ 600 px jika foto jauh lebih relevan dan tetap layak dilihat setelah crop/upscale ringan; perlu pemeriksaan visual yang lebih ketat.
 - Di bawah 600 px, atau ketika crop/upscale merusak objek, **tahan untuk foto pengganti atau tinjauan editor**, bukan memaksakan gambar.
-- **Hasil akhir tetap wajib 1080 × 1350 px (4:5)**. Batas piksel di atas adalah panduan mutu, bukan alasan otomatis mengganti foto relevan dengan foto tidak relevan.
+- **Foto sumber melalui URL HTTPS boleh berasio landscape (16:9, 3:2), portrait, persegi, atau rasio lain; tidak perlu 4:5.** Sistem auto-crop dengan prinsip cover/fill tanpa meregangkan atau merusak subjek, mengindahkan orientasi EXIF dan titik fokus ketika tersedia. Jika objek utama tidak muat dalam crop, editor harus memilih fokus atau gambar berbeda.\n- **Hasil akhir tetap wajib 1080 × 1350 px (4:5)**. Setelah crop, gradient hitam transparan mulai di bagian bawah visual dan berangsur menjadi **hitam penuh di tepi bawah**, sehingga tidak muncul garis batas foto. Headline putih dan hijau dirender setelah gradient.
 
 **Kecocokan visual dan hak penggunaan**
 - Cocokkan gambar dengan isi berita dan sumber primer, bukan sekadar kemiripan kata dalam judul/metadata.
