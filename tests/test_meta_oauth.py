@@ -204,6 +204,8 @@ def test_meta_read_only_test_with_mocked_graph(monkeypatch):
     def handler(request):
         assert request.method=='GET'
         assert request.headers['authorization']=='Bearer token'
+        if request.url.path.endswith('/200/content_publishing_limit'):
+            return httpx.Response(200,json={'data':[{'quota_usage':0}]})
         if request.url.path.endswith('/100'):
             if 'access_token' in request.url.params.get('fields',''):
                 return httpx.Response(200,json={'access_token':'sensitive'})
@@ -216,5 +218,6 @@ def test_meta_read_only_test_with_mocked_graph(monkeypatch):
         res=client.post('/meta/test',data={'password':'test-dedicated-password'})
         assert res.status_code==200
         assert 'Hasil Tes Koneksi' in res.text
+        assert 'Akses API publikasi (kuota)' in res.text
         assert 'sensitive' not in res.text
         assert 'token' not in res.text.lower().split('<p>pengujian graph')[1].split('</p>')[0]

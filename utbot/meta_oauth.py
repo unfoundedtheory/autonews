@@ -374,11 +374,34 @@ def test_connection(password:str=Form(...)):
                            'Gagal HTTP '+str(res.status_code)))
         except httpx.HTTPError:
             checks.append(('Token Page aktif','Gagal menghubungi Meta'))
+    # Read-only quota endpoint is a narrower signal of content publishing API access.
+    # It never creates a container, media object, or published post.
+    try:
+        with httpx.Client(timeout=20) as quota_client:
+            quota=quota_client.get('https://graph.facebook.com/'+CONFIG.ig_version+'/'+ig_id+'/content_publishing_limit',
+                headers={'Authorization':'Bearer '+token})
+            if quota.status_code==200:
+                body_data=quota.json()
+                checks.append(('Akses API publikasi (kuota)','Valid' if isinstance(body_data,dict) and
+                               isinstance(body_data.get('data'),list) else 'Respons belum dikenali'))
+            else:
+                error_code=None
+                try:
+                    error_obj=quota.json().get('error',{})
+                    if isinstance(error_obj,dict) and isinstance(error_obj.get('code'),int):
+                        error_code=error_obj.get('code')
+                except (ValueError,TypeError,AttributeError):
+                    pass
+                detail='Gagal HTTP '+str(quota.status_code)
+                if error_code is not None:detail+=' · Meta code '+str(error_code)
+                checks.append(('Akses API publikasi (kuota)',detail))
+    except (httpx.HTTPError,ValueError):
+        checks.append(('Akses API publikasi (kuota)','Gagal terhubung'))
     body='<p>Pengujian Graph API selesai. Tidak ada media container atau postingan yang dibuat.</p>'
     body+='<div>'+''.join('<p><strong>'+html.escape(k)+'</strong>: '+html.escape(v)+'</p>'
                             for k,v in checks)+'</div>'
     body+='<p class="help">Jika Instagram Professional gagal dengan HTTP 400, kode Meta membantu membedakan masalah izin/ID dari field yang diminta. Facebook Page dan token tetap diperiksa terpisah.</p>'
-    body+='<p class="help">Izin instagram_content_publish belum dapat dibuktikan hanya dari pemeriksaan baca-saja; memerlukan pemeriksaan izin lebih lanjut sebelum aktivasi.</p>'
+    body+='<p class="help">Tes kuota publikasi hanya memeriksa akses API baca-saja; keberhasilan publikasi tetap memerlukan pengujian media nyata dengan persetujuan Anda.</p>'
     good=all(v=='Valid' for _,v in checks)
     return _page('Hasil Tes Koneksi',body,status_code=200 if good else 502)
 
