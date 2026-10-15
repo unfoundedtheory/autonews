@@ -86,3 +86,13 @@ def test_connect_fetch_reports_password_error_and_oauth_redirect(monkeypatch):
         assert good.json()['redirect_url'].startswith('https://www.facebook.com/')
         assert COOKIE in good.headers['set-cookie']
         assert good.headers['cache-control']=='no-store'
+
+
+def test_meta_page_csp_allows_same_origin_ajax(monkeypatch):
+    setup(monkeypatch)
+    with TestClient(app) as client:
+        res=client.get('/meta/connect')
+        assert res.status_code==200
+        csp=res.headers['content-security-policy']
+        assert "connect-src 'self'" in csp
+        assert "default-src 'none'" in csp
