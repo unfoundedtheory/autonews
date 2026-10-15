@@ -146,3 +146,11 @@ Bagian ini **mengungguli panduan lama tentang batas resolusi sumber dan jumlah k
 - Putih tetap **`#FFFFFF`**, keduanya 100% opaque, dirender **setelah** crop/gradient foto. Gradien tidak boleh dimunculkan lagi di atas layer teks.
 - Simpan JPEG dengan `quality=95`, `subsampling=0`; periksa PNG/lossless bila perlu untuk mengisolasi efek kompresi. Sedikit variasi RGB di JPG dapat terjadi, tetapi warna inti glyph hijau harus mendekati `(143,255,0)`.
 - Uji warna secara terpisah dari pemilihan frasa hijau. Foto sumber, tata letak, 56px optical margins, empat baris headline dan story-skeleton tetap mengikuti ketentuan sebelumnya.
+
+## 17. Auto-crop URL gambar dan batas bawah tanpa garis foto (15 Oktober 2026)
+
+- **Sumber foto bebas rasio**: 16:9 landscape, 3:2, 1:1, 4:3, 9:16 portrait, dan lainnya boleh; **jangan pernah mensyaratkan 4:5 dari URL sumber**. Yang harus 4:5 hanya cover hasil akhir 1080×1350 px.
+- Setelah intake HTTPS, normalisasikan orientasi EXIF, kemudian gunakan crop **cover/fill** proporsional (tanpa stretch, letterbox, padding, atau bidang kosong). Utamakan titik fokus subjek; jika crop berpotensi menghilangkan objek ilmiah utama, tawarkan perbaikan fokus/gambar pengganti alih-alih menyalahartikan subjek.
+- Lapisan dari belakang: **foto hasil crop → gradient black dengan alpha dari 0 sampai 255 menuju bawah → badge → headline**. Gradient tidak memudarkan seluruh gambar dari tepi atas; di y=1350 wajib hitam penuh sehingga **batas bawah foto tidak boleh tampak sebagai garis/potongan**.
+- Warna teks putih #FFFFFF dan hijau #8FFF00 100% opacity; jangan lapiskan gradient lagi setelah teks. Periksa bagian bawah di preview final dan thumbnail termasuk untuk input landscape, portrait, serta square.
+- Tetap gunakan pemeriksaan relevansi/lisensi dan batas kualitas sumber ≥600px yang dapat dibaca setelah crop. Tidak mengurangi editorial/Telegram approval.
