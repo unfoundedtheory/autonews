@@ -221,3 +221,30 @@ def test_meta_read_only_test_with_mocked_graph(monkeypatch):
         assert 'Akses API publikasi (kuota)' in res.text
         assert 'sensitive' not in res.text
         assert 'token' not in res.text.lower().split('<p>pengujian graph')[1].split('</p>')[0]
+
+
+def test_container_test_is_gated_and_requires_valid_image(monkeypatch):
+    from utbot import meta_oauth
+    setup(monkeypatch)
+    with TestClient(app) as client:
+        assert client.get('/meta/test-container').status_code==200
+        assert 'Tanpa Posting' in client.get('/meta/test-container').text
+        invalid=client.post('/meta/test-container',data={
+            'password':'wrong','image_url':'https://images.example.com/test.jpg','confirm':'yes'})
+        assert invalid.status_code==403
+        denied=client.post('/meta/test-container',data={
+            'password':'test-dedicated-password','image_url':'http://localhost/secret','confirm':'yes'})
+        assert denied.status_code==400
+        missing_consent=client.post('/meta/test-container',data={
+            'password':'test-dedicated-password','image_url':'https://images.example.com/test.jpg'})
+        assert missing_consent.status_code==400
+        assert 'media_publish' not in denied.text
+
+def test_container_url_rejects_private_ip_and_userinfo():
+    import pytest
+    from utbot.meta_oauth import _test_image_url
+    for link in ('https://localhost/image.jpg','https://127.0.0.1/x.jpg',
+                 'https://admin:pass@example.com/x.jpg','http://example.com/a.jpg'):
+        with pytest.raises(ValueError):
+            _test_image_url(link)
+    assert _test_image_url('https://example.com/image.jpg')=='https://example.com/image.jpg'
