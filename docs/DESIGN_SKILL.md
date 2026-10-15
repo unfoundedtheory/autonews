@@ -90,3 +90,22 @@ Measured from the original 1080×1350 owner examples, not guessed from the v0.5 
 - League Spartan **Bold 700**, tracking **−47** (`-0.047em`), line spacing **1.08**. Ukuran font tetap otomatis sebesar mungkin selama headline empat baris aman di bidang gambar 1080×1350.
 - Batas bawah tinta teks adalah y ≤ `1294`; margin visual kiri/kanan minimal 56px. Tidak boleh mengecilkan font melebihi batas keterbacaan demi mengejar kesamaan optis yang mustahil untuk semua panjang judul.
 - Aksen hijau tetap menyoroti subjek, aksi, dan fenomena terpenting secara terpisah. Setelah Render Ulang Desain Cover dari Telegram, editor wajib memeriksa dan approve ulang versi baru.
+
+## 13. Pembaruan editorial 15 Oktober 2026 — prioritas relevansi foto dan aksen hijau
+
+Bagian ini **mengungguli panduan lama tentang batas resolusi sumber dan jumlah kelompok aksen** jika bertentangan. Tetap pertahankan grid, posisi, ukuran kanvas, font, crop, dan batas keterbacaan terbaru pada §12.
+
+### Gambar: relevansi adalah gerbang pertama
+
+- **Visual relevance sebelum ukuran**: kandidat hanya lolos bila gambarnya menggambarkan objek atau peristiwa ilmiah yang benar, sesuai sumber primer. Dokumen sensus atau arsip acak tidak boleh digunakan untuk berita tabrakan gugus galaksi sekalipun resolusinya bagus.
+- Pemilihan bertahap: (1) hero resmi artikel sumber dengan subjek terverifikasi; (2) visual terkait dari institusi yang sama; (3) arsip ilmiah atau Commons yang cocok persis dan berhak digunakan. Bila tak ada yang relevan, **hold for manual photo replacement**, jangan render/publish dengan foto pengganti yang menyesatkan.
+- Batas kualitas gambar **sumber**: sisi terpendek ≥1080 px **preferred**, ≥720 px **acceptable**, ≥600 px **conditional exception** jika sangat relevan dan masih jelas sesudah crop/upscale ringan. Gambar <600 px perlu penggantian/tinjauan manual. Tidak ada resolusi yang menutupi salah subjek atau pelanggaran lisensi.
+- **Kanvas final tetap 1080×1350 px** dengan subjek aman dalam crop. Citra komposit/warna semu harus digambarkan sesuai kenyataan, bukan disebut foto warna alami; hak pakai, atribusi dan akurasi harus lulus peninjauan.
+- QC visual wajib menolak mismatch subjek, gambar generik yang tidak mewakili penemuan, dan dokumen/tabel tak terkait. Kesalahan visual menahan berita sebelum publikasi; jangan menganggap meta-tag atau resolusi cukup sebagai bukti cocok.
+
+### Hijau `#95F21E`: 2–4 frasa bermakna
+
+- **Default 2–3 kelompok**, dan **hingga 4 kelompok** untuk headline panjang yang benar-benar punya empat unsur penting. Ini menggantikan batas historis "hingga tiga" pada §10.
+- Target **sekitar 25–35% kata** beraksen hijau sebagai pedoman optis fleksibel, bukan hard gate. Bagi aksen di awal/tengah/akhir jika komposisi mendukung, jangan menumpuk semua di akhir.
+- Prioritaskan objek, tindakan/fenomena, dan unsur unik/kontras. Contoh tema radioastronomi: `STRUKTUR RADIO` / `SIMBOL MUSIK` / `GUGUS GALAKSI`; `TUMBUKAN` opsional bila bermakna.
+- Jangan mewarnai preposisi atau kata acak untuk mengejar kuota, mengubah kata demi accent, atau merusak empat baris, fon, layout, dan keterbacaan. Re-render desain butuh tinjauan ulang cover dan approval versi baru.
