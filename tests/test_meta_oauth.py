@@ -143,7 +143,9 @@ def test_multi_page_selection_is_encrypted_and_one_time(monkeypatch):
     from utbot import meta_oauth
     from fastapi.testclient import TestClient
     env=setup(monkeypatch)
-    eng=make_engine('sqlite://')
+    from sqlalchemy import create_engine
+    from sqlalchemy.pool import StaticPool
+    eng=create_engine('sqlite://',connect_args={'check_same_thread':False},poolclass=StaticPool)
     Base.metadata.create_all(eng)
     test_session=sessionmaker(bind=eng,expire_on_commit=False)
     monkeypatch.setattr(meta_oauth,'Session',test_session)
