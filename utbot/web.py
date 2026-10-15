@@ -1002,8 +1002,11 @@ def publish_job(db=Depends(session)):
                 'note':'DRY RUN: tidak ada permintaan dikirim ke Instagram'}
     if not CONFIG.brand_logo or not Path(CONFIG.brand_logo).is_file():
         raise HTTPException(503,'Logo resmi belum dikonfigurasi; tidak boleh live memakai placeholder')
-    if not all((CONFIG.ig_user_id,CONFIG.ig_token)):
-        raise HTTPException(503,'Meta API not configured')
+    from .instagram_credentials import resolve_instagram_credentials
+    try:
+        ig_user_id,ig_token=resolve_instagram_credentials(db)
+    except ValueError:
+        raise HTTPException(503,'Instagram credential connection is not ready') from None
     # Single-worker deployment is mandatory with SQLite; Postgres supports skip_locked.
     q=select(Draft).where(Draft.status=='approved',Draft.approved_version==Draft.version,
           Draft.publish_state.in_(['unpublished','awaiting_container']),
@@ -1035,7 +1038,7 @@ def publish_job(db=Depends(session)):
         if bot and CONFIG.chat_id:
             try:bot.message(CONFIG.chat_id,msg)
             except Exception:log.exception('Telegram publication alert failed')
-    publisher=InstagramPublisher(CONFIG.ig_base,CONFIG.ig_version,CONFIG.ig_user_id,CONFIG.ig_token)
+    publisher=InstagramPublisher(CONFIG.ig_base,CONFIG.ig_version,ig_user_id,ig_token)
     try:
         if not d.image_url:
             d.image_url=upload_public_jpeg(d.image_local_path,f'{d.id}/v{d.version}.jpg')
