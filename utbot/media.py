@@ -158,9 +158,13 @@ def intake_image(url,output_path,transport=None):
             if im.width*im.height>40_000_000:raise ValueError('Resolusi foto terlalu besar.')
             if min(im.width,im.height)<600:
                 raise ValueError('Foto sumber di bawah 600px; diperlukan pengganti atau tinjauan editor.')
-            im=im.convert('RGB')
+            # Honor orientation metadata before normalizing the source.
+            # A landscape/square/portrait URL is never rejected for lacking
+            # the final Instagram 4:5 aspect ratio.
+            from PIL import ImageOps
+            im=ImageOps.exif_transpose(im).convert('RGB')
             target=Path(output_path);target.parent.mkdir(parents=True,exist_ok=True)
-            im.save(target,format='JPEG',quality=94)
+            im.save(target,format='JPEG',quality=95,subsampling=0)
     except (UnidentifiedImageError,OSError) as exc:
         raise ValueError('File foto tidak valid.') from exc
     return str(target)
