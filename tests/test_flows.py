@@ -88,3 +88,61 @@ def test_uncertain_publish_never_retries(db,monkeypatch,tmp_path):
     assert web.publish_job(db=db)['status']=='uncertain'
     assert d.publish_state=='uncertain'
     assert web.publish_job(db=db)['due']==0
+
+
+def test_telegram_approved_final_image_and_caption_reach_instagram_unchanged(db,monkeypatch,tmp_path):
+    """Simulation uses the real approval webhook, then fake Meta API; no publication."""
+    from utbot.instagram import caption_text
+    d=seeded(db)
+    d.rights_reviewed=True
+    d.image_url='https://cdn.example.org/final-render-v1.jpg'
+    db.commit()
+    final_image=d.image_url
+    final_caption=caption_text(d)
+    logo=tmp_path/'brand-logo.png'
+    logo.write_bytes(b'fake-logo')
+    cfg=replace(web.CONFIG,admin_ids=frozenset({42}),telegram_token='mock-telegram',
+        photo_music_mode='off',live_publish=True,brand_logo=str(logo),
+        ig_user_id='123',ig_token='fake-meta-token')
+    monkeypatch.setattr(web,'CONFIG',cfg)
+    bot=FakeBot()
+    monkeypatch.setattr(web,'_bot',lambda:bot)
+    assert web.telegram_webhook(callback(d,'approve'),db=db)
+    assert d.status=='approved' and d.approved_version==d.version
+    d.scheduled_at=datetime.now(timezone.utc)-timedelta(seconds=5)
+    db.commit()
+    capture=[]
+    class FakeIG:
+        def __init__(self,*args):
+            assert args[2:] == ('123','fake-meta-token')
+        def create_container(self,url,caption):
+            capture.append(('create',url,caption))
+            return 'mock-container-id'
+        def container_status(self,ident):
+            assert ident=='mock-container-id'
+            return 'IN_PROGRESS'
+        def publish(self,ident):
+            pytest.fail('Publishing must not occur while container remains IN_PROGRESS')
+    monkeypatch.setattr(web,'InstagramPublisher',FakeIG)
+    result=web.publish_job(db=db)
+    assert result['container_status']=='IN_PROGRESS'
+    assert capture==[('create',final_image,final_caption)]
+    assert d.publish_state=='awaiting_container'
+
+
+def test_telegram_approved_dry_run_never_calls_instagram(db,monkeypatch):
+    d=seeded(db)
+    cfg=replace(web.CONFIG,admin_ids=frozenset({42}),telegram_token='mock-telegram',
+                photo_music_mode='off',live_publish=False)
+    monkeypatch.setattr(web,'CONFIG',cfg)
+    monkeypatch.setattr(web,'_bot',lambda:FakeBot())
+    assert web.telegram_webhook(callback(d,'approve'),db=db)
+    assert d.approved_version==d.version
+    class ForbiddenIG:
+        def __init__(self,*args):
+            pytest.fail('Instagram API should not be called with live_publish false')
+    monkeypatch.setattr(web,'InstagramPublisher',ForbiddenIG)
+    result=web.publish_job(db=db)
+    assert result['live_publish'] is False
+    assert d.status=='approved'
+    assert d.publish_state=='unpublished'
