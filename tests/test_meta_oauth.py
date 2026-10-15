@@ -96,3 +96,22 @@ def test_meta_page_csp_allows_same_origin_ajax(monkeypatch):
         csp=res.headers['content-security-policy']
         assert "connect-src 'self'" in csp
         assert "default-src 'none'" in csp
+
+
+def test_meta_stage_error_masks_sensitive_message():
+    from utbot.meta_oauth import _get, MetaStageError
+    import httpx
+    def graph_handler(request):
+        return httpx.Response(400,json={'error':{'message':'private-token-do-not-log',
+                                                 'code':190,'error_subcode':463}})
+    with httpx.Client(transport=httpx.MockTransport(graph_handler)) as client:
+        try:
+            _get(client,'https://graph.facebook.com/v24.0/me/accounts',{},'page_lookup')
+        except MetaStageError as exc:
+            assert exc.stage=='page_lookup'
+            assert exc.status==400
+            assert exc.code==190
+            assert exc.subcode==463
+            assert 'private-token' not in str(exc)
+        else:
+            assert False, 'Expected staged failure'
