@@ -112,3 +112,44 @@ def test_relevant_620px_source_renders_to_final_1080x1350(tmp_path):
     renderer.render(source,HEADLINE,target)
     assert Image.open(target).size==(1080,1350)
 
+
+def test_smoke_disaster_green_words_read_as_subject_impact_and_cause():
+    headline=('Kota Berpenduduk Dua Juta Jiwa Lumpuh Saat Asap Pekat '
+              'Selimuti Hutan Hujan Tropis')
+    assert accent_for_hook(headline,['KOTA BERPENDUDUK DUA','ASAP']) == [
+        'KOTA','LUMPUH','ASAP PEKAT']
+    assert accent_for_hook(headline,[])==['KOTA','LUMPUH','ASAP PEKAT']
+
+
+def test_meteor_reference_keeps_time_object_and_measured_scale():
+    headline=('Malam Ini Bumi Akan Melewati Jejak Komet Yang Pernah '
+              'Menghujani Langit Dengan Ratusan Meteor Per Jam')
+    assert accent_for_hook(headline,[]) == [
+        'MALAM INI','JEJAK KOMET','RATUSAN METEOR PER JAM']
+
+
+def test_semantic_anchors_are_not_invented_for_unrelated_subject():
+    headline='Fisikawan Temukan Sinyal Aneh Dalam Pencarian Partikel Dark Matter'
+    accents=accent_for_hook(headline,[])
+    assert 'ASAP PEKAT' not in accents and 'LUMPUH' not in accents
+    assert 'DARK MATTER' in accents
+
+
+def test_renderer_white_remains_solid_and_green_is_topmost(tmp_path, monkeypatch):
+    headline='Kota Berpenduduk Dua Juta Jiwa Lumpuh Saat Asap Pekat Selimuti Hutan Hujan Tropis'
+    image=tmp_path/'image.jpg'
+    Image.new('RGB',(1080,1350),'#778899').save(image)
+    out=tmp_path/'cover.jpg'
+    seen=[]
+    original=renderer._draw_word_tracked
+    def check(draw,word,x,y,font,color):
+        seen.append((word,color))
+        return original(draw,word,x,y,font,color)
+    monkeypatch.setattr(renderer,'_draw_word_tracked',check)
+    renderer.render(image,headline,out,accent_words=['KOTA BERPENDUDUK DUA','ASAP'])
+    assert Image.open(out).size==(1080,1350)
+    colored={word for word,color in seen if color==renderer.GREEN}
+    assert colored=={'KOTA','LUMPUH','ASAP','PEKAT'}
+    assert renderer.WHITE=='#FFFFFF'
+    assert renderer.GREEN=='#95F21E'
+    assert all(color in (renderer.WHITE,renderer.GREEN) for _,color in seen)
