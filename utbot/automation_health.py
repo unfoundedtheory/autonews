@@ -40,7 +40,12 @@ def tracked_cron(job, operation):
         except Exception:
             log.exception('Unable to record cron failure')
         raise
-    record_heartbeat(job,'success')
+    try:
+        record_heartbeat(job,'success')
+    except Exception:
+        # Do not retry an already-successful external operation merely
+        # because telemetry could not persist.
+        log.exception('Unable to record cron success')
     return result
 
 def automation_status(db, *, now=None):
