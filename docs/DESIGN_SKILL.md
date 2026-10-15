@@ -139,3 +139,10 @@ Bagian ini **mengungguli panduan lama tentang batas resolusi sumber dan jumlah k
 - Urutan komposit final: **foto → crop → gradient hitam untuk keterbacaan → logo/badge → seluruh teks putih/hijau di paling atas**. Jangan menaruh overlay setelah teks. Rendering boleh memakai layer teks transparan lalu melakukan compositing terakhir.
 - Pertahankan JPEG berkualitas tinggi, tanpa chroma subsampling jika tersedia; PNG lossless dianjurkan sebagai preview evaluasi warna. Anti-aliasing di pinggir huruf dapat menghasilkan pixel abu-abu, **tetapi bagian tengah glyph putih harus mendekati putih murni**.
 - Validasi hasil nyata pada 1080×1350 dan thumbnail; semua ini tidak mengubah aturan empat baris, grid, margin optis 56px, atau gambar asli yang relevan (§14).
+
+## 16. Warna hijau dikalibrasi dari referensi visual asli (15 Oktober 2026)
+
+- **Warna hijau resmi final adalah `#8FFF00` (RGB 143, 255, 0)**, diambil dari bagian tengah glyph pada gambar referensi meteor yang diberikan pemilik. Ini menggantikan **seluruh** nilai hijau lama; jangan kembali ke `#95F21E`.
+- Putih tetap **`#FFFFFF`**, keduanya 100% opaque, dirender **setelah** crop/gradient foto. Gradien tidak boleh dimunculkan lagi di atas layer teks.
+- Simpan JPEG dengan `quality=95`, `subsampling=0`; periksa PNG/lossless bila perlu untuk mengisolasi efek kompresi. Sedikit variasi RGB di JPG dapat terjadi, tetapi warna inti glyph hijau harus mendekati `(143,255,0)`.
+- Uji warna secara terpisah dari pemilihan frasa hijau. Foto sumber, tata letak, 56px optical margins, empat baris headline dan story-skeleton tetap mengikuti ketentuan sebelumnya.
