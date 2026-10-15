@@ -106,12 +106,31 @@ def connect_start(request:Request,password:str=Form(...)):
     return response
 
 class MetaStageError(Exception):
-    def __init__(self,stage,status,code=None,subcode=None):
+    def __init__(self,stage,status,code=None,subcode=None,category='unknown'):
         self.stage=stage
         self.status=status
         self.code=code
         self.subcode=subcode
+        self.category=category
         super().__init__(stage)
+
+
+def _classify_meta_failure(error):
+    """Classify Meta messages without exposing raw error text or credentials."""
+    if not isinstance(error,dict):
+        return 'unknown'
+    message=str(error.get('message') or '').lower()
+    if 'redirect_uri' in message or 'redirect uri' in message or 'redirect url' in message:
+        return 'redirect_uri'
+    if 'app secret' in message or 'client_secret' in message or 'client secret' in message:
+        return 'app_secret'
+    if 'app id' in message or 'application id' in message or 'client_id' in message:
+        return 'app_id'
+    if 'verification code' in message or 'authorization code' in message or 'code has expired' in message or 'code was already' in message:
+        return 'authorization_code'
+    if 'permission' in message or 'scope' in message:
+        return 'permissions'
+    return 'unknown'
 
 
 def _get(client,url,params,stage):
@@ -121,9 +140,11 @@ def _get(client,url,params,stage):
             failure=res.json().get('error',{})
             code=failure.get('code') if isinstance(failure,dict) else None
             subcode=failure.get('error_subcode') if isinstance(failure,dict) else None
+            category=_classify_meta_failure(failure)
         except (ValueError,TypeError):
             code=subcode=None
-        raise MetaStageError(stage,res.status_code,code,subcode)
+            category='unknown'
+        raise MetaStageError(stage,res.status_code,code,subcode,category)
     data=res.json()
     if not isinstance(data,dict) or 'error' in data:
         raise ValueError('Meta response invalid')
@@ -156,11 +177,18 @@ def callback(request:Request,code:str='',state:str='',error:str=''):
             details+=' · Meta code '+str(exc.code)
         if isinstance(exc.subcode,int):
             details+=' · subcode '+str(exc.subcode)
-        log.warning('Meta OAuth stage=%s http=%s code=%s subcode=%s',
-                    exc.stage,exc.status,exc.code,exc.subcode)
+        suggestions={'redirect_uri':'Redirect URI tidak cocok menurut Meta. Pastikan URL callback sama persis.',
+                     'app_secret':'Meta mendeteksi masalah App Secret. Periksa kembali nilai pada Vercel.',
+                     'app_id':'Meta mendeteksi masalah App ID. Periksa ID aplikasi di Vercel.',
+                     'authorization_code':'Kode otorisasi tidak valid atau kedaluwarsa. Ulangi login dari tombol Connect.',
+                     'permissions':'Ada izin Meta yang belum sesuai.',
+                     'unknown':'Meta belum memberikan kategori kesalahan yang bisa dipastikan.'}
+        log.warning('Meta OAuth stage=%s http=%s code=%s subcode=%s category=%s',
+                    exc.stage,exc.status,exc.code,exc.subcode,exc.category)
         return _page('Meta menolak permintaan',
           '<p>Login Facebook berhasil, tetapi Meta menolak saat '+html.escape(description)+'.</p>'
-          '<div class="alert">'+html.escape(details)+'</div>'
+          '<div class="alert">'+html.escape(details)+' · '+html.escape(exc.category)+'</div>'
+          '<p>'+html.escape(suggestions.get(exc.category,suggestions['unknown']))+'</p>'
           '<p>Kirim screenshot kode error ini (bukan URL/token) untuk menentukan perbaikan berikutnya.</p>'
           '<a href="/api/meta/connect">← Coba lagi</a>',status_code=502)
     except (httpx.HTTPError,ValueError,KeyError,TypeError) as exc:
