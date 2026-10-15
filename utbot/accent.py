@@ -8,6 +8,7 @@ import re
 SUBJECT_PHRASES=(
     'KAMERA ROBOTIK', 'PIRAMIDA RAKSASA', 'TANGAN TUHAN',
     'LUBANG HITAM', 'PLANET MERAH', 'WAHANA ANTARIKSA',
+    'STRUKTUR RADIO', 'SIMBOL MUSIK', 'GUGUS GALAKSI',
     'ILMUWAN PURBA', 'KECERDASAN BUATAN',
     'EVOLUSI MANUSIA', 'KEHIDUPAN PURBA', 'ROBOT HUMANOID',
 )
@@ -61,7 +62,7 @@ def _phrase_match(words, candidates, occupied):
     return index,match
 
 def accent_for_hook(text, existing=()):
-    """Choose up to three separated semantic accents; references may span lines.
+    """Choose 2–4 separated semantic accents when meaning justifies them.
 
     Prefer *who/what* (subject), *what happened* (action), and *why it
     matters* (science phenomenon). A phrase may be one or two words.
@@ -74,12 +75,25 @@ def accent_for_hook(text, existing=()):
 
     def add(start,selected):
         indices=range(start,start+len(selected))
-        if (len(groups)>=3 or sum(len(g[1]) for g in groups)+len(selected)>10
+        if (len(groups)>=4 or sum(len(g[1]) for g in groups)+len(selected)>10
                 or any(i in used for i in indices)):
             return False
         groups.append((start,selected))
         used.update(indices)
         return True
+
+    # Multi-part observational headlines need all three editorial anchors:
+    # subject, unusual shape and scientific object. Prevent the former single
+    # trailing "GALAKSI" accent on radio-cluster collision coverage.
+    radio_phrases=('STRUKTUR RADIO','SIMBOL MUSIK','GUGUS GALAKSI')
+    if sum(_phrase_match(words,(phrase,),set()) is not None
+           for phrase in radio_phrases)>=2:
+        for phrase in radio_phrases:
+            candidate=_phrase_match(words,(phrase,),used)
+            if candidate:
+                add(*candidate)
+        if len(groups)>=2:
+            return [' '.join(span) for _,span in sorted(groups,key=lambda x:x[0])]
 
     # The approved historical-comparison reference intentionally emphasizes
     # subject, location and key comparison, not its generic action "TERKUBUR".
@@ -124,9 +138,24 @@ def accent_for_hook(text, existing=()):
     # but do not allow stale random words to displace the three key cues.
     desired={w for phrase in (existing or ()) for w in _tokens(phrase)}
     for i,w in enumerate(words):
-        if len(groups)>=3:break
+        if len(groups)>=4:break
+        # An obsolete arbitrary accent should not displace semantic highlights
+        # that already occupy a meaningful share of the title.
+        if (len(groups)>=2 and
+                sum(len(span) for _,span in groups)/len(words)>=0.22):
+            break
         if w in desired and w not in STOPWORDS and i not in used:
             add(i,[w])
+
+    # Where the current accents cover under one quarter of a substantial
+    # headline, allow one further SCIENTIFIC phrase. Never add filler words
+    # merely to satisfy a percentage target.
+    if (groups and len(groups)<4 and len(words)>=12 and
+            sum(len(span) for _,span in groups)/len(words)<0.25):
+        for phrase in PHENOMENON_PHRASES:
+            match=_phrase_match(words,(phrase,),used)
+            if match and add(*match):
+                break
 
     # Unknown scientific subject: avoid fabricated importance. Pick one
     # content word near the front; optional second near the end for balance.

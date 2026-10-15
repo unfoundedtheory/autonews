@@ -80,3 +80,19 @@ def test_retry_cover_button_requires_editor_selection(monkeypatch):
     assert not dr.image_local_path and not dr.rights_reviewed
     assert any('Pilih satu kandidat cover' in s for s,m in bot.messages)
     db.close()
+
+def test_source_resolution_600_fallback_and_below_600_rejected():
+    def fetch_with_size(side):
+        def handler(_):
+            return httpx.Response(200,json={'query':{'pages':{'1':{
+                'title':'File:Smile spacecraft.png',
+                'imageinfo':[{'mime':'image/png','width':side,'height':1000,
+                    'url':'https://upload.wikimedia.org/Smile.png',
+                    'descriptionurl':'https://commons.wikimedia.org/wiki/File:Smile.png',
+                    'extmetadata':{'LicenseShortName':{'value':'CC0'}}}]
+            }}}})
+        return find_photos('Smile spacecraft',transport=httpx.MockTransport(handler))
+    assert fetch_with_size(590)==[]
+    candidate=fetch_with_size(620)[0]
+    assert candidate['resolution_review']=='conditional'
+    assert fetch_with_size(760)[0]['resolution_review']=='standard'

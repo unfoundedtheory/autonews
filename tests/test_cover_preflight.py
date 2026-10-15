@@ -115,7 +115,7 @@ def test_official_markdown_reaches_author_and_ai_style_qc(monkeypatch):
     assert '## 3. Aturan Caption' in guide
     assert 'Hook di setiap paragraf' in guide
     assert 'Jari Tanganmu Ternyata Berasal' in guide
-    assert '## 9. Checklist Sebelum Publikasi' in guide
+    assert '## 11. Checklist Sebelum Publikasi' in guide
     assert len(editorial_guide_sha256())==64
     recorded={}
     def fake_writer(system,payload,**kwargs):

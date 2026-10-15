@@ -595,7 +595,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     d=db.get(Draft,ident)
                     send('ℹ️ Foto utama artikel belum bisa dipakai: '+str(hero_error)[:150]+
                          '. Mencari alternatif Wikimedia yang berlisensi.')
-                from .photo_relevance import search_queries,likely_same_subject
+                from .photo_relevance import search_queries,photo_subject_match
                 from .media import find_photos
                 choices=[]
                 visited=set()
@@ -608,7 +608,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         continue
                     for candidate in candidates:
                         identity=candidate.get('page_url') or candidate.get('image_url')
-                        if identity and identity not in visited and likely_same_subject(term,candidate):
+                        if identity and identity not in visited and photo_subject_match(term,candidate,st.title):
                             visited.add(identity)
                             choices.append(candidate)
                     if choices:break

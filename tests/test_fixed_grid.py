@@ -5,7 +5,7 @@ from utbot.renderer import (
     BADGE_BOX, HEADLINE_TOP, HEADLINE_BOTTOM, TRACKING_EM, LINE_SPACING, WORD_GAP_EM,
     SIDE_MARGIN, BOTTOM_MARGIN, GROUP_RAISE_PX, _draw_title_line,
     _font, _headline_layout, _title_draw_y, _word_gap, _letter_tracking,
-    _line_width, _ink_height, render, MARGIN, WIDTH
+    _line_width, _ink_height, _headline_vertical_shift, render, MARGIN, WIDTH
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,7 +33,8 @@ def test_text_fits_fixed_box_independent_of_line_count():
     for headline in HEADLINES:
         font, lines, pitch = _headline_layout(draw,headline)
         counts.append(len(lines))
-        assert _title_draw_y(font,0,pitch)+font.getbbox('HM',anchor='la')[1] == HEADLINE_TOP
+        assert (_title_draw_y(font,0,pitch)+font.getbbox('HM',anchor='la')[1]
+                == HEADLINE_TOP+_headline_vertical_shift(font,pitch))
         assert len(lines) == 4
         assert HEADLINE_TOP+(len(lines)-1)*pitch+_ink_height(font) <= HEADLINE_BOTTOM
         assert all(_line_width(draw,line,font) <= WIDTH-2*MARGIN for line in lines)
@@ -55,21 +56,20 @@ def test_tracking_tightens_characters_but_preserves_real_word_gap():
     assert _word_gap(draw,font) > -_letter_tracking(font) * 3
 
 
-def test_identical_badge_pixels_for_varying_four_line_font_sizes(tmp_path):
-    bg = tmp_path/'dark.jpg'
-    Image.new('RGB',(1080,1350),(3,3,3)).save(bg)
-    regions=[]
-    for index,headline in enumerate(HEADLINES[:3]):
-        out=tmp_path/f'cover-{index}.jpg'
-        render(bg,headline,out,accent_words=['TANGAN','TUHAN'])
-        image=Image.open(out)
-        # slight lossy JPEG coupling outside badge region, compare center area only
-        regions.append(image.crop((400,876,680,922)))
-    # JPEG compression may differ slightly from distinct headlines; badge itself is identical.
+def test_badge_follows_headline_without_changing_logo_shape():
+    from utbot.renderer import _draw_badge
+    badges=[]
+    for headline in HEADLINES[:3]:
+        face,_,pitch=_headline_layout(
+            ImageDraw.Draw(Image.new('RGB',(1080,1350))),headline)
+        shift=_headline_vertical_shift(face,pitch)
+        background=Image.new('RGB',(1080,1350),(3,3,3))
+        _draw_badge(background,vertical_shift=shift)
+        badges.append(background.crop((400,876+shift,680,924+shift)))
+        assert _title_draw_y(face,0,pitch)+face.getbbox('HM',anchor='la')[1]-(924+shift)==33
     from PIL import ImageChops
-    for r in regions[1:]:
-        diff = ImageChops.difference(r, regions[0])
-        assert max(upper for lower,upper in diff.getextrema()) <= 3
+    for badge in badges[1:]:
+        assert ImageChops.difference(badge,badges[0]).getbbox() is None
 
 
 def test_original_photo_top_region_is_not_reinvented(tmp_path):
@@ -106,6 +106,6 @@ def test_rendered_ink_stays_inside_equal_side_and_bottom_safe_area():
         l,t,r,b=bounds
         assert l>=SIDE_MARGIN-4, (headline,'left',l)
         assert WIDTH-r>=SIDE_MARGIN-4,(headline,'right',WIDTH-r)
-        assert 1350-b>=BOTTOM_MARGIN,(headline,'bottom',1350-b)
+        assert BOTTOM_MARGIN<=1350-b<=BOTTOM_MARGIN+5,(headline,'bottom',1350-b)
         assert abs(l-(WIDTH-r))<=12,(headline,'optical center',l,WIDTH-r)
         assert t>=HEADLINE_TOP-3,(headline,'top',t)

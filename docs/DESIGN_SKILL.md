@@ -109,3 +109,11 @@ Bagian ini **mengungguli panduan lama tentang batas resolusi sumber dan jumlah k
 - Target **sekitar 25–35% kata** beraksen hijau sebagai pedoman optis fleksibel, bukan hard gate. Bagi aksen di awal/tengah/akhir jika komposisi mendukung, jangan menumpuk semua di akhir.
 - Prioritaskan objek, tindakan/fenomena, dan unsur unik/kontras. Contoh tema radioastronomi: `STRUKTUR RADIO` / `SIMBOL MUSIK` / `GUGUS GALAKSI`; `TUMBUKAN` opsional bila bermakna.
 - Jangan mewarnai preposisi atau kata acak untuk mengejar kuota, mengubah kata demi accent, atau merusak empat baris, fon, layout, dan keterbacaan. Re-render desain butuh tinjauan ulang cover dan approval versi baru.
+
+## 14. Koreksi margin optis dan ukuran headline (15 Oktober 2026)
+
+- **Aturan terbaru untuk produksi ini menggantikan posisi Y headline/badge yang dikunci pada §9–13 jika konflik.** Safe margin kanan, kiri, dan tepi bawah cover final masing-masing ~56 px.
+- Prioritaskan League Spartan Bold 700 dengan **ukuran font terbesar yang masih muat empat baris** pada area horizontal x=56–1024 px. Jangan melebar/menarik glyph, mengorbankan spasi antarkata, atau mengecilkan font hanya demi koordinat lama.
+- Jika pembatas lebar menghalangi pembesaran font, **geser grup badge + teks turun bersama-sama** hingga tinta huruf pada baris terakhir berakhir di sekitar y=1294 (margin bawah ~56 px), sambil menjaga jarak badge ke tinta baris pertama tetap 33 px. Hindari ruang kosong bawah yang jauh lebih besar dari margin kiri/kanan.
+- Ukur batas sebenarnya dari pixel tinta glyph, bukan ketinggian font nominal. Font besar bukan izin untuk keluar batas 56 px atau membuat baris kelima.
+- QA wajib membandingkan margin kiri, kanan, dan bawah serta memastikan tidak ada cropping, tabrakan logo, font tak terbaca, atau gambar tak relevan. Periksa render 1080×1350 dan thumbnail.
