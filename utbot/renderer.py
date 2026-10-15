@@ -12,7 +12,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 from .accent import accent_for_hook
 
 WIDTH, HEIGHT = 1080, 1350
-GREEN = "#95F21E"
+GREEN = "#8FFF00"
 WHITE = "#FFFFFF"
 SIDE_MARGIN = 56
 BOTTOM_MARGIN = 56

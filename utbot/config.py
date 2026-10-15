@@ -30,7 +30,7 @@ class Config:
     draft_stock_target: int = int(os.getenv('DRAFT_STOCK_TARGET','14'))
     prepare_batch_limit: int = int(os.getenv('PREPARE_BATCH_LIMIT','3'))
     # Only applies with real live IG credentials + approved editorial QC/photo rights.
-    auto_approve_24h: bool = os.getenv('AUTO_APPROVE_AFTER_24H','true').lower() == 'true'
+    auto_approve_24h: bool = os.getenv('AUTO_APPROVE_AFTER_24H','false').lower() == 'true'
     ai_provider: str = os.getenv('AI_PROVIDER','gemini')
     model: str = os.getenv('GEMINI_MODEL','gemini-3.5-flash-lite')
     # Vercel permits temporary writes only under /tmp; final media is uploaded immediately.

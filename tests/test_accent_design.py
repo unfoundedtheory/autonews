@@ -151,5 +151,5 @@ def test_renderer_white_remains_solid_and_green_is_topmost(tmp_path, monkeypatch
     colored={word for word,color in seen if color==renderer.GREEN}
     assert colored=={'KOTA','LUMPUH','ASAP','PEKAT'}
     assert renderer.WHITE=='#FFFFFF'
-    assert renderer.GREEN=='#95F21E'
+    assert renderer.GREEN=='#8FFF00'
     assert all(color in (renderer.WHITE,renderer.GREEN) for _,color in seen)

@@ -14,7 +14,7 @@ This guide implements the user's four supplied design modules as **production ac
 
 - Leverage: photo is the visual hero; headline is the secondary high-contrast hook; brand label tertiary. Avoid competing hero elements.
 - Internal Rhythm: margins follow 4-point units (56px outer safe area, bottom ≥60px); center-aligned title; consistent line separation and badge spacing.
-- Friction & Flow: tightly set **only key words** in #95F21E, the remainder pure white. All-caps visual headline is allowed while stored editorial text remains in Title Case. Avoid gratuitous visual effects.
+- Friction & Flow: tightly set **only key words** in #8FFF00, the remainder pure white. All-caps visual headline is allowed while stored editorial text remains in Title Case. Avoid gratuitous visual effects.
 - Transferability: headline readable when downscaled on Instagram; never make single-word orphan last lines or sacrifice legibility.
 - Gestalt/Common Region: the title and logo are grouped by one shared photographic black-gradient area rather than nested UI boxes.
 
@@ -28,7 +28,7 @@ This guide implements the user's four supplied design modules as **production ac
 ## 4. Overlay and Color
 
 - Keep the hero photo clean at the top. Apply a **progressive black gradient** to its lower part; start nearly transparent above the middle, reaching black behind the headline. Never darken the whole image uniformly and never blur the full image.
-- Use only white, #95F21E, and black over the selected photograph. Aim for readable, consistent optical margins and a single strong visual focus. The thematic science photo supplies all secondary colors naturally.
+- Use only white, #8FFF00, and black over the selected photograph. Aim for readable, consistent optical margins and a single strong visual focus. The thematic science photo supplies all secondary colors naturally.
 
 ## 5. Automatic Visual QA + Telegram Approval
 
@@ -53,7 +53,7 @@ Apply the shared four-module user skill: LIFT visual focus, 4-point grid, Gestal
 - Combine **B headline/hook** + **A headline width**. Design uses a real provided scientific image and never re-generates its contents.
 - Shared readable width exactly **968 px on a 1080 px canvas**, margin 56 px each side. Dynamic auto-fit size is allowed, never pixel-stretch text to fit.
 - Reference supplied by the owner: `assets/reference_B_wide_original_photo.jpg`, **internal design comparison only**, not a cleared source asset for publication.
-- No artificially added flares, neon shadows, painted cosmic particles, glow around text, fake depth or AI art. Accent green `#95F21E`, otherwise clean white text.
+- No artificially added flares, neon shadows, painted cosmic particles, glow around text, fake depth or AI art. Accent green `#8FFF00`, otherwise clean white text.
 - The **approved text** is the single source of truth. A provocative B-style alternative that changes a scientific claim is a draft until fact-checked and approved.
 
 ## 9. Locked reference grid (v0.6; source of truth = SIX original covers)
@@ -103,7 +103,7 @@ Bagian ini **mengungguli panduan lama tentang batas resolusi sumber dan jumlah k
 - **Kanvas final tetap 1080×1350 px** dengan subjek aman dalam crop. Citra komposit/warna semu harus digambarkan sesuai kenyataan, bukan disebut foto warna alami; hak pakai, atribusi dan akurasi harus lulus peninjauan.
 - QC visual wajib menolak mismatch subjek, gambar generik yang tidak mewakili penemuan, dan dokumen/tabel tak terkait. Kesalahan visual menahan berita sebelum publikasi; jangan menganggap meta-tag atau resolusi cukup sebagai bukti cocok.
 
-### Hijau `#95F21E`: 2–4 frasa bermakna
+### Hijau `#8FFF00`: 2–4 frasa bermakna
 
 - **Pedoman historis; lihat §15:** umumnya 2–4 kelompok. Pemilihan kelompok sekarang ditentukan terlebih dahulu oleh uji keterbacaan makna hijau-saja.
 - **Aturan historis; lihat §15:** persentase hijau sebelumnya sekitar 25–35% kata. Aturan terbaru memakai keseimbangan **visual** dengan putih dominan, bukan kuota berdasarkan jumlah kata.
@@ -135,7 +135,22 @@ Bagian ini **mengungguli panduan lama tentang batas resolusi sumber dan jumlah k
 ### Dominasi putih dan layering
 
 - Tujuan optis: kira-kira **70–80% putih, 20–30% hijau**, **bukan rasio wajib per kata**. Referensi dan akurasi isi lebih penting dari angka; hindari hijau meluas sehingga kehilangan fokus.
-- Warna **putih `#FFFFFF` tanpa opacity** dan hijau **`#95F21E` tanpa opacity**. Keduanya harus tetap tajam, terang, dan tidak tertutup foto, overlay, gradient, atau filter.
+- Warna **putih `#FFFFFF` tanpa opacity** dan hijau **`#8FFF00` tanpa opacity**. Keduanya harus tetap tajam, terang, dan tidak tertutup foto, overlay, gradient, atau filter.
 - Urutan komposit final: **foto → crop → gradient hitam untuk keterbacaan → logo/badge → seluruh teks putih/hijau di paling atas**. Jangan menaruh overlay setelah teks. Rendering boleh memakai layer teks transparan lalu melakukan compositing terakhir.
 - Pertahankan JPEG berkualitas tinggi, tanpa chroma subsampling jika tersedia; PNG lossless dianjurkan sebagai preview evaluasi warna. Anti-aliasing di pinggir huruf dapat menghasilkan pixel abu-abu, **tetapi bagian tengah glyph putih harus mendekati putih murni**.
 - Validasi hasil nyata pada 1080×1350 dan thumbnail; semua ini tidak mengubah aturan empat baris, grid, margin optis 56px, atau gambar asli yang relevan (§14).
+
+## 16. Warna hijau dikalibrasi dari referensi visual asli (15 Oktober 2026)
+
+- **Warna hijau resmi final adalah `#8FFF00` (RGB 143, 255, 0)**, diambil dari bagian tengah glyph pada gambar referensi meteor yang diberikan pemilik. Ini menggantikan **seluruh** nilai hijau lama; jangan kembali ke `#95F21E`.
+- Putih tetap **`#FFFFFF`**, keduanya 100% opaque, dirender **setelah** crop/gradient foto. Gradien tidak boleh dimunculkan lagi di atas layer teks.
+- Simpan JPEG dengan `quality=95`, `subsampling=0`; periksa PNG/lossless bila perlu untuk mengisolasi efek kompresi. Sedikit variasi RGB di JPG dapat terjadi, tetapi warna inti glyph hijau harus mendekati `(143,255,0)`.
+- Uji warna secara terpisah dari pemilihan frasa hijau. Foto sumber, tata letak, 56px optical margins, empat baris headline dan story-skeleton tetap mengikuti ketentuan sebelumnya.
+
+## 17. Auto-crop URL gambar dan batas bawah tanpa garis foto (15 Oktober 2026)
+
+- **Sumber foto bebas rasio**: 16:9 landscape, 3:2, 1:1, 4:3, 9:16 portrait, dan lainnya boleh; **jangan pernah mensyaratkan 4:5 dari URL sumber**. Yang harus 4:5 hanya cover hasil akhir 1080×1350 px.
+- Setelah intake HTTPS, normalisasikan orientasi EXIF, kemudian gunakan crop **cover/fill** proporsional (tanpa stretch, letterbox, padding, atau bidang kosong). Utamakan titik fokus subjek; jika crop berpotensi menghilangkan objek ilmiah utama, tawarkan perbaikan fokus/gambar pengganti alih-alih menyalahartikan subjek.
+- Lapisan dari belakang: **foto hasil crop → gradient black dengan alpha dari 0 sampai 255 menuju bawah → badge → headline**. Gradient tidak memudarkan seluruh gambar dari tepi atas; di y=1350 wajib hitam penuh sehingga **batas bawah foto tidak boleh tampak sebagai garis/potongan**.
+- Warna teks putih #FFFFFF dan hijau #8FFF00 100% opacity; jangan lapiskan gradient lagi setelah teks. Periksa bagian bawah di preview final dan thumbnail termasuk untuk input landscape, portrait, serta square.
+- Tetap gunakan pemeriksaan relevansi/lisensi dan batas kualitas sumber ≥600px yang dapat dibaca setelah crop. Tidak mengurangi editorial/Telegram approval.

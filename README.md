@@ -96,7 +96,7 @@ Referensi gateway: [Gemini](https://ai.google.dev/gemini-api/docs), [DeepSeek](h
 | `utbot/research.py` | Feed resmi NASA, ESA, ESO, EMBL, dan Google DeepMind → kandidat baru tanpa duplikasi URL |
 | `utbot/pipeline.py` | HTML primer → draft berbasis kutipan dengan pemeriksaan literal lewat gateway AI |
 | `utbot/media.py` | Wikimedia Commons + metadata lisensi → download aman → upload JPEG final ke Supabase Storage |
-| `utbot/renderer.py` | Desain deterministik 1080×1350: gradien hitam, logo, putih dan neon `#95F21E` |
+| `utbot/renderer.py` | Desain deterministik 1080×1350: gradien hitam, logo, putih dan neon `#8FFF00` |
 | `utbot/telegram.py` | Preview, tombol approve/tolak, lihat sumber, perintah revisi, pilih foto |
 | `utbot/scheduler.py` | WIB 06.00 / 12.00 / 18.00; default maksimum 2 posting harian; sisanya besok |
 | `utbot/instagram.py` | Instagram Graph API: buat container → status → publish |
@@ -195,7 +195,7 @@ Preview sementara yang memakai foto dari posting referensi **hanya untuk uji vis
 
 ### Aksen hijau headline (desain terkunci)
 
-- Gunakan warna hijau **#95F21E** hanya pada bagian yang penting secara semantik; boleh satu kata maupun frasa pendek yang **tersebar** pada awal, tengah, dan akhir headline. Bukan satu blok warna hijau yang panjang.
+- Gunakan warna hijau **#8FFF00** hanya pada bagian yang penting secara semantik; boleh satu kata maupun frasa pendek yang **tersebar** pada awal, tengah, dan akhir headline. Bukan satu blok warna hijau yang panjang.
 - Prioritas operator: **subjek ilmiah**, **aksi kunci**, **objek/fenomena**. Contoh `Kamera Robotik Berhasil Merekam Lingkaran Cahaya Auroral Utuh Dari Luar Angkasa` → `KAMERA ROBOTIK`, `MEREKAM`, `AURORAL` hijau, selain itu putih.
 - Pemilihan semantik mengoreksi metadata aksen lama saat Render Ulang Cover; tidak menyunting isi headline atau mengabaikan approval/QC.
 - Font harus benar-benar keluarga **League Spartan** dari Google Fonts, bobot **Bold 700**, tracking `-47` dan leading `1.05`; custom `BRAND_FONT_PATH` yang bukan League Spartan diabaikan demi konsistensi cover.

@@ -24,6 +24,7 @@ from .research import discover,fingerprint
 from .rewrite import rewrite
 from .pipeline import prepare_batch
 from .media import find_photos,intake_image,render_draft,upload_public_jpeg
+from .automation_health import tracked_cron, automation_status
 
 log=logging.getLogger(__name__)
 
@@ -69,19 +70,19 @@ def cron_auth(request: Request):
 def cron_discover():
     """Discover candidates at approximately 01:00 WIB."""
     from .runner import do_discover
-    return {'discovery':do_discover()}
+    return tracked_cron('discover',lambda: {'discovery':do_discover()})
 
 @app.get('/cron/prepare', dependencies=[Depends(cron_auth)])
 def cron_prepare():
     """Prepare a small editorial batch at approximately 03:00 WIB."""
     from .runner import do_prepare
-    return {'prepared':do_prepare()}
+    return tracked_cron('prepare',lambda: {'prepared':do_prepare()})
 
 @app.get('/cron/prepare/afternoon', dependencies=[Depends(cron_auth)])
 def cron_prepare_afternoon():
     """Second daily batch to grow the editorial stock without extra publishing."""
     from .runner import do_prepare
-    return {'prepared':do_prepare()}
+    return tracked_cron('prepare_afternoon',lambda: {'prepared':do_prepare()})
 
 @app.get('/cron/tick/{slot}', dependencies=[Depends(cron_auth)])
 def cron_tick(slot: str):
@@ -91,15 +92,17 @@ def cron_tick(slot: str):
     from .runner import do_reschedule, do_publish
     # Publish overdue-approved items before rebuilding future slots; Hobby cron
     # can arrive up to 59 minutes after a slot begins.
-    publication=do_publish()
-    scheduled=do_reschedule()
-    return {'queued':len(scheduled),'publication':publication}
+    def run():
+        publication=do_publish()
+        scheduled=do_reschedule()
+        return {'queued':len(scheduled),'publication':publication}
+    return tracked_cron('tick_'+slot,run)
 
 @app.get('/cron/maintenance', dependencies=[Depends(cron_auth)])
 def cron_maintenance():
     """Daily maintenance on Vercel Hobby; posting ticks also review 24h eligibility."""
     from .runner import do_maintenance
-    return do_maintenance()
+    return tracked_cron('maintenance',do_maintenance)
 
 @app.get('/health')
 def health():return {'status':'ok','live_publish':CONFIG.live_publish}
@@ -476,7 +479,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
         elif action=='status':
             from sqlalchemy import func
             groups=db.execute(select(Draft.status,func.count(Draft.id)).group_by(Draft.status)).all()
-            send('📊 Status redaksi\n'+('\n'.join(f'{s}: {n}' for s,n in groups) or 'Belum ada berita'),True)
+            send('📊 Status redaksi\n'+('\n'.join(f'{s}: {n}' for s,n in groups) or 'Belum ada berita')+'\n\n'+automation_status(db),True)
         elif action=='pending':
             show_pending(pending_index)
         else:
@@ -810,7 +813,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
             from sqlalchemy import func
             if txt=='/status':
                 groups=db.execute(select(Draft.status,func.count(Draft.id)).group_by(Draft.status)).all()
-                send('📊 Status redaksi\n'+('\n'.join(f'{status}: {qty}' for status,qty in groups) or 'Belum ada berita'))
+                send('📊 Status redaksi\n'+('\n'.join(f'{status}: {qty}' for status,qty in groups) or 'Belum ada berita')+'\n\n'+automation_status(db))
             elif txt=='/pending':
                 show_pending()
             else:
