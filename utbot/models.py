@@ -83,6 +83,16 @@ class Audit(Base):
     detail=Column(JSON, default=dict)
     created_at=Column(UTCDateTime(), nullable=False, default=utcnow)
 
+class MetaConnection(Base):
+    """Owner-authorized Instagram linkage; Page token stored encrypted at rest."""
+    __tablename__="meta_connections"
+    page_id=Column(String(80),primary_key=True)
+    instagram_id=Column(String(80),nullable=False)
+    page_name=Column(String(200),nullable=False)
+    encrypted_page_token=Column(Text,nullable=False)
+    updated_at=Column(UTCDateTime(),nullable=False,default=utcnow)
+
+
 class TelegramUpdateReceipt(Base):
     """Durable Telegram webhook de-duplication across serverless retries."""
     __tablename__="telegram_update_receipts"
