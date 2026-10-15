@@ -96,7 +96,6 @@ def test_telegram_approved_final_image_and_caption_reach_instagram_unchanged(db,
     d=seeded(db)
     d.rights_reviewed=True
     d.image_url='https://cdn.example.org/final-render-v1.jpg'
-    d.caption='Astronom menemukan galaksi baru.\\n\\nNASA mengonfirmasi pengamatan.\\n\\nTemuan tersebut perlu diteliti.\\n\\nApa arti penemuan ini?'
     db.commit()
     final_image=d.image_url
     final_caption=caption_text(d)
