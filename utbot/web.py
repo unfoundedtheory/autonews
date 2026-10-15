@@ -654,14 +654,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 else:
                     report=run_draft_qc(db,d,st)
                     db.commit()
-                gap=(report.get('checks') or {}).get('curiosity_gap',{})
-                send('📋 Editorial QC | Draf '+d.id[:8]+' v'+str(d.version)+
-                     '\nStatus: '+report.get('status','unknown')+
-                     '\nMasalah: '+(', '.join(report.get('issues',[])) or 'Tidak ada')+
-                     '\nCuriosity Gap: '+('✅' if gap.get('passed') else '❌ Belum valid')+
-                     '\nPertanyaan tersisa: '+str(gap.get('unanswered_question') or 'Belum ditemukan')[:180]+
-                     '\nPenjelasan: '+str(gap.get('reason') or report.get('note') or '-')[:220]+
-                     '\nPeriksa manual: '+', '.join(report.get('manual_checks',[])))
+                send(format_editorial_qc(d,report))
             elif action=='musickit':
                 from .stock_flow import send_music_kit, is_auto_approved
                 if (d.status!='approved' or is_auto_approved(db,d)
@@ -985,6 +978,43 @@ def _manual_photo_music_handoff(db):
         db.rollback()
         return {'manual_music':'handoff_error','draft_id':d.id,
                 'error_type':type(exc).__name__}
+
+
+
+def format_editorial_qc(draft, report):
+    """Readable plain-text Telegram report; preserve all original QC findings."""
+    gap=(report.get('checks') or {}).get('curiosity_gap') or {}
+    passed=bool(report.get('passed'))
+    status='✅ LOLOS' if passed else '⚠️ PERLU REVISI'
+    issues=report.get('issues') or []
+    manual=report.get('manual_checks') or []
+    lines=[
+        '📋 EDITORIAL QC',
+        'Draf '+draft.id[:8]+' · Versi '+str(draft.version),
+        '',
+        'STATUS: '+status,
+        '',
+        '🔎 TEMUAN QC',
+    ]
+    lines.extend('• '+str(item).replace('_',' ') for item in issues) if issues else lines.append('✅ Tidak ada masalah otomatis')
+    lines.extend([
+        '',
+        '✨ CURIOSITY GAP',
+        '✅ Lolos' if gap.get('passed') else '❌ Belum lolos',
+        '',
+        'Pertanyaan yang harus tetap menarik:',
+        str(gap.get('unanswered_question') or 'Belum teridentifikasi')[:450],
+        '',
+        'Alasan penilaian:',
+        str(gap.get('reason') or report.get('note') or 'Tidak ada keterangan')[:800],
+    ])
+    if manual:
+        lines.extend(['','🧾 PERIKSA MANUAL'])
+        lines.extend('• '+str(item).replace('_',' ') for item in manual)
+    lines.extend(['','➡️ LANGKAH BERIKUTNYA',
+       'Revisi bagian yang gagal, tekan 📋 Hasil QC, lalu ✅ Approve.'
+       if not passed else 'QC lulus. Anda dapat menekan ✅ Approve.'])
+    return '\n'.join(lines)[:3900]
 
 
 @app.post('/jobs/publish',dependencies=[Depends(worker_auth)])
