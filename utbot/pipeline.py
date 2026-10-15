@@ -18,7 +18,7 @@ from .hook_editor import cover_fit_alternative
 from .config import CONFIG
 from .media import find_photos,intake_image,render_draft,find_article_photo
 from .ai_provider import generate_json
-from .photo_relevance import likely_same_subject,search_queries
+from .photo_relevance import photo_subject_match,search_queries
 
 EXTRACT_MAX=16000
 
@@ -232,80 +232,10 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
         d.last_error=cover_issue
         db.flush()
         return d
-    try:
-        query=data.get('image_search') or story.title
-        queries=search_queries(query,story_title=story.title)
-        opts=[]
-        matching=[]
-        seen=set()
-        search_errors=[]
-        for variant in queries:
-            try:
-                discovered=image_search(variant,limit=8)
-            except (httpx.HTTPError,ValueError,OSError) as exc:
-                search_errors.append(type(exc).__name__)
-                continue
-            for item in discovered:
-                key=item.get('page_url') or item.get('image_url')
-                if not key:continue
-                if key not in seen:
-                    seen.add(key)
-                    opts.append(item)
-                # The same file may be irrelevant to a broad variant but relevant
-                # to the later, correct mission-specific query.
-                if likely_same_subject(variant,item) and not any(
-                        (m.get('page_url') or m.get('image_url'))==key for m in matching):
-                    matching.append(item)
-            if matching:break
-        # A search failure should never produce a random filler photo.
-        if not opts and search_errors:
-            raise ValueError('Pencarian Wikimedia gagal: '+', '.join(search_errors))
-        d.photo_candidates=opts
-        if opts and not matching:
-            d.last_error='Tidak ada kandidat foto yang cukup cocok dengan subjek berita; editor harus memilih.'
-        if matching:
-            errors=[]
-            for item in matching:
-                try:
-                    src=Path(CONFIG.media_dir)/d.id/'source.jpg'
-                    # Wikimedia thumbnail hosts sometimes respond 403. Retry the
-                    # file's canonical original URL, without bypassing rights checks.
-                    links=list(dict.fromkeys([item['image_url'], item.get('original_url')]))
-                    last_download_error=None
-                    for image_link in links:
-                        if not image_link:continue
-                        try:
-                            d.source_image_path=image_intake(image_link,str(src))
-                            d.source_image_url=image_link
-                            last_download_error=None
-                            break
-                        except httpx.HTTPStatusError as exc:
-                            last_download_error=exc
-                            if exc.response.status_code not in (403,404,429):raise
-                    if last_download_error is not None:raise last_download_error
-                    d.media_page_url=item['page_url']
-                    d.image_credit=item['credit']
-                    d.photo_license=item['license']
-                    d.image_license_url=item['license_url']
-                    d.rights_reviewed=False
-                    render_draft(d)
-                    d.last_error=None
-                    break
-                except (httpx.HTTPError,ValueError,OSError,RuntimeError) as exc:
-                    errors.append(type(exc).__name__+': '+str(exc)[:100])
-                    d.image_url=None
-                    d.image_local_path=None
-            if not d.image_url and not d.image_local_path:
-                d.last_error='Cover gagal setelah '+str(len(errors))+' kandidat: '+' | '.join(errors)[:350]
-        else:
-            d.last_error='Foto relevan berlisensi belum ditemukan. Pencarian: '+', '.join(queries)[:190]
-
-    except (httpx.HTTPError,ValueError,OSError,RuntimeError) as exc:
-        d.last_error='Foto memerlukan pemeriksaan editor: '+str(exc)[:250]
-    # Wikimedia often returns 403 or cannot match an obscure mission.
-    # Prefer the hero image embedded in the EXACT trusted primary article,
-    # never a random stock image. Its copyright remains unverified.
-    if not (d.image_url or d.image_local_path):
+    # First preference: verified-subject photo attached to the EXACT official
+    # article. A generic og:image fails metadata relevance; rights remain manual.
+    # Injected test image searches do not trigger real source HTTP requests.
+    if image_search is find_photos and not (d.image_url or d.image_local_path):
         try:
             hero=find_article_photo(story.source_url,subject=story.title)
             if hero:
@@ -324,6 +254,78 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
             d.image_local_path=None
             message='Foto utama dari artikel resmi gagal: '+str(exc)[:150]
             d.last_error=((d.last_error or '')+' | '+message).strip(' |')[:490]
+
+    if not (d.image_url or d.image_local_path):
+        try:
+            query=data.get('image_search') or story.title
+            queries=search_queries(query,story_title=story.title)
+            opts=[]
+            matching=[]
+            seen=set()
+            search_errors=[]
+            for variant in queries:
+                try:
+                    discovered=image_search(variant,limit=8)
+                except (httpx.HTTPError,ValueError,OSError) as exc:
+                    search_errors.append(type(exc).__name__)
+                    continue
+                for item in discovered:
+                    key=item.get('page_url') or item.get('image_url')
+                    if not key:continue
+                    if key not in seen:
+                        seen.add(key)
+                        opts.append(item)
+                    # The same file may be irrelevant to a broad variant but relevant
+                    # to the later, correct mission-specific query.
+                    if photo_subject_match(variant,item,story.title) and not any(
+                            (m.get('page_url') or m.get('image_url'))==key for m in matching):
+                        matching.append(item)
+                if matching:break
+            # A search failure should never produce a random filler photo.
+            if not opts and search_errors:
+                raise ValueError('Pencarian Wikimedia gagal: '+', '.join(search_errors))
+            d.photo_candidates=opts
+            if opts and not matching:
+                d.last_error='Tidak ada kandidat foto yang cukup cocok dengan subjek berita; editor harus memilih.'
+            if matching:
+                errors=[]
+                for item in matching:
+                    try:
+                        src=Path(CONFIG.media_dir)/d.id/'source.jpg'
+                        # Wikimedia thumbnail hosts sometimes respond 403. Retry the
+                        # file's canonical original URL, without bypassing rights checks.
+                        links=list(dict.fromkeys([item['image_url'], item.get('original_url')]))
+                        last_download_error=None
+                        for image_link in links:
+                            if not image_link:continue
+                            try:
+                                d.source_image_path=image_intake(image_link,str(src))
+                                d.source_image_url=image_link
+                                last_download_error=None
+                                break
+                            except httpx.HTTPStatusError as exc:
+                                last_download_error=exc
+                                if exc.response.status_code not in (403,404,429):raise
+                        if last_download_error is not None:raise last_download_error
+                        d.media_page_url=item['page_url']
+                        d.image_credit=item['credit']
+                        d.photo_license=item['license']
+                        d.image_license_url=item['license_url']
+                        d.rights_reviewed=False
+                        render_draft(d)
+                        d.last_error=None
+                        break
+                    except (httpx.HTTPError,ValueError,OSError,RuntimeError) as exc:
+                        errors.append(type(exc).__name__+': '+str(exc)[:100])
+                        d.image_url=None
+                        d.image_local_path=None
+                if not d.image_url and not d.image_local_path:
+                    d.last_error='Cover gagal setelah '+str(len(errors))+' kandidat: '+' | '.join(errors)[:350]
+            else:
+                d.last_error='Foto relevan berlisensi belum ditemukan. Pencarian: '+', '.join(queries)[:190]
+
+        except (httpx.HTTPError,ValueError,OSError,RuntimeError) as exc:
+            d.last_error='Foto memerlukan pemeriksaan editor: '+str(exc)[:250]
     db.flush()
     return d
 
