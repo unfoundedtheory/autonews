@@ -115,3 +115,21 @@ def test_meta_stage_error_masks_sensitive_message():
             assert 'private-token' not in str(exc)
         else:
             assert False, 'Expected staged failure'
+
+
+def test_meta_error_categories_never_echo_raw_response():
+    from utbot.meta_oauth import _classify_meta_failure, _get, MetaStageError
+    import httpx
+    assert _classify_meta_failure({'message':'Error validating verification code'})=='authorization_code'
+    assert _classify_meta_failure({'message':'Redirect URI does not match'})=='redirect_uri'
+    assert _classify_meta_failure({'message':'Invalid App Secret'})=='app_secret'
+    def handle(request):
+        return httpx.Response(400,json={'error':{'code':1,'message':'Redirect URI mismatch secret-secret'}})
+    with httpx.Client(transport=httpx.MockTransport(handle)) as c:
+        try:
+            _get(c,'https://graph.facebook.com/v24.0/oauth/access_token',{},'code_exchange')
+        except MetaStageError as exc:
+            assert exc.category=='redirect_uri'
+            assert 'secret-secret' not in str(exc)
+        else:
+            assert False
