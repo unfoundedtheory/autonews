@@ -11,7 +11,7 @@ from datetime import datetime, timezone, timedelta
 import os
 import secrets
 import time
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 import httpx
 from cryptography.fernet import Fernet, InvalidToken
 from fastapi import APIRouter, Form, Request, Depends, HTTPException
@@ -404,6 +404,90 @@ def test_connection(password:str=Form(...)):
     body+='<p class="help">Tes kuota publikasi hanya memeriksa akses API baca-saja; keberhasilan publikasi tetap memerlukan pengujian media nyata dengan persetujuan Anda.</p>'
     good=all(v=='Valid' for _,v in checks)
     return _page('Hasil Tes Koneksi',body,status_code=200 if good else 502)
+
+
+def _test_image_url(value):
+    """A user-authorized public image only. Never send private endpoints to Meta."""
+    from ipaddress import ip_address
+    from urllib.parse import urlparse
+    v=urlparse(value)
+    if v.scheme!='https' or not v.hostname or v.username or v.password or v.port not in (None,443):
+        raise ValueError('Gunakan URL HTTPS gambar publik.')
+    host=v.hostname.lower()
+    if host=='localhost' or host.endswith(('.local','.internal','.localhost')) or host.startswith(('127.','10.','192.168.','169.254.')):
+        raise ValueError('URL lokal tidak diizinkan.')
+    try:
+        ip_address(host)
+        raise ValueError('Gunakan nama domain HTTPS publik, bukan IP.')
+    except ValueError as exc:
+        if 'Gunakan nama domain' in str(exc): raise
+    if len(value)>1500 or not v.path:
+        raise ValueError('URL gambar tidak valid.')
+    return value
+
+
+@router.get('/meta/test-container')
+def container_test_form():
+    _settings()
+    if CONFIG.live_publish:
+        return _page('Tes tidak tersedia','<p>Nonaktifkan ENABLE_LIVE_PUBLISH sebelum pengujian.</p>',status_code=409)
+    return _page('Tes Media Instagram',
+       '<p>Tes ini hanya membuat container sementara di Instagram. '
+       '<strong>Tidak menerbitkan postingan.</strong> '
+       'Gunakan URL gambar HTTPS publik yang Anda miliki atau berhak gunakan.</p>'
+       '<form method="post" action="/api/meta/test-container">'
+       '<label for="password">Password Admin AutoNews</label>'
+       '<div class="field"><input id="password" type="password" name="password" required>'
+       '<button id="reveal" class="reveal" type="button">Lihat</button></div>'
+       '<label for="image_url" style="margin-top:16px">URL gambar HTTPS publik</label>'
+       '<div class="field"><input id="image_url" type="url" name="image_url" required '
+       'placeholder="https://example.com/foto-uji.jpg"></div>'
+       '<label style="margin-top:16px"><input type="checkbox" name="confirm" value="yes" required '
+       'style="width:auto"> Saya berhak menggunakan foto ini dan menyetujui pembuatan container tes tanpa publikasi.</label>'
+       '<button class="primary" type="submit">Buat Container Uji (Tanpa Posting)</button></form>')
+
+
+@router.post('/meta/test-container')
+def container_test(password:str=Form(...),image_url:str=Form(...),confirm:str=Form('')):
+    from .instagram_credentials import resolve_instagram_credentials
+    from .instagram import InstagramPublisher
+    _,_,admin,_,_,_=_settings()
+    if not hmac.compare_digest(password,admin):
+        return _page('Tidak diizinkan','<p>Password admin salah.</p>',status_code=403)
+    if CONFIG.live_publish:
+        return _page('Tes diblokir','<p>Matikan ENABLE_LIVE_PUBLISH terlebih dahulu.</p>',status_code=409)
+    if confirm!='yes':
+        return _page('Konfirmasi diperlukan','<p>Persetujuan hak pakai gambar diperlukan.</p>',status_code=400)
+    try:
+        image_url=_test_image_url(image_url.strip())
+    except ValueError:
+        return _page('URL tidak valid','<p>Gunakan gambar publik HTTPS dengan domain valid.</p>',status_code=400)
+    with Session() as db:
+        try:
+            ig_id,token=resolve_instagram_credentials(db)
+        except ValueError:
+            return _page('Koneksi belum siap','<p>Token Instagram belum dapat dibaca.</p>',status_code=503)
+    publisher=InstagramPublisher(CONFIG.ig_base,CONFIG.ig_version,ig_id,token)
+    try:
+        container_id=publisher.create_container(image_url,'AutoNews connectivity test — not published')
+    except httpx.HTTPStatusError as exc:
+        return _page('Pembuatan container ditolak',
+           '<p>Meta menolak permintaan, HTTP '+str(exc.response.status_code)+
+           '. Foto mungkin tidak bisa diakses publik atau izin publikasi belum sesuai.</p>',
+           status_code=502)
+    except (httpx.HTTPError,ValueError,KeyError,TypeError):
+        return _page('Container belum terkonfirmasi',
+           '<p>Terjadi masalah jaringan atau respons Meta. Jangan mengulang langsung jika status permintaan belum jelas.</p>',
+           status_code=502)
+    try:
+        state=publisher.container_status(container_id)
+        message='Status container: '+html.escape(str(state))
+    except (httpx.HTTPError,ValueError,TypeError,KeyError):
+        message='Container dibuat tetapi status belum dapat dibaca.'
+    return _page('Container Tes Berhasil Dibuat',
+        '<p>'+message+'</p><p><strong>Belum dipublikasikan.</strong> '
+        'Tidak ada panggilan media_publish, tidak ada postingan yang diterbitkan.</p>'
+        '<p>Catat statusnya; jika masih IN_PROGRESS, proses media belum selesai.</p>')
 
 @router.get('/meta/status')
 def status():
