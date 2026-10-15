@@ -13,7 +13,7 @@ from urllib.parse import urlencode
 import httpx
 from cryptography.fernet import Fernet, InvalidToken
 from fastapi import APIRouter, Form, Request, Depends, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from sqlalchemy import select
 from .models import MetaConnection, Session
 from .config import CONFIG
@@ -46,7 +46,10 @@ def _settings():
 def _page(title,body,status_code=200):
     nonce=secrets.token_urlsafe(16)
     css="""*{box-sizing:border-box}html{color-scheme:light}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;font:15px/1.6 system-ui,-apple-system,sans-serif;color:#20202b;background:radial-gradient(ellipse at 5% 0%,#ffe3b6 0%,transparent 43%),radial-gradient(ellipse at 98% 95%,#e0c5ff 0%,transparent 48%),#fff7fb}main{width:min(100%,440px)}.brand{display:flex;gap:10px;align-items:center;font-weight:900;letter-spacing:.07em;font-size:14px;margin-bottom:24px}.mark{height:37px;width:37px;display:grid;place-items:center;border-radius:12px;color:white;font-size:20px;background:linear-gradient(35deg,#feda75,#fa7e1e 22%,#d62976 54%,#962fbf 80%,#4f5bd5)}.panel{padding:clamp(24px,6vw,40px);border:1px solid #f2e4ed;border-radius:22px;background:#fff;box-shadow:0 28px 70px #672c5b18}h1{font-size:clamp(25px,5vw,30px);letter-spacing:-.04em;line-height:1.25;margin:0 0 12px;color:#20202b}p{color:#686678;margin:0 0 22px}label{display:block;font-weight:700;font-size:14px;margin-bottom:8px}.field{display:flex;align-items:center;border:1px solid #d9d3de;border-radius:12px;overflow:hidden;background:#fff}.field:focus-within{outline:2px solid #b8328a;border-color:transparent}input{width:100%;flex:1;min-width:0;border:0;outline:0;padding:14px;font:inherit;color:#21212b;background:transparent}button{font:inherit;cursor:pointer}.reveal{border:0;background:none;color:#a32982;padding:12px;font-weight:700;min-width:86px}.primary{width:100%;border:0;border-radius:12px;padding:14px;margin-top:18px;color:#fff;background:linear-gradient(90deg,#f58529,#dd2a7b 52%,#8134af);font-weight:800;box-shadow:0 8px 20px #cf3a8938}.primary:hover{filter:brightness(.97)}.primary:disabled{opacity:.75;cursor:wait}.help{font-size:13px;color:#777181;margin:15px 0 0}.alert{background:#fff1f5;border:1px solid #fac3d8;padding:14px;border-radius:12px;color:#8c184f;margin:0 0 18px}.notice{font-size:13px;color:#8c235f;min-height:20px;margin:12px 0 0}.foot{margin:20px auto;text-align:center;color:#777181;font-size:12px}a{color:#a32982;font-weight:700}.status{display:inline-flex;gap:6px;align-items:center;background:#f7f2f8;color:#7a447a;border-radius:100px;padding:5px 12px;margin-bottom:16px;font-size:12px;font-weight:700}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}"""
-    script="""const b=document.getElementById('reveal'),p=document.getElementById('password'),f=document.getElementById('connect-form'),msg=document.getElementById('submit-state'),btn=document.getElementById('submit-btn');if(b&&p){b.addEventListener('click',()=>{const show=p.type==='password';p.type=show?'text':'password';b.textContent=show?'Sembunyikan':'Lihat';b.setAttribute('aria-pressed',String(show));});}if(f&&p&&msg&&btn){f.addEventListener('submit',()=>{if(!p.value.trim()){msg.textContent='Masukkan password admin terlebih dahulu.';return;}msg.textContent='Memproses login… menunggu respons server.';btn.textContent='Menghubungkan…';btn.disabled=true;setTimeout(()=>{msg.textContent='Jika halaman tidak berubah, periksa koneksi lalu muat ulang. Kirim screenshot pesan ini kepada pengembang.';btn.disabled=false;btn.textContent='Coba hubungkan lagi';},12000);});}"""
+    script="""const b=document.getElementById('reveal'),p=document.getElementById('password'),f=document.getElementById('connect-form'),msg=document.getElementById('submit-state'),btn=document.getElementById('submit-btn');
+if(b&&p){b.addEventListener('click',()=>{let v=p.type==='password';p.type=v?'text':'password';b.textContent=v?'Sembunyikan':'Lihat';b.setAttribute('aria-pressed',String(v));});}
+if(f&&p&&msg&&btn){f.addEventListener('submit',async ev=>{ev.preventDefault();if(!p.value.trim()){msg.textContent='Masukkan password admin terlebih dahulu.';return;}btn.disabled=true;btn.textContent='Memeriksa…';msg.textContent='Memeriksa koneksi server…';let ctl=new AbortController();let clock=setTimeout(()=>ctl.abort(),20000);try{const res=await fetch(f.action,{method:'POST',body:new FormData(f),headers:{'X-Requested-With':'AutoNewsConnect','Accept':'application/json'},credentials:'same-origin',redirect:'manual',signal:ctl.signal});if(res.type==='opaqueredirect'){msg.textContent='Server melakukan redirect; melanjutkan login…';f.submit();return;}let data={};try{data=await res.json()}catch(e){msg.textContent='Server merespons HTTP '+res.status+' tetapi format respons tidak sesuai. Screenshot pesan ini.';return;}if(!res.ok){msg.textContent=(data.message||'Koneksi ditolak')+' (HTTP '+res.status+').';return;}if(data.redirect_url&&data.redirect_url.startsWith('https://www.facebook.com/')){msg.textContent='Membuka halaman Facebook…';window.location.assign(data.redirect_url);return;}msg.textContent='Respons server tidak memiliki URL login (HTTP '+res.status+').';}catch(e){msg.textContent=e.name==='AbortError'?'Server tidak merespons dalam 20 detik. Coba lagi atau periksa Vercel Logs.':'Koneksi ke server gagal: '+e.name+'. Periksa jaringan/browser.';}finally{clearTimeout(clock);btn.disabled=false;btn.textContent='Hubungkan Instagram →';}});}
+"""
     page=('<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>'+html.escape(title)+' · Unfounded Theory</title><style>'+css+'</style></head><body><main><div class="brand">UNFOUNDED THEORY</div><section class="panel"><h1>'+html.escape(title)+'</h1>'+body+'</section><p class="help">Akses khusus pemilik AutoNews. Jangan bagikan password atau token.</p></main><script nonce="'+nonce+'">'+script+'</script></body></html>')
     return HTMLResponse(page,status_code=status_code,headers={'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-"+nonce+"'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"})
 
@@ -69,12 +72,17 @@ def connect():
        '<p class="help">Gunakan password META_CONNECT_PASSWORD yang tersimpan di Vercel, bukan password Facebook.</p>')
 
 @router.post('/meta/connect')
-def connect_start(password:str=Form(...)):
+def connect_start(request:Request,password:str=Form(...)):
+    wants_json=request.headers.get('x-requested-with')=='AutoNewsConnect'
     try:
         app_id,secret,admin,_,base,cfg=_settings()
     except HTTPException:
+        if wants_json:
+            return JSONResponse({'message':'Konfigurasi server belum lengkap. Periksa Vercel Production.'},status_code=503)
         return _page('Konfigurasi server belum siap','<p>Periksa enam variabel Vercel Production dan lakukan Redeploy.</p>',status_code=503)
     if not hmac.compare_digest(password,admin):
+        if wants_json:
+            return JSONResponse({'message':'Password admin salah. Pastikan sesuai META_CONNECT_PASSWORD di Vercel.'},status_code=403)
         return _page('Password tidak cocok',
             '<div class="alert">Password admin tidak sesuai dengan nilai META_CONNECT_PASSWORD pada Vercel Production.</div>'
             '<p>Periksa nilainya dan redeploy jika baru diubah.</p><a href="/api/meta/connect">← Coba lagi</a>',
@@ -87,7 +95,8 @@ def connect_start(password:str=Form(...)):
     url='https://www.facebook.com/'+CONFIG.ig_version+'/dialog/oauth?'+urlencode({
         'client_id':app_id,'redirect_uri':redirect_uri,'state':state,
         'response_type':'code','config_id':cfg,'scope':SCOPES})
-    response=RedirectResponse(url,status_code=303)
+    response=(JSONResponse({'redirect_url':url},status_code=200) if wants_json
+              else RedirectResponse(url,status_code=303))
     response.set_cookie(COOKIE,state,max_age=TTL,httponly=True,secure=True,samesite='lax',path='/api/meta')
     response.headers['Cache-Control']='no-store'
     return response
