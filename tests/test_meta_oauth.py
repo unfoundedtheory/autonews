@@ -71,3 +71,18 @@ def test_token_is_encrypted_at_rest():
         db.refresh(item)
         assert 'test-token' not in item.encrypted_page_token
         assert Fernet(key).decrypt(item.encrypted_page_token.encode())==b'test-token'
+
+
+def test_connect_fetch_reports_password_error_and_oauth_redirect(monkeypatch):
+    setup(monkeypatch)
+    with TestClient(app) as client:
+        bad=client.post('/meta/connect',data={'password':'wrong'},
+            headers={'X-Requested-With':'AutoNewsConnect','Accept':'application/json'})
+        assert bad.status_code==403
+        assert 'Password' in bad.json()['message']
+        good=client.post('/meta/connect',data={'password':'test-dedicated-password'},
+            headers={'X-Requested-With':'AutoNewsConnect','Accept':'application/json'})
+        assert good.status_code==200
+        assert good.json()['redirect_url'].startswith('https://www.facebook.com/')
+        assert COOKIE in good.headers['set-cookie']
+        assert good.headers['cache-control']=='no-store'
