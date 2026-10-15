@@ -133,3 +133,41 @@ def test_meta_error_categories_never_echo_raw_response():
             assert 'secret-secret' not in str(exc)
         else:
             assert False
+
+
+def test_multi_page_selection_is_encrypted_and_one_time(monkeypatch):
+    import json
+    from datetime import datetime,timezone,timedelta
+    from sqlalchemy.orm import sessionmaker
+    from utbot.models import MetaPageChoice
+    from utbot import meta_oauth
+    from fastapi.testclient import TestClient
+    env=setup(monkeypatch)
+    eng=make_engine('sqlite://')
+    Base.metadata.create_all(eng)
+    test_session=sessionmaker(bind=eng,expire_on_commit=False)
+    monkeypatch.setattr(meta_oauth,'Session',test_session)
+    options=[{'id':'100','name':'Unfounded Theory','instagram_id':'800','token':'secret-a'},
+             {'id':'200','name':'Other Page','instagram_id':'900','token':'secret-b'}]
+    id='safe-choice-id'
+    encrypted=Fernet(env['META_TOKEN_ENCRYPTION_KEY'].encode()).encrypt(json.dumps(options).encode()).decode()
+    with test_session() as db:
+        db.add(MetaPageChoice(id=id,encrypted_candidates=encrypted,
+                              expires_at=datetime.now(timezone.utc)+timedelta(minutes=5)))
+        db.commit()
+    with TestClient(app) as client:
+        client.cookies.set(meta_oauth.CHOICE_COOKIE,id,path='/api/meta')
+        denied=client.post('/meta/select-page',data={'page_id':'999'})
+        assert denied.status_code==403
+        selected=client.post('/meta/select-page',data={'page_id':'100'})
+        assert selected.status_code==200
+        assert 'Unfounded Theory' in selected.text
+        assert 'secret-a' not in selected.text
+        assert 'secret-b' not in selected.text
+        again=client.post('/meta/select-page',data={'page_id':'100'})
+        assert again.status_code==403
+        with test_session() as db:
+            stored=db.get(MetaConnection,'100')
+            assert stored.instagram_id=='800'
+            assert 'secret-a' not in stored.encrypted_page_token
+            assert db.get(MetaConnection,'200') is None
