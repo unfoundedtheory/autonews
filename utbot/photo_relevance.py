@@ -18,11 +18,49 @@ def _terms(value):
     return {w for w in re.findall(r'[a-z0-9]+', (value or '').casefold())
             if (len(w) >= 4 or any(c.isdigit() for c in w)) and w not in STOP}
 
+# Obvious archive/document mismatches are never suitable substitutes for
+# observational science pictures, even if the metadata contains search terms.
+DOCUMENT_MARKERS=(
+    'census', 'enumeration district', 'population register',
+    'tax record', 'birth certificate', 'genealogy record',
+    'shipping manifest', 'historic population table',
+)
+SCIENCE_GENERIC={
+    'report','reports','news','spacecraft','research','discovery',
+    'reveals','revealed','finding','findings','study','data','official',
+    'observed','observation','image','images','photo','photos',
+}
+
+def unrelated_document(subject, item):
+    subject_text=str(subject or '').casefold()
+    title=str(item.get('title') or '').casefold()
+    description=str(item.get('description') or '').casefold()
+    # A document is acceptable when the historical document itself is the story.
+    return any(marker in (title+' '+description) and marker not in subject_text
+               for marker in DOCUMENT_MARKERS)
+
+def photo_subject_match(search_query, item, story_title=''):
+    """Conservative metadata preflight, not pixel-level/rights verification."""
+    if not likely_same_subject(search_query,item):
+        return False
+    if unrelated_document(story_title or search_query,item):
+        return False
+    # Require some cross-check against the actual source headline as well,
+    # instead of trusting an over-broad AI image search query by itself.
+    anchors=_terms(story_title)-SCIENCE_GENERIC
+    if len(anchors)>=2:
+        observed=_terms(' '.join(str(item.get(k) or '')
+                                for k in ('title','description')))
+        return bool(anchors & observed)
+    return True
+
 
 def likely_same_subject(search_query, item):
     """True means possible topic match, NEVER automatic licence/identity approval."""
     haystack = ' '.join(str(item.get(k) or '') for k in ('title', 'description', 'credit'))
     wanted = _terms(search_query)
+    if unrelated_document(search_query,item):
+        return False
     if not wanted:
         return False
     present = _terms(haystack)
@@ -43,7 +81,7 @@ def search_queries(query, *, story_title=''):
     words=re.findall(r'[A-Za-z0-9-]+', (query or '').strip())
     anchor=[w for w in words if len(w)>=4 and w.casefold() not in
             {'mission','space','nasa','spacecraft','satellite','solar','wind',
-             'magnetosphere','ionosphere','link','explorer','science','earth','esa','cas'}]
+             'magnetosphere','ionosphere','link','explorer','science','earth','esa','cas','radio','galaxy','galaxies','cluster','clusters','gugus'}]
     choices=[]
     def add(value):
         value=' '.join(value.split()).strip()
