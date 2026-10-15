@@ -93,6 +93,15 @@ class MetaConnection(Base):
     updated_at=Column(UTCDateTime(),nullable=False,default=utcnow)
 
 
+class MetaPageChoice(Base):
+    """Short-lived encrypted candidates; no Meta tokens in pages or cookies."""
+    __tablename__="meta_page_choices"
+    id=Column(String(64),primary_key=True)
+    encrypted_candidates=Column(Text,nullable=False)
+    expires_at=Column(UTCDateTime(),nullable=False)
+    created_at=Column(UTCDateTime(),nullable=False,default=utcnow)
+
+
 class TelegramUpdateReceipt(Base):
     """Durable Telegram webhook de-duplication across serverless retries."""
     __tablename__="telegram_update_receipts"

@@ -6,6 +6,8 @@ publishing remains disabled until a separate successful E2E test.
 import hmac
 import hashlib
 import html
+import json
+from datetime import datetime, timezone, timedelta
 import os
 import secrets
 import time
@@ -19,11 +21,12 @@ from sqlalchemy.exc import SQLAlchemyError
 import logging
 
 log=logging.getLogger(__name__)
-from .models import MetaConnection, Session
+from .models import MetaConnection, MetaPageChoice, Session
 from .config import CONFIG
 
 router=APIRouter()
 COOKIE='ut_meta_oauth'
+CHOICE_COOKIE='ut_meta_choice'
 TTL=600
 BASE='https://unfoundedtheory.vercel.app'
 SCOPES='instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,business_management'
@@ -219,28 +222,86 @@ def _complete_callback(request,app_id,secret,encryption,base,code):
     matches=[p for p in accounts if (p.get('instagram_business_account') or {}).get('id') and p.get('access_token')]
     if not matches:
         response=_page('Belum terhubung','<p>Tidak ditemukan Facebook Page dengan akun Instagram Professional tertaut. Hubungkan Instagram ke Page dan coba lagi.</p>')
+    elif len(matches)>1:
+        selection_id=secrets.token_urlsafe(32)
+        now=datetime.now(timezone.utc)
+        candidates=[{'id':str(p['id']),'name':str(p.get('name') or '')[:200],
+                     'instagram_id':str(p['instagram_business_account']['id']),
+                     'token':str(p['access_token'])} for p in matches]
+        cipher=Fernet(encryption.encode()).encrypt(json.dumps(candidates).encode()).decode()
+        with Session() as db:
+            db.add(MetaPageChoice(id=selection_id,encrypted_candidates=cipher,
+                                  expires_at=now+timedelta(minutes=10)))
+            db.commit()
+        controls=''.join('<label style="display:flex;gap:10px;align-items:center;padding:12px 0">'
+              '<input style="width:18px;flex:none;accent-color:#d62976" type="radio" name="page_id" value="'+html.escape(p['id'],quote=True)+'" required>'
+              '<span>'+html.escape(p['name'])+'</span></label>' for p in candidates)
+        response=_page('Pilih Facebook Page',
+            '<p>Pilih Page yang akan digunakan AutoNews. Akun Instagram harus sudah tertaut.</p>'
+            '<form method="post" action="/api/meta/select-page">'+controls+
+            '<button class="primary" type="submit">Hubungkan Page Terpilih</button></form>'
+            '<p class="help">Pilihan ini berlaku 10 menit. Jika kedaluwarsa, hubungkan ulang.</p>')
+        response.set_cookie(CHOICE_COOKIE,selection_id,max_age=600,httponly=True,
+                            secure=True,samesite='lax',path='/api/meta')
     else:
-        # Never auto-select another unrelated Page when multiple are authorized.
-        if len(matches)!=1:
-            response=_page('Pilih Page','<p>Ada lebih dari satu Page dengan Instagram yang terhubung. '
-                'Batasi Page yang diizinkan di Facebook Login lalu coba lagi.</p>')
-        else:
-            page=matches[0]
-            with Session() as db:
-                current=db.execute(select(MetaConnection).where(MetaConnection.page_id==str(page['id']))).scalar_one_or_none()
-                if not current:
-                    current=MetaConnection(page_id=str(page['id']))
-                    db.add(current)
-                current.instagram_id=str(page['instagram_business_account']['id'])
-                current.page_name=str(page.get('name',''))[:200]
-                current.encrypted_page_token=Fernet(encryption.encode()).encrypt(page['access_token'].encode()).decode()
-                current.updated_at=__import__('datetime').datetime.now(__import__('datetime').timezone.utc)
-                db.commit()
-            response=_page('Instagram terhubung',
-                 '<p>Facebook Page: <strong>'+html.escape(str(page.get('name','')))+'</strong></p>'
-                 '<p>Akun Instagram Professional terdeteksi. Token Page disimpan terenkripsi. '
-                 'Posting otomatis masih NONAKTIF sampai pengujian selesai.</p>')
+        _save_meta_page(matches[0],encryption)
+        response=_page('Instagram terhubung',
+            '<p>Facebook Page: <strong>'+html.escape(str(matches[0].get('name','')))+'</strong></p>'
+            '<p>Akun Instagram Professional terdeteksi. Token Page disimpan terenkripsi. '
+            'Posting otomatis masih NONAKTIF sampai pengujian selesai.</p>')
     response.delete_cookie(COOKIE,path='/api/meta')
+    return response
+
+
+def _save_meta_page(page,encryption):
+    with Session() as db:
+        current=db.execute(select(MetaConnection).where(
+            MetaConnection.page_id==str(page['id']))).scalar_one_or_none()
+        if not current:
+            current=MetaConnection(page_id=str(page['id']))
+            db.add(current)
+        current.instagram_id=str(page['instagram_business_account']['id'])
+        current.page_name=str(page.get('name',''))[:200]
+        current.encrypted_page_token=Fernet(encryption.encode()).encrypt(
+            str(page['access_token']).encode()).decode()
+        current.updated_at=datetime.now(timezone.utc)
+        db.commit()
+
+
+@router.post('/meta/select-page')
+def select_page(request:Request,page_id:str=Form(...)):
+    _,_,_,encryption,_,_=_settings()
+    selection_id=request.cookies.get(CHOICE_COOKIE,'')
+    if not selection_id or len(selection_id)>64:
+        raise HTTPException(403,'Pilihan Page sudah kedaluwarsa. Hubungkan ulang.')
+    with Session() as db:
+        pending=db.get(MetaPageChoice,selection_id)
+        if not pending or pending.expires_at<=datetime.now(timezone.utc):
+            raise HTTPException(403,'Pilihan Page sudah kedaluwarsa. Hubungkan ulang.')
+        try:
+            options=json.loads(Fernet(encryption.encode()).decrypt(
+                pending.encrypted_candidates.encode()))
+        except (ValueError,InvalidToken,TypeError):
+            raise HTTPException(403,'Pilihan Page tidak valid.') from None
+        chosen=next((p for p in options if p['id']==page_id),None)
+        if not chosen:
+            raise HTTPException(403,'Page tidak termasuk pilihan yang diizinkan.')
+        current=db.get(MetaConnection,chosen['id'])
+        if not current:
+            current=MetaConnection(page_id=chosen['id'])
+            db.add(current)
+        current.instagram_id=chosen['instagram_id']
+        current.page_name=chosen['name']
+        current.encrypted_page_token=Fernet(encryption.encode()).encrypt(
+            chosen['token'].encode()).decode()
+        current.updated_at=datetime.now(timezone.utc)
+        db.delete(pending)
+        db.commit()
+    response=_page('Instagram terhubung',
+        '<p>Facebook Page: <strong>'+html.escape(chosen['name'])+'</strong></p>'
+        '<p>Instagram Professional terhubung. Token disimpan terenkripsi. '
+        'Posting otomatis tetap nonaktif hingga pengujian selesai.</p>')
+    response.delete_cookie(CHOICE_COOKIE,path='/api/meta')
     return response
 
 @router.get('/meta/status')
