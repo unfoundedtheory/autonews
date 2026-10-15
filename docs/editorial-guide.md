@@ -170,7 +170,46 @@ Dirangkum dari koreksi, teori hook, dan diskusi selama proses pembuatan konten. 
 
 ---
 
-## 9. Checklist Sebelum Publikasi
+## 9. Pemilihan Foto Berita — Relevansi Di Atas Resolusi (15 Oktober 2026)
+
+**Prinsip wajib: foto harus menggambarkan subjek/peristiwa ilmiah yang sedang diberitakan, bukan hanya cocok secara kata kunci.** Gambar beresolusi besar tetapi tidak relevan adalah kegagalan editorial dan tidak boleh dijadikan cover.
+
+**Urutan prioritas seleksi**
+1. Foto atau citra observasi resmi yang benar-benar terkait dengan temuan pada artikel sumber; cocokkan identitas objek, fenomena, instrumen, dan konteksnya.
+2. Materi visual resmi lain dari institusi/peneliti yang sama dan tetap menggambarkan subjek yang benar.
+3. Arsip ilmiah/Wikimedia Commons yang terbukti menggambarkan subjek yang sama, dengan sumber, tanggal, kredit, dan izin penggunaan yang jelas.
+4. Jika tidak ada kandidat yang benar-benar relevan, **tahan draf dan minta penggantian foto manual**. Jangan mengisi cover dengan gambar generik yang sekadar tampak ilmiah.
+
+**Resolusi sumber (bukan resolusi cover final)**
+- **Diutamakan**: sisi terpendek foto sumber ≥ 1080 px.
+- **Diterima**: sisi terpendek ≥ 720 px jika objek tetap jelas setelah crop.
+- **Pengecualian terbatas**: sisi terpendek ≥ 600 px jika foto jauh lebih relevan dan tetap layak dilihat setelah crop/upscale ringan; perlu pemeriksaan visual yang lebih ketat.
+- Di bawah 600 px, atau ketika crop/upscale merusak objek, **tahan untuk foto pengganti atau tinjauan editor**, bukan memaksakan gambar.
+- **Hasil akhir tetap wajib 1080 × 1350 px (4:5)**. Batas piksel di atas adalah panduan mutu, bukan alasan otomatis mengganti foto relevan dengan foto tidak relevan.
+
+**Kecocokan visual dan hak penggunaan**
+- Cocokkan gambar dengan isi berita dan sumber primer, bukan sekadar kemiripan kata dalam judul/metadata.
+- Jangan gunakan halaman sensus, dokumen/tabel acak, screenshot tidak terkait, stock generik, visual galaksi lain, atau foto arsip yang tidak menggambarkan penemuan yang dibahas. Dokumen hanya layak jika **dokumen itu sendiri** memang subjek beritanya.
+- Untuk berita radioastronomi tentang tumbukan gugus galaksi, utamakan citra radio, komposit observasi, atau gugus galaksi yang **terverifikasi sebagai objek yang dibahas**; jangan substitusi dengan galaksi sembarang.
+- Foto asli, citra warna semu, dan komposit ilmiah harus diberi konteks yang akurat; ilustrasi tidak boleh disajikan sebagai bukti pengamatan.
+- Pemeriksaan identitas visual tidak menggantikan pemeriksaan lisensi, kredit, pembatasan penggunaan, dan crop. Hanya kandidat yang lolos semuanya boleh diajukan untuk persetujuan.
+- Jika gambar tidak relevan, subjeknya berbeda, terlalu generik, atau justru dokumen tak terkait, tandai **QC visual gagal**, tahan render/publikasi dan minta pencarian ulang atau pemilihan manual. Ukuran besar tidak boleh meloloskan QC visual.
+
+---
+
+## 10. Aksen Hijau pada Cover — Tonjolkan Lebih Banyak Frasa Penting
+
+- Gunakan hijau brand `#95F21E` untuk **2–4 frasa penting yang berbeda** bila isi headline mendukung; jangan otomatis mewarnai hanya satu frasa terakhir.
+- Target visual sekitar **25–35% kata headline** dalam warna hijau, tetapi angka ini adalah panduan komposisi, bukan kewajiban kaku. Utamakan keterbacaan dan makna; jangan mewarnai kata penghubung hanya untuk memenuhi kuota.
+- Prioritaskan **subjek/objek utama**, **fenomena atau aksi penting**, dan **kontras/keunikan penemuan**. Sebarkan aksen di bagian awal, tengah, dan akhir bila memungkinkan supaya hierarki visual tidak berat sebelah.
+- Pilih kelompok kata utuh, bukan huruf acak, dan jangan mengubah ejaan, fakta, atau urutan headline demi pewarnaan. Kata yang tidak penting tetap putih.
+- Contoh headline struktur radio dan gugus galaksi: kandidat aksen adalah **STRUKTUR RADIO**, **SIMBOL MUSIK**, dan **GUGUS GALAKSI**; dapat menonjolkan **TUMBUKAN** jika komposisi dan bukti klaim mendukung. Pilih kombinasi terbaik, bukan mewarnai seluruh frasa sekaligus tanpa pertimbangan.
+- Aksen harus tetap kuat pada thumbnail Instagram; bila headline pendek atau pewarnaan 4 frasa terasa berlebihan, cukup 2–3 frasa bermakna.
+- Jangan mengorbankan grid empat baris, kontras putih-hijau, font, atau keakuratan editorial. Setelah perubahan aksen/desain, periksa preview dan minta approval ulang jika cover final berubah.
+
+---
+
+## 11. Checklist Sebelum Publikasi
 
 - [ ] Highlight berformat Title Case dan tidak membocorkan jawaban
 - [ ] Highlight punya gap, angka atau fakta spesifik, dan tidak mengulang kata
@@ -185,3 +224,8 @@ Dirangkum dari koreksi, teori hook, dan diskusi selama proses pembuatan konten. 
 - [ ] Batas data dan bantahan sudah dicantumkan
 - [ ] 5 hashtag relevan, diakhiri `#UnfoundedTheory`
 - [ ] Untuk berita tragedi: tidak mengeksploitasi korban, penutup empatik
+- [ ] Foto menunjukkan subjek/peristiwa yang sama dengan berita; bukan dokumen atau gambar generik tak relevan
+- [ ] Identitas foto, citra/komposit, sumber primer, kredit, hak penggunaan, dan crop sudah diperiksa
+- [ ] Jika foto sumber berukuran 600–719 px pada sisi terpendek, pengecualian mutu telah ditinjau; final tetap 1080 × 1350
+- [ ] Foto tidak relevan atau rusak setelah crop/upscale: QC visual gagal dan draf ditahan, bukan dipublikasikan
+- [ ] Highlight hijau memilih sekitar 2–4 frasa bermakna, tersebar jika cocok, tanpa mewarnai kata pengisi atau mengubah fakta
