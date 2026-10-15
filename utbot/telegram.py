@@ -92,7 +92,7 @@ class TelegramClient:
         """
         from io import BytesIO
         from urllib.parse import quote
-        from PIL import Image, UnidentifiedImageError
+        from PIL import Image, ImageOps, UnidentifiedImageError
         meta = self.call('getFile', {'file_id': file_id})
         file_path = meta.get('file_path','')
         if not file_path or '..' in file_path.split('/') or file_path.startswith('/'):
@@ -110,11 +110,11 @@ class TelegramClient:
                         raise ValueError('Foto Telegram melebihi batas ukuran')
         try:
             with Image.open(BytesIO(data)) as im:
-                if im.width < 800 or im.height < 800 or im.width*im.height > 40_000_000:
+                if min(im.width,im.height) < 600 or im.width*im.height > 40_000_000:
                     raise ValueError('Resolusi foto Telegram tidak memenuhi syarat')
                 target=Path(output_path)
                 target.parent.mkdir(parents=True,exist_ok=True)
-                im.convert('RGB').save(target,'JPEG',quality=94)
+                ImageOps.exif_transpose(im).convert('RGB').save(target,'JPEG',quality=95,subsampling=0)
         except (UnidentifiedImageError,OSError) as exc:
             raise ValueError('Foto Telegram tidak terbaca') from exc
         return str(target)
