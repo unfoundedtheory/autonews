@@ -146,3 +146,25 @@ def test_telegram_approved_dry_run_never_calls_instagram(db,monkeypatch):
     assert result['live_publish'] is False
     assert d.status=='approved'
     assert d.publish_state=='unpublished'
+
+
+def test_editorial_qc_telegram_message_readable():
+    from utbot.web import format_editorial_qc
+    class DraftStub:
+        id='10e6b3e7-0000'
+        version=3
+    report={
+       'passed':False,'status':'needs_manual_review',
+       'issues':['CURIOSITY_GAP','qc_curiosity_gap'],
+       'checks':{'curiosity_gap':{
+          'passed':False,
+          'unanswered_question':'Bagaimana bentuk asli lingkaran aurora?',
+          'reason':'Highlight membuka jawabannya terlalu cepat.'}},
+       'manual_checks':['fact_context','visual_accuracy','image_license']}
+    message=format_editorial_qc(DraftStub(),report)
+    assert '\n\n' in message
+    assert 'STATUS: ⚠️ PERLU REVISI' in message
+    assert '• qc curiosity gap' in message
+    assert '🧾 PERIKSA MANUAL' in message
+    assert '➡️ LANGKAH BERIKUTNYA' in message
+    assert len(message)<=3900
