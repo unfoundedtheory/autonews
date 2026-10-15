@@ -15,6 +15,10 @@ from cryptography.fernet import Fernet, InvalidToken
 from fastapi import APIRouter, Form, Request, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
+import logging
+
+log=logging.getLogger(__name__)
 from .models import MetaConnection, Session
 from .config import CONFIG
 
@@ -124,6 +128,20 @@ def callback(request:Request,code:str='',state:str='',error:str=''):
     if not ok:
         raise HTTPException(400,'OAuth cancelled, expired, or state invalid')
     # Only the exact redirect URI registered in Meta is accepted.
+    try:
+        return _complete_callback(request,app_id,secret,encryption,base,code)
+    except httpx.HTTPStatusError as exc:
+        log.warning('Meta OAuth upstream HTTP %s',exc.response.status_code)
+        return _page('Meta menolak permintaan', '<p>Facebook menerima login, tetapi API Meta menolak permintaan berikutnya (HTTP '+str(exc.response.status_code)+'). Periksa izin dan koneksi Page di Meta Developer.</p><a href="/api/meta/connect">← Coba lagi</a>',status_code=502)
+    except (httpx.HTTPError,ValueError,KeyError,TypeError) as exc:
+        log.warning('Meta OAuth callback failure: %s',type(exc).__name__)
+        return _page('Proses koneksi belum berhasil','<p>Terjadi kesalahan ketika membaca respons dari Meta. Token tidak ditampilkan atau disimpan secara parsial.</p><a href="/api/meta/connect">← Coba lagi</a>',status_code=502)
+    except SQLAlchemyError as exc:
+        log.error('Meta OAuth DB persistence failed: %s',type(exc).__name__)
+        return _page('Database belum siap','<p>Login Facebook berhasil, tetapi koneksi tidak dapat disimpan ke database AutoNews. Periksa migrasi tabel meta_connections dan DATABASE_URL di Vercel.</p>',status_code=503)
+
+
+def _complete_callback(request,app_id,secret,encryption,base,code):
     with httpx.Client() as client:
         raw=_get(client,'https://graph.facebook.com/'+CONFIG.ig_version+'/oauth/access_token',{
             'client_id':app_id,'client_secret':secret,'redirect_uri':base+'/api/meta/callback',
@@ -138,6 +156,8 @@ def callback(request:Request,code:str='',state:str='',error:str=''):
         accounts=_get(client,'https://graph.facebook.com/'+CONFIG.ig_version+'/me/accounts',{
             'fields':'id,name,access_token,instagram_business_account',
             'access_token':user_token,'limit':100}).get('data',[])
+    if not isinstance(accounts,list):
+        raise ValueError('Unexpected Page list response')
     matches=[p for p in accounts if (p.get('instagram_business_account') or {}).get('id') and p.get('access_token')]
     if not matches:
         response=_page('Belum terhubung','<p>Tidak ditemukan Facebook Page dengan akun Instagram Professional tertaut. Hubungkan Instagram ke Page dan coba lagi.</p>')
