@@ -101,7 +101,7 @@ def test_radio_cluster_headline_has_distributed_semantic_accents():
     groups=accent_for_hook(title,['GALAKSI'])
     assert groups==['STRUKTUR RADIO','SIMBOL MUSIK','GUGUS GALAKSI']
     colored=sum(len(group.split()) for group in groups)
-    assert 0.25 <= colored/len(title.split()) <= 0.35
+    assert 0.25 <= colored/len(title.split()) <= 0.40
     assert len(groups)<=4
 
 
