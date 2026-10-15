@@ -156,7 +156,7 @@ def test_multi_page_selection_is_encrypted_and_one_time(monkeypatch):
                               expires_at=datetime.now(timezone.utc)+timedelta(minutes=5)))
         db.commit()
     with TestClient(app) as client:
-        client.cookies.set(meta_oauth.CHOICE_COOKIE,id,path='/api/meta')
+        client.cookies.set(meta_oauth.CHOICE_COOKIE,id,path='/meta')
         denied=client.post('/meta/select-page',data={'page_id':'999'})
         assert denied.status_code==403
         selected=client.post('/meta/select-page',data={'page_id':'100'})
