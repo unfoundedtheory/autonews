@@ -5,12 +5,13 @@ from sqlalchemy import select
 from .models import MetaConnection
 from .config import CONFIG
 
-def resolve_instagram_credentials(db):
+def resolve_instagram_credentials(db, legacy_config=None):
     """Read existing OAuth connection; fail closed on ambiguity/corruption.
 
     Never return, print or log credentials in diagnostics. Legacy env fallback
     works only if there is no stored connection at all.
     """
+    legacy_config=legacy_config or CONFIG
     rows=db.execute(select(MetaConnection)).scalars().all()
     matching=[row for row in rows if row.page_name.strip().casefold()=='unfounded theory']
     if len(matching)>1:
@@ -29,6 +30,6 @@ def resolve_instagram_credentials(db):
         return row.instagram_id,token
     if rows:
         raise ValueError('Unfounded Theory Page not connected')
-    if CONFIG.ig_user_id and CONFIG.ig_token:
-        return CONFIG.ig_user_id,CONFIG.ig_token
+    if legacy_config.ig_user_id and legacy_config.ig_token:
+        return legacy_config.ig_user_id,legacy_config.ig_token
     raise ValueError('Instagram credentials not configured')
