@@ -93,3 +93,22 @@ def test_renderer_uses_all_three_accents_in_real_cover(tmp_path,monkeypatch):
     green={word for word,color in recorded if color==renderer.GREEN}
     assert green=={'KAMERA','ROBOTIK','MEREKAM','AURORAL'}
     assert ('LINGKARAN',renderer.WHITE) in recorded
+
+
+def test_radio_cluster_headline_has_distributed_semantic_accents():
+    title=('Struktur Radio Mirip Simbol Musik Di Ruang Angkasa Ini Ternyata '
+           'Lahir Dari Tumbukan Dua Gugus Galaksi')
+    groups=accent_for_hook(title,['GALAKSI'])
+    assert groups==['STRUKTUR RADIO','SIMBOL MUSIK','GUGUS GALAKSI']
+    colored=sum(len(group.split()) for group in groups)
+    assert 0.25 <= colored/len(title.split()) <= 0.35
+    assert len(groups)<=4
+
+
+def test_relevant_620px_source_renders_to_final_1080x1350(tmp_path):
+    source=tmp_path/'small-relevant.jpg'
+    Image.new('RGB',(620,850),'#252637').save(source)
+    target=tmp_path/'cover.jpg'
+    renderer.render(source,HEADLINE,target)
+    assert Image.open(target).size==(1080,1350)
+
