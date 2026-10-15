@@ -345,14 +345,23 @@ def test_connection(password:str=Form(...)):
             ('Facebook Page',page_id,{'fields':'id,name,instagram_business_account'},
              lambda value: str(value.get('id'))==page_id and
                 str((value.get('instagram_business_account') or {}).get('id'))==ig_id),
-            ('Instagram Professional',ig_id,{'fields':'id,username,account_type'},
+            ('Instagram Professional',ig_id,{'fields':'id,username'},
              lambda value: str(value.get('id'))==ig_id),
         ):
             try:
                 res=client.get('https://graph.facebook.com/'+CONFIG.ig_version+'/'+path,
                                params=params,headers={'Authorization':'Bearer '+token})
                 if res.is_error:
-                    checks.append((label,'Gagal HTTP '+str(res.status_code)))
+                    err_code=None
+                    try:
+                        raw_error=res.json().get('error',{})
+                        if isinstance(raw_error,dict) and isinstance(raw_error.get('code'),int):
+                            err_code=raw_error['code']
+                    except (ValueError,TypeError,AttributeError):
+                        pass
+                    problem='Gagal HTTP '+str(res.status_code)
+                    if err_code is not None:problem+=' · Meta code '+str(err_code)
+                    checks.append((label,problem))
                     continue
                 valid=verify(res.json())
                 checks.append((label,'Valid' if valid else 'Tidak cocok'))
@@ -368,6 +377,7 @@ def test_connection(password:str=Form(...)):
     body='<p>Pengujian Graph API selesai. Tidak ada media container atau postingan yang dibuat.</p>'
     body+='<div>'+''.join('<p><strong>'+html.escape(k)+'</strong>: '+html.escape(v)+'</p>'
                             for k,v in checks)+'</div>'
+    body+='<p class="help">Jika Instagram Professional gagal dengan HTTP 400, kode Meta membantu membedakan masalah izin/ID dari field yang diminta. Facebook Page dan token tetap diperiksa terpisah.</p>'
     body+='<p class="help">Izin instagram_content_publish belum dapat dibuktikan hanya dari pemeriksaan baca-saja; memerlukan pemeriksaan izin lebih lanjut sebelum aktivasi.</p>'
     good=all(v=='Valid' for _,v in checks)
     return _page('Hasil Tes Koneksi',body,status_code=200 if good else 502)
