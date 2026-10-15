@@ -12,7 +12,7 @@ import httpx
 from bs4 import BeautifulSoup
 from .editorial import trusted_source
 from .config import CONFIG
-from .photo_relevance import likely_same_subject
+from .photo_relevance import likely_same_subject, photo_subject_match
 
 COMMONS_API='https://commons.wikimedia.org/w/api.php'
 # Editorial redistribution is permitted by these licenses when attribution/other terms are satisfied.
@@ -71,7 +71,7 @@ def find_article_photo(article_url,transport=None,*,subject=None):
                         descriptions.append(caption.get_text(' ',strip=True))
             candidate={'title':Path(parsed.path).stem,
                        'description':' '.join(descriptions)}
-            if not likely_same_subject(subject,candidate):
+            if not photo_subject_match(subject,candidate,subject):
                 continue
         return {'image_url':url,'original_url':url,'page_url':article_url,
                 'title':(soup.title.get_text(' ',strip=True) if soup.title else 'Foto artikel sumber')[:160],
@@ -104,9 +104,15 @@ def find_photos(query, limit=3, transport=None):
             u=info.get('thumburl') or info.get('url') or ''
             if not eligible_license(license_name) or info.get('mime') not in ('image/jpeg','image/png','image/webp'):
                 continue
-            if info.get('width',0)<1050 or info.get('height',0)<650 or not u.startswith('https://'):
+            width,height=info.get('width') or 0,info.get('height') or 0
+            if (width and height and min(width,height)<600) or not u.startswith('https://'):
                 continue
-            found.append({'image_url':u,'original_url':info.get('url') or u,'page_url':info.get('descriptionurl',''),
+            # Missing Commons size metadata is not proof of acceptable
+            # resolution. The decoded image is checked again during intake.
+            review='conditional' if width and height and min(width,height)<720 else (
+                'unknown' if not width or not height else 'standard')
+            found.append({'source_width':width,'source_height':height,
+              'resolution_review':review,'image_url':u,'original_url':info.get('url') or u,'page_url':info.get('descriptionurl',''),
               'license':license_name,'license_url':val('LicenseUrl'),
               'credit':val('Attribution') or val('Artist') or page.get('title',''),
               'title':plain(page.get('title','').removeprefix('File:')),
@@ -150,6 +156,8 @@ def intake_image(url,output_path,transport=None):
     try:
         with Image.open(BytesIO(blob)) as im:
             if im.width*im.height>40_000_000:raise ValueError('Resolusi foto terlalu besar.')
+            if min(im.width,im.height)<600:
+                raise ValueError('Foto sumber di bawah 600px; diperlukan pengganti atau tinjauan editor.')
             im=im.convert('RGB')
             target=Path(output_path);target.parent.mkdir(parents=True,exist_ok=True)
             im.save(target,format='JPEG',quality=94)
