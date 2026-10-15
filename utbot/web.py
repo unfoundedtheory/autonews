@@ -1014,7 +1014,7 @@ def format_editorial_qc(draft, report):
     lines.extend(['','➡️ LANGKAH BERIKUTNYA',
        'Revisi bagian yang gagal, tekan 📋 Hasil QC, lalu ✅ Approve.'
        if not passed else 'QC lulus. Anda dapat menekan ✅ Approve.'])
-    return '\\n'.join(lines)[:3900]
+    return '\n'.join(lines)[:3900]
 
 
 @app.post('/jobs/publish',dependencies=[Depends(worker_auth)])
