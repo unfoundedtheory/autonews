@@ -173,3 +173,48 @@ def test_multi_page_selection_is_encrypted_and_one_time(monkeypatch):
             assert stored.instagram_id=='800'
             assert 'secret-a' not in stored.encrypted_page_token
             assert db.get(MetaConnection,'200') is None
+
+
+def test_meta_read_only_test_requires_admin(monkeypatch):
+    setup(monkeypatch)
+    with TestClient(app) as client:
+        assert client.get('/meta/test').status_code==200
+        bad=client.post('/meta/test',data={'password':'wrong'})
+        assert bad.status_code==403
+        assert 'Password admin tidak cocok' in bad.text
+
+
+def test_meta_read_only_test_with_mocked_graph(monkeypatch):
+    from sqlalchemy import create_engine
+    from sqlalchemy.pool import StaticPool
+    from sqlalchemy.orm import sessionmaker
+    from utbot import meta_oauth
+    from utbot.models import MetaConnection
+    import httpx
+    env=setup(monkeypatch)
+    eng=create_engine('sqlite://',connect_args={'check_same_thread':False},poolclass=StaticPool)
+    Base.metadata.create_all(eng)
+    session_factory=sessionmaker(bind=eng,expire_on_commit=False)
+    with session_factory() as db:
+        db.add(MetaConnection(page_id='100',instagram_id='200',page_name='Unfounded Theory',
+            encrypted_page_token=Fernet(env['META_TOKEN_ENCRYPTION_KEY'].encode()).encrypt(b'token').decode()))
+        db.commit()
+    monkeypatch.setattr(meta_oauth,'Session',session_factory)
+    real_client=httpx.Client
+    def handler(request):
+        assert request.method=='GET'
+        assert request.headers['authorization']=='Bearer token'
+        if request.url.path.endswith('/100'):
+            if 'access_token' in request.url.params.get('fields',''):
+                return httpx.Response(200,json={'access_token':'sensitive'})
+            return httpx.Response(200,json={'id':'100','name':'Unfounded Theory','instagram_business_account':{'id':'200'}})
+        return httpx.Response(200,json={'id':'200','username':'unfoundedtheory','account_type':'BUSINESS'})
+    def fake_client(*args,**kwargs):
+        return real_client(transport=httpx.MockTransport(handler))
+    monkeypatch.setattr(meta_oauth.httpx,'Client',fake_client)
+    with TestClient(app) as client:
+        res=client.post('/meta/test',data={'password':'test-dedicated-password'})
+        assert res.status_code==200
+        assert 'Hasil Tes Koneksi' in res.text
+        assert 'sensitive' not in res.text
+        assert 'token' not in res.text.lower().split('<p>pengujian graph')[1].split('</p>')[0]
