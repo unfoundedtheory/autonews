@@ -442,13 +442,11 @@ def container_test_form():
        '<label for="image_url" style="margin-top:16px">URL gambar HTTPS publik</label>'
        '<div class="field"><input id="image_url" type="url" name="image_url" required '
        'placeholder="https://example.com/foto-uji.jpg"></div>'
-       '<label style="margin-top:16px"><input type="checkbox" name="confirm" value="yes" required '
-       'style="width:auto"> Saya berhak menggunakan foto ini dan menyetujui pembuatan container tes tanpa publikasi.</label>'
        '<button class="primary" type="submit">Buat Container Uji (Tanpa Posting)</button></form>')
 
 
 @router.post('/meta/test-container')
-def container_test(password:str=Form(...),image_url:str=Form(...),confirm:str=Form('')):
+def container_test(password:str=Form(...),image_url:str=Form(...)):
     from .instagram_credentials import resolve_instagram_credentials
     from .instagram import InstagramPublisher
     _,_,admin,_,_,_=_settings()
@@ -456,8 +454,6 @@ def container_test(password:str=Form(...),image_url:str=Form(...),confirm:str=Fo
         return _page('Tidak diizinkan','<p>Password admin salah.</p>',status_code=403)
     if CONFIG.live_publish:
         return _page('Tes diblokir','<p>Matikan ENABLE_LIVE_PUBLISH terlebih dahulu.</p>',status_code=409)
-    if confirm!='yes':
-        return _page('Konfirmasi diperlukan','<p>Persetujuan hak pakai gambar diperlukan.</p>',status_code=400)
     try:
         image_url=_test_image_url(image_url.strip())
     except ValueError:
@@ -471,10 +467,21 @@ def container_test(password:str=Form(...),image_url:str=Form(...),confirm:str=Fo
     try:
         container_id=publisher.create_container(image_url,'AutoNews connectivity test — not published')
     except httpx.HTTPStatusError as exc:
-        return _page('Pembuatan container ditolak',
-           '<p>Meta menolak permintaan, HTTP '+str(exc.response.status_code)+
-           '. Foto mungkin tidak bisa diakses publik atau izin publikasi belum sesuai.</p>',
-           status_code=502)
+        # Only numeric Meta codes are shown, never upstream text which can include URLs or secrets.
+        code=None
+        subcode=None
+        try:
+            error=exc.response.json().get('error',{})
+            if isinstance(error,dict):
+                if isinstance(error.get('code'),int):code=error['code']
+                if isinstance(error.get('error_subcode'),int):subcode=error['error_subcode']
+        except (ValueError,TypeError,AttributeError):
+            pass
+        msg='Meta menolak permintaan, HTTP '+str(exc.response.status_code)
+        if code is not None:msg+=' · Meta code '+str(code)
+        if subcode is not None:msg+=' · subcode '+str(subcode)
+        msg+='. Gunakan gambar JPEG publik HTTPS yang bisa diakses tanpa login.'
+        return _page('Pembuatan container ditolak','<p>'+html.escape(msg)+'</p>',status_code=502)
     except (httpx.HTTPError,ValueError,KeyError,TypeError):
         return _page('Container belum terkonfirmasi',
            '<p>Terjadi masalah jaringan atau respons Meta. Jangan mengulang langsung jika status permintaan belum jelas.</p>',

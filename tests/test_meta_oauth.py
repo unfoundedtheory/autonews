@@ -235,9 +235,7 @@ def test_container_test_is_gated_and_requires_valid_image(monkeypatch):
         denied=client.post('/meta/test-container',data={
             'password':'test-dedicated-password','image_url':'http://localhost/secret','confirm':'yes'})
         assert denied.status_code==400
-        missing_consent=client.post('/meta/test-container',data={
-            'password':'test-dedicated-password','image_url':'https://images.example.com/test.jpg'})
-        assert missing_consent.status_code==400
+        assert 'Saya berhak menggunakan foto ini' not in client.get('/meta/test-container').text
         assert 'media_publish' not in denied.text
 
 def test_container_url_rejects_private_ip_and_userinfo():
