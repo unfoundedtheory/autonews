@@ -162,7 +162,7 @@ Dirangkum dari koreksi, teori hook, dan diskusi selama proses pembuatan konten. 
 ## 8. Catatan Visual Carousel (Ringkas)
 
 - Rasio 4:5 untuk setiap slide (1080 x 1350).
-- Judul bergaya League of Legends (bold condensed), aksen utama `#95F21E` dan putih, visual dark scientific documentary.
+- Judul bergaya League of Legends (bold condensed), aksen utama `#8FFF00` dan putih, visual dark scientific documentary.
 - Teks penjelasan berukuran 35.
 - Ilustrasi pendukung harus faktual (diagram yang akurat, foto asli dari NASA atau sumber resmi).
 - Struktur visual berbeda tiap slide agar tidak repetitif.
@@ -208,7 +208,7 @@ Dirangkum dari koreksi, teori hook, dan diskusi selama proses pembuatan konten. 
 4. Gunakan biasanya **2–4 kelompok semantik**, tidak harus berjarak sama; satu kelompok boleh terdiri dari beberapa kata yang memang tidak boleh dipisah (misalnya `ASAP PEKAT` atau `RATUSAN METEOR PER JAM`). Tidak ada batas kaku satu atau dua kata per kelompok.
 5. Boleh menandai kata dasar yang sangat bermakna seperti `KOTA`, `LUMPUH`, `KOMET`, dan `MARS` selama susunan lengkap tetap bercerita. Hindari penghubung yang tidak membentuk makna sendiri.
 6. **Putih harus tetap warna dominan.** Untuk komposisi tipikal bidik sekitar **70–80% putih** dan **20–30% hijau** secara *visual*, bukan aturan absolut per jumlah kata. Komposisi boleh sedikit berbeda bila diperlukan untuk menjaga mini-summary yang benar; jangan korbankan makna hanya untuk mengejar persentase.
-7. Warna final: **putih solid `#FFFFFF`**, hijau brand **`#95F21E`**, teks berada di atas foto dan semua gradient/overlay. Jangan redupkan seluruh headline dengan opacity atau overlay setelah teks. Periksa keterbacaan pada thumbnail, bukan hanya ukuran 1080 × 1350.
+7. Warna final: **putih solid `#FFFFFF`**, hijau brand **`#8FFF00`**, teks berada di atas foto dan semua gradient/overlay. Jangan redupkan seluruh headline dengan opacity atau overlay setelah teks. Periksa keterbacaan pada thumbnail, bukan hanya ukuran 1080 × 1350.
 
 **Contoh yang benar**
 - Berita kota tertutup asap: `KOTA` → `LUMPUH` → `ASAP PEKAT`. Jika angka skala benar-benar penting dan layout aman, boleh `KOTA` → `DUA JUTA JIWA` → `LUMPUH` → `ASAP PEKAT`.
@@ -244,5 +244,5 @@ Dirangkum dari koreksi, teori hook, dan diskusi selama proses pembuatan konten. 
 - [ ] Foto tidak relevan atau rusak setelah crop/upscale: QC visual gagal dan draf ditahan, bukan dipublikasikan
 - [ ] Jika kata putih diabaikan, kata hijau sendiri membentuk ringkasan inti berita yang benar (subjek, kejadian/dampak, dan fenomena; waktu/angka jika penting)
 - [ ] Warna putih tetap dominan; hijau hanya menandai bagian cerita terpenting, bukan frasa acak/potongan kalimat yang menggantung
-- [ ] `#FFFFFF` dan `#95F21E` solid, di layer teratas di atas foto/gradient; preview thumbnail sudah dicek
+- [ ] `#FFFFFF` dan `#8FFF00` solid, di layer teratas di atas foto/gradient; preview thumbnail sudah dicek
 - [ ] Kelompok kata hijau tetap mengikuti naskah asli dan perubahan cover dicatat untuk approval ulang
