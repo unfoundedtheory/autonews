@@ -14,7 +14,8 @@ def test_attached_markdown_is_authoritative():
     guide = read_editorial_guide()
     assert guide.startswith('# Panduan Penulisan Berita Unfounded Theory')
     for phrase in ('## 4. Toolkit Hook','## 6. Berita Bencana dan Tragedi Nyata',
-                   '## 8. Catatan Visual Carousel','## 9. Checklist Sebelum Publikasi',
+                   '## 8. Catatan Visual Carousel','## 9. Pemilihan Foto Berita',
+                   '## 10. Aksen Hijau','## 11. Checklist Sebelum Publikasi',
                    'Jari Tanganmu Ternyata Berasal'):
         assert phrase in guide
     assert guide in editorial_instructions()
