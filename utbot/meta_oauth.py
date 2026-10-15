@@ -304,6 +304,74 @@ def select_page(request:Request,page_id:str=Form(...)):
     response.delete_cookie(CHOICE_COOKIE,path='/api/meta')
     return response
 
+
+@router.get('/meta/test')
+def test_connection_page():
+    _settings()
+    return _page('Tes Koneksi Instagram',
+      '<p>Pemeriksaan baca-saja: token Page, akun Instagram yang tertaut, dan izin publikasi. '
+      'Tes ini tidak membuat media container atau postingan.</p>'
+      '<form method="post" action="/api/meta/test">'
+      '<label for="password">Password Admin AutoNews</label>'
+      '<div class="field"><input id="password" name="password" type="password" required autocomplete="current-password">'
+      '<button id="reveal" class="reveal" type="button">Lihat</button></div>'
+      '<button class="primary" type="submit">Jalankan Pengujian Aman</button></form>')
+
+
+@router.post('/meta/test')
+def test_connection(password:str=Form(...)):
+    """Read-only live Graph test; never create containers or publish."""
+    _,_,admin,encryption,_,_=_settings()
+    if not hmac.compare_digest(password,admin):
+        return _page('Tes ditolak','<div class="alert">Password admin tidak cocok.</div>'
+                     '<a href="/api/meta/test">← Coba lagi</a>',status_code=403)
+    with Session() as db:
+        rows=db.execute(select(MetaConnection).order_by(
+            MetaConnection.updated_at.desc()).limit(20)).scalars().all()
+        matching=[p for p in rows if p.page_name.strip().casefold()=='unfounded theory']
+        if len(matching)!=1:
+            return _page('Periksa Page','<p>Harus ada tepat satu Page bernama Unfounded Theory '
+                         'yang terhubung. Hubungkan Page yang benar terlebih dahulu.</p>',status_code=409)
+        saved=matching[0]
+        page_id,ig_id=saved.page_id,saved.instagram_id
+        try:
+            token=Fernet(encryption.encode()).decrypt(saved.encrypted_page_token.encode()).decode()
+        except (InvalidToken,ValueError):
+            return _page('Token tidak terbaca','<p>Token terenkripsi tidak dapat dibaca. '
+                         'Periksa kunci enkripsi atau hubungkan ulang akun.</p>',status_code=503)
+    checks=[]
+    with httpx.Client(timeout=20) as client:
+        for label,path,params,verify in (
+            ('Facebook Page',page_id,{'fields':'id,name,instagram_business_account'},
+             lambda value: str(value.get('id'))==page_id and
+                str((value.get('instagram_business_account') or {}).get('id'))==ig_id),
+            ('Instagram Professional',ig_id,{'fields':'id,username,account_type'},
+             lambda value: str(value.get('id'))==ig_id),
+        ):
+            try:
+                res=client.get('https://graph.facebook.com/'+CONFIG.ig_version+'/'+path,
+                               params=params,headers={'Authorization':'Bearer '+token})
+                if res.is_error:
+                    checks.append((label,'Gagal HTTP '+str(res.status_code)))
+                    continue
+                valid=verify(res.json())
+                checks.append((label,'Valid' if valid else 'Tidak cocok'))
+            except (httpx.HTTPError,ValueError,TypeError,KeyError):
+                checks.append((label,'Gagal membaca respons Meta'))
+        try:
+            res=client.get('https://graph.facebook.com/'+CONFIG.ig_version+'/'+page_id,
+                params={'fields':'access_token'},headers={'Authorization':'Bearer '+token})
+            checks.append(('Token Page aktif','Valid' if res.status_code==200 else
+                           'Gagal HTTP '+str(res.status_code)))
+        except httpx.HTTPError:
+            checks.append(('Token Page aktif','Gagal menghubungi Meta'))
+    body='<p>Pengujian Graph API selesai. Tidak ada media container atau postingan yang dibuat.</p>'
+    body+='<div>'+''.join('<p><strong>'+html.escape(k)+'</strong>: '+html.escape(v)+'</p>'
+                            for k,v in checks)+'</div>'
+    body+='<p class="help">Izin instagram_content_publish belum dapat dibuktikan hanya dari pemeriksaan baca-saja; memerlukan pemeriksaan izin lebih lanjut sebelum aktivasi.</p>'
+    good=all(v=='Valid' for _,v in checks)
+    return _page('Hasil Tes Koneksi',body,status_code=200 if good else 502)
+
 @router.get('/meta/status')
 def status():
     return {'oauth_configured':all(bool(os.getenv(x)) for x in (
