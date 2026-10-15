@@ -18,7 +18,9 @@ def read_editorial_guide():
                 '## 1. Struktur Dasar', '## 2. Aturan Highlight',
                 '## 3. Aturan Caption', '## 5. Aturan Akurasi dan Verifikasi',
                 '## 6. Berita Bencana dan Tragedi Nyata',
-                '## 9. Checklist Sebelum Publikasi')
+                '## 9. Pemilihan Foto Berita',
+                '## 10. Aksen Hijau',
+                '## 11. Checklist Sebelum Publikasi')
     if any(section not in guide for section in required):
         raise RuntimeError('Panduan editorial Markdown tidak lengkap.')
     return guide
