@@ -56,22 +56,20 @@ def test_tracking_tightens_characters_but_preserves_real_word_gap():
     assert _word_gap(draw,font) > -_letter_tracking(font) * 3
 
 
-def test_badge_follows_headline_without_changing_logo_shape(tmp_path):
-    bg=tmp_path/'dark.jpg'
-    Image.new('RGB',(1080,1350),(3,3,3)).save(bg)
-    regions=[]
-    for index,headline in enumerate(HEADLINES[:3]):
-        out=tmp_path/f'cover-{index}.jpg'
-        render(bg,headline,out,accent_words=['TANGAN','TUHAN'])
-        face,lines,pitch=_headline_layout(
+def test_badge_follows_headline_without_changing_logo_shape():
+    from utbot.renderer import _draw_badge
+    badges=[]
+    for headline in HEADLINES[:3]:
+        face,_,pitch=_headline_layout(
             ImageDraw.Draw(Image.new('RGB',(1080,1350))),headline)
         shift=_headline_vertical_shift(face,pitch)
-        regions.append(Image.open(out).crop((400,876+shift,680,922+shift)))
+        background=Image.new('RGB',(1080,1350),(3,3,3))
+        _draw_badge(background,vertical_shift=shift)
+        badges.append(background.crop((400,876+shift,680,924+shift)))
         assert _title_draw_y(face,0,pitch)+face.getbbox('HM',anchor='la')[1]-(924+shift)==33
     from PIL import ImageChops
-    for img in regions[1:]:
-        diff=ImageChops.difference(img,regions[0])
-        assert max(high for low,high in diff.getextrema())<=3
+    for badge in badges[1:]:
+        assert ImageChops.difference(badge,badges[0]).getbbox() is None
 
 
 def test_original_photo_top_region_is_not_reinvented(tmp_path):
