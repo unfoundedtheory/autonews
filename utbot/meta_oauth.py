@@ -491,10 +491,52 @@ def container_test(password:str=Form(...),image_url:str=Form(...)):
         message='Status container: '+html.escape(str(state))
     except (httpx.HTTPError,ValueError,TypeError,KeyError):
         message='Container dibuat tetapi status belum dapat dibaca.'
-    return _page('Container Tes Berhasil Dibuat',
-        '<p>'+message+'</p><p><strong>Belum dipublikasikan.</strong> '
-        'Tidak ada panggilan media_publish, tidak ada postingan yang diterbitkan.</p>'
-        '<p>Catat statusnya; jika masih IN_PROGRESS, proses media belum selesai.</p>')
+    return _container_status_view(container_id,state)
+
+
+def _container_status_view(container_id,state):
+    # The owner password is requested again for status-only GET to Meta.
+    safe_state=html.escape(str(state or 'UNKNOWN'))
+    controls=(
+        '<form method="post" action="/api/meta/check-container">'
+        '<input name="container_id" type="hidden" value="'+html.escape(container_id,quote=True)+'">'
+        '<label for="password">Password Admin AutoNews</label>'
+        '<div class="field"><input id="password" type="password" name="password" required>'
+        '<button id="reveal" class="reveal" type="button">Lihat</button></div>'
+        '<button class="primary" type="submit">Cek Status Container</button></form>')
+    note=('<p>Container selesai diproses. Tidak ada postingan diterbitkan.</p>'
+          if state=='FINISHED' else
+          '<p>Container belum selesai. Tunggu sebentar lalu gunakan tombol yang sama.</p>')
+    return _page('Status Container Instagram',
+        '<p><strong>Status container: '+safe_state+'</strong></p>'+note+
+        '<p>Hanya memeriksa status container yang sama. Tidak membuat container baru dan tidak memublikasikan postingan.</p>'+controls)
+
+
+@router.post('/meta/check-container')
+def check_container(password:str=Form(...),container_id:str=Form(...)):
+    import re
+    from .instagram_credentials import resolve_instagram_credentials
+    from .instagram import InstagramPublisher
+    _,_,admin,_,_,_=_settings()
+    if not hmac.compare_digest(password,admin):
+        return _page('Tidak diizinkan','<p>Password admin salah.</p>',status_code=403)
+    if CONFIG.live_publish:
+        return _page('Tes diblokir','<p>Matikan ENABLE_LIVE_PUBLISH terlebih dahulu.</p>',status_code=409)
+    if not re.fullmatch(r'[0-9]{5,40}',container_id):
+        return _page('Container ID tidak valid','<p>Gunakan ID container Meta yang valid.</p>',status_code=400)
+    with Session() as db:
+        try:
+            ig_id,token=resolve_instagram_credentials(db)
+        except ValueError:
+            return _page('Koneksi belum siap','<p>Token Instagram tidak bisa dibaca.</p>',status_code=503)
+    publisher=InstagramPublisher(CONFIG.ig_base,CONFIG.ig_version,ig_id,token)
+    try:
+        state=publisher.container_status(container_id)
+    except httpx.HTTPStatusError as exc:
+        return _page('Pemeriksaan ditolak','<p>Meta HTTP '+str(exc.response.status_code)+'.</p>',status_code=502)
+    except (httpx.HTTPError,ValueError,KeyError,TypeError):
+        return _page('Pemeriksaan gagal','<p>Status belum dapat dibaca. Coba lagi nanti.</p>',status_code=502)
+    return _container_status_view(container_id,state)
 
 @router.get('/meta/status')
 def status():
