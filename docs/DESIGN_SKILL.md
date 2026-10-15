@@ -72,7 +72,7 @@ Measured from the original 1080×1350 owner examples, not guessed from the v0.5 
 ## 10. Koreksi pemilik — League Spartan Bold 700 dan aksen tersebar
 
 - Headline menggunakan font Google Fonts **League Spartan Bold 700** (bukan Black 900 dan bukan Anton), tracking **-47** atau `-0.047em`, leading **1.05**. Jangan biarkan environment override mengganti famili font.
-- Pilih warna hijau `#95F21E` pada hingga tiga kelompok kata penting yang boleh terpisah jauh, berdasarkan **subjek → tindakan → fenomena**. Setiap kelompok dapat satu atau dua kata. Contoh: `KAMERA ROBOTIK` / `MEREKAM` / `AURORAL`. Kata lain, termasuk `LINGKARAN`, tetap putih pada contoh tersebut.
+- **Aturan historis (sekarang digantikan §15):** dulu aksen hingga tiga kelompok berdasarkan subjek/tindakan/fenomena. Sejak koreksi terbaru, kualitas ringkasan **hijau-saja** lebih penting daripada jumlah kata, posisi, atau kategori lexicon.
 - Jangan mengubah kata `AURORAL` menjadi `AURORA` hanya demi aksen visual. Teks editorial, fakta, dan aturan approval tetap tidak berubah.
 - Render cover lama harus memperbarui aksen usang otomatis dan membatalkan approval versi sebelumnya.
 
@@ -105,8 +105,8 @@ Bagian ini **mengungguli panduan lama tentang batas resolusi sumber dan jumlah k
 
 ### Hijau `#95F21E`: 2–4 frasa bermakna
 
-- **Default 2–3 kelompok**, dan **hingga 4 kelompok** untuk headline panjang yang benar-benar punya empat unsur penting. Ini menggantikan batas historis "hingga tiga" pada §10.
-- Target **sekitar 25–35% kata** beraksen hijau sebagai pedoman optis fleksibel, bukan hard gate. Bagi aksen di awal/tengah/akhir jika komposisi mendukung, jangan menumpuk semua di akhir.
+- **Pedoman historis; lihat §15:** umumnya 2–4 kelompok. Pemilihan kelompok sekarang ditentukan terlebih dahulu oleh uji keterbacaan makna hijau-saja.
+- **Aturan historis; lihat §15:** persentase hijau sebelumnya sekitar 25–35% kata. Aturan terbaru memakai keseimbangan **visual** dengan putih dominan, bukan kuota berdasarkan jumlah kata.
 - Prioritaskan objek, tindakan/fenomena, dan unsur unik/kontras. Contoh tema radioastronomi: `STRUKTUR RADIO` / `SIMBOL MUSIK` / `GUGUS GALAKSI`; `TUMBUKAN` opsional bila bermakna.
 - Jangan mewarnai preposisi atau kata acak untuk mengejar kuota, mengubah kata demi accent, atau merusak empat baris, fon, layout, dan keterbacaan. Re-render desain butuh tinjauan ulang cover dan approval versi baru.
 
@@ -117,3 +117,25 @@ Bagian ini **mengungguli panduan lama tentang batas resolusi sumber dan jumlah k
 - Jika pembatas lebar menghalangi pembesaran font, **geser grup badge + teks turun bersama-sama** hingga tinta huruf pada baris terakhir berakhir di sekitar y=1294 (margin bawah ~56 px), sambil menjaga jarak badge ke tinta baris pertama tetap 33 px. Hindari ruang kosong bawah yang jauh lebih besar dari margin kiri/kanan.
 - Ukur batas sebenarnya dari pixel tinta glyph, bukan ketinggian font nominal. Font besar bukan izin untuk keluar batas 56 px atau membuat baris kelima.
 - QA wajib membandingkan margin kiri, kanan, dan bawah serta memastikan tidak ada cropping, tabrakan logo, font tak terbaca, atau gambar tak relevan. Periksa render 1080×1350 dan thumbnail.
+
+## 15. Aturan final warna headline — *Green-Only Story Skeleton* (15 Oktober 2026)
+
+**Bagian ini adalah acuan terbaru** dan menggantikan aturan penempatan/proporsi aksen historis pada §2, §7, §10, dan §13 jika tidak sesuai. Referensi visual yang disetujui pemilik adalah cover **“MALAM INI ... JEJAK KOMET ... RATUSAN METEOR PER JAM”**: putih solid dominan, hijau terang pada inti berita, bukan sembarang kata.
+
+### Uji editorial wajib sebelum rendering
+
+- **Green-only reading test:** ketika hanya segmen hijau dibaca secara berurutan, rangkaiannya harus mengisahkan peristiwa utama secara singkat, terverifikasi, dan koheren. Hindari frasa menggantung seperti `KOTA BERPENDUDUK DUA`.
+- Susun *story skeleton* dari unsur **subjek → peristiwa/dampak → sebab/fenomena**, serta **waktu/angka** apabila sangat relevan. Semua segmen harus merupakan potongan utuh dari headline yang disetujui.
+- **Contoh asap:** `KOTA` / `LUMPUH` / `ASAP PEKAT`; alternatif skala `KOTA` / `DUA JUTA JIWA` / `LUMPUH` / `ASAP PEKAT`.
+- **Contoh meteor:** `MALAM INI` / `JEJAK KOMET` / `RATUSAN METEOR PER JAM` (frasa terakhir boleh memanjang dua baris).
+- Biasanya **2–4 kelompok**, tetapi kelompok boleh lebih dari dua kata. Jangan memilih berdasarkan posisi, panjang token, jumlah aksen, atau persentase saja. Aksi/dampak spesifik (`LUMPUH`) mengungguli pembuka generik (`BERPENDUDUK`).
+- Periksa tingkat kepastian: kata hijau **tidak boleh menyatakan klaim yang lebih kuat** daripada headline dan bukti sumber; jangan menambah kata yang tidak ada di naskah.
+- Jika otomatisasi belum dapat memastikan *story skeleton*, izinkan perbaikan pilihan aksen oleh editor dan render ulang; jangan menyetujui pewarnaan yang salah hanya karena layout lulus.
+
+### Dominasi putih dan layering
+
+- Tujuan optis: kira-kira **70–80% putih, 20–30% hijau**, **bukan rasio wajib per kata**. Referensi dan akurasi isi lebih penting dari angka; hindari hijau meluas sehingga kehilangan fokus.
+- Warna **putih `#FFFFFF` tanpa opacity** dan hijau **`#95F21E` tanpa opacity**. Keduanya harus tetap tajam, terang, dan tidak tertutup foto, overlay, gradient, atau filter.
+- Urutan komposit final: **foto → crop → gradient hitam untuk keterbacaan → logo/badge → seluruh teks putih/hijau di paling atas**. Jangan menaruh overlay setelah teks. Rendering boleh memakai layer teks transparan lalu melakukan compositing terakhir.
+- Pertahankan JPEG berkualitas tinggi, tanpa chroma subsampling jika tersedia; PNG lossless dianjurkan sebagai preview evaluasi warna. Anti-aliasing di pinggir huruf dapat menghasilkan pixel abu-abu, **tetapi bagian tengah glyph putih harus mendekati putih murni**.
+- Validasi hasil nyata pada 1080×1350 dan thumbnail; semua ini tidak mengubah aturan empat baris, grid, margin optis 56px, atau gambar asli yang relevan (§14).

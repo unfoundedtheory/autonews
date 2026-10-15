@@ -61,15 +61,79 @@ def _phrase_match(words, candidates, occupied):
     index,_,match=min(found)
     return index,match
 
-def accent_for_hook(text, existing=()):
-    """Choose 2–4 separated semantic accents when meaning justifies them.
 
-    Prefer *who/what* (subject), *what happened* (action), and *why it
-    matters* (science phenomenon). A phrase may be one or two words.
-    Existing AI suggestions are fallback, not authority over these cues.
+# These small role vocabularies are a deterministic fallback for common news
+# frames, not a complete semantic understanding of arbitrary stories.
+# Prioritize a coherent subject -> consequence -> cause chain over word count.
+NEWS_SUBJECTS=(
+    'RUMAH SAKIT', 'BANDARA', 'SEKOLAH', 'KOTA', 'DESA',
+)
+NEWS_IMPACTS=(
+    'LUMPUH', 'TERPUTUS', 'TERHENTI', 'TERISOLASI',
+    'RUNTUH', 'TERBAKAR', 'TENGGELAM', 'KRISIS',
+)
+NEWS_CAUSES=(
+    'ASAP PEKAT', 'BANJIR BANDANG', 'HUJAN DERAS',
+    'KEBAKARAN HUTAN', 'GEMPA KUAT', 'GELOMBANG PANAS',
+)
+TIME_ANCHORS=('MALAM INI', 'HARI INI', 'PAGI INI', 'BESOK MALAM')
+SPACE_OBJECTS=('JEJAK KOMET', 'HUJAN METEOR', 'JEJAK ASTEROID')
+SPACE_METRICS=(
+    'RATUSAN METEOR PER JAM', 'RIBUAN METEOR PER JAM',
+    'PULUHAN METEOR PER JAM',
+)
+
+def _story_skeleton(words):
+    """Choose semantic anchors only when the headline contains a full story.
+
+    The color selection must read as a truthful mini-headline by itself.
+    For unusual stories that cannot be parsed reliably by these safe
+    patterns, preserve the existing semantic fallback/editorial review.
+    """
+    def find(phrases):
+        return _phrase_match(words,phrases,set())
+
+    subject=find(NEWS_SUBJECTS)
+    impact=find(NEWS_IMPACTS)
+    cause=find(NEWS_CAUSES)
+    if subject and impact and cause:
+        spans=sorted((subject,impact,cause),key=lambda pair:pair[0])
+        occupied=set()
+        for start,phrase in spans:
+            used=set(range(start,start+len(phrase)))
+            if occupied & used:
+                break
+            occupied.update(used)
+        else:
+            return [' '.join(phrase) for _,phrase in spans]
+
+    when=find(TIME_ANCHORS)
+    cosmic=find(SPACE_OBJECTS)
+    scale=find(SPACE_METRICS)
+    if when and cosmic and scale:
+        spans=sorted((when,cosmic,scale),key=lambda pair:pair[0])
+        occupied=set()
+        for start,phrase in spans:
+            used=set(range(start,start+len(phrase)))
+            if occupied & used:
+                break
+            occupied.update(used)
+        else:
+            return [' '.join(phrase) for _,phrase in spans]
+    return None
+
+def accent_for_hook(text, existing=()):
+    """Prefer a factual, readable mini-summary when green words stand alone.
+
+    Known headline patterns use a full subject/impact/cause or
+    time/object/scale skeleton. Other topics retain conservative semantic
+    keyword fallback plus required human visual review. Never rewrite text.
     """
     words=_tokens(text)
     if not words:return []
+    story_skeleton=_story_skeleton(words)
+    if story_skeleton:
+        return story_skeleton
     groups=[]
     used=set()
 
