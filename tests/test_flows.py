@@ -3,7 +3,7 @@ from dataclasses import replace
 from sqlalchemy.orm import sessionmaker
 import pytest
 import httpx
-from utbot.models import Base,make_engine,Story,Draft
+from utbot.models import Base,make_engine,Story,Draft,Audit
 from utbot.research import fingerprint
 from utbot.editorial import approve
 from utbot import web
@@ -51,6 +51,7 @@ def test_admin_one_click_approval_flow(db,monkeypatch):
 def test_instagram_container_waits_then_publishes_once(db,monkeypatch,tmp_path):
     d=seeded(db);d.rights_reviewed=True
     approve(db,d,'42')
+    db.add(Audit(draft_id=d.id,event='photo_only_approved',actor='42',detail={'version':d.version}))
     d.scheduled_at=datetime.now(timezone.utc)-timedelta(minutes=1)
     db.commit()
     logo=tmp_path/'logo.png';logo.write_bytes(b'valid-placeholder-for-test')
@@ -74,6 +75,7 @@ def test_instagram_container_waits_then_publishes_once(db,monkeypatch,tmp_path):
 
 def test_uncertain_publish_never_retries(db,monkeypatch,tmp_path):
     d=seeded(db);d.rights_reviewed=True;approve(db,d,'42')
+    db.add(Audit(draft_id=d.id,event='photo_only_approved',actor='42',detail={'version':d.version}))
     d.scheduled_at=datetime.now(timezone.utc)-timedelta(minutes=1)
     db.commit()
     logo=tmp_path/'logo.png';logo.write_bytes(b'placeholder')
@@ -169,3 +171,22 @@ def test_editorial_qc_telegram_message_readable():
     assert '🧾 PERIKSA MANUAL' in message
     assert '➡️ LANGKAH BERIKUTNYA' in message
     assert len(message)<=3900
+
+
+def test_older_music_approval_cannot_autopost_after_switch_to_no_music(db,monkeypatch,tmp_path):
+    draft=seeded(db)
+    draft.rights_reviewed=True
+    approve(db,draft,'42')  # Explicit earlier approval, but without photo-only consent event
+    draft.scheduled_at=datetime.now(timezone.utc)-timedelta(minutes=1)
+    db.commit()
+    logo=tmp_path/'brand.png';logo.write_bytes(b'fake-logo-test')
+    monkeypatch.setattr(web,'CONFIG',replace(web.CONFIG,
+        photo_music_mode='off',live_publish=True,brand_logo=str(logo),
+        ig_user_id='123',ig_token='mock'))
+    monkeypatch.setattr(web,'_bot',lambda:None)
+    class MustNotPublish:
+        def __init__(self,*args):
+            pytest.fail('Previous manual approval must never publish without photo-only consent')
+    monkeypatch.setattr(web,'InstagramPublisher',MustNotPublish)
+    assert web.publish_job(db=db)['due']==0
+    assert draft.status=='approved' and draft.publish_state=='unpublished'
