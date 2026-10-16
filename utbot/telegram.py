@@ -44,6 +44,7 @@ def keyboard(draft):
 def main_menu():
     """Production-only navigation: no AI-consuming demo actions on the home screen."""
     return {'inline_keyboard':[
+        [{'text':'📰 Generate Berita Sekarang','callback_data':'nav:generate_now'}],
         [{'text':'📝 Pending Approval','callback_data':'nav:pending'},
          {'text':'✅ Draft Disetujui','callback_data':'nav:approved'}],
         [{'text':'📅 Jadwal Posting','callback_data':'nav:queue'},

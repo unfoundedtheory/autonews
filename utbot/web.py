@@ -266,12 +266,9 @@ def generate_test_cover(db, bot, chat_id):
             ' Buka Pending Approval untuk melihat draf dan opsi Ganti Foto.')
 
 
-def generate_test_news(db, bot, chat_id):
-    """One admin request produces at most one new editorial draft, never publishes."""
+def generate_news_now(db, bot, chat_id):
+    """Create one real editorial draft from the production discovery queue, requiring approval."""
     from .research import discover, SOURCES, evergreen_sources
-    import os
-    if os.getenv('ENABLE_LIVE_PUBLISH', 'false').lower() != 'false':
-        return '⚠️ Tes dibatalkan: ENABLE_LIVE_PUBLISH harus false.'
 
     def notify(d):
         if bot:
@@ -328,6 +325,11 @@ def generate_test_news(db, bot, chat_id):
     return (f'ℹ️ {checked} artikel dari feed dan arsip diperiksa; {duplicates} sudah tersimpan. '
             'Belum ada kandidat berbeda yang dapat diproses. '
             'Coba lagi nanti ketika halaman arsip berganti atau periksa sumber dan QC.')
+
+def generate_test_news(db, bot, chat_id):
+    """Legacy test entrypoint; the Telegram UI invokes generate_news_now."""
+    return generate_news_now(db, bot, chat_id)
+
 
 class DraftInput(BaseModel):
     source_url:str;source_name:str;title:str;topic:str='astronomy'
@@ -496,6 +498,17 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         log.warning('Could not refresh legacy Telegram keyboard')
             send('ℹ️ Menu percobaan sudah diganti. Gunakan menu operasional berikut.', True)
             return {'ok':True, 'deprecated_menu':action}
+        if action == 'generate_now':
+            if bot:bot.answer(cb.get('id'),'Menyiapkan berita')
+            send('📰 Menyiapkan satu berita dari sumber resmi untuk approval…')
+            try:
+                response = generate_news_now(db,bot,chat_id)
+            except (ValueError,RuntimeError,httpx.HTTPError,OSError) as exc:
+                db.rollback()
+                log.warning('Generate news failed: %s',type(exc).__name__)
+                response = '⚠️ Proses gagal: '+type(exc).__name__+'. Periksa Status Otomasi.'
+            send(response,True)
+            return {'ok':True,'menu':'generate_now'}
         if action == 'decline_all':
             from sqlalchemy import func
             total = db.execute(select(func.count(Draft.id)).where(
@@ -897,6 +910,10 @@ def telegram_webhook(payload:dict,db=Depends(session)):
         if txt in ('/testnews','/testgemini','/testcover') and not sess:
             send('ℹ️ Perintah percobaan lama sudah dinonaktifkan. Gunakan menu AutoNews terbaru.',True)
             return {'ok':True,'deprecated_command':txt[1:]}
+        if txt=='/generate' and not sess:
+            send('📰 Menyiapkan satu berita untuk approval…')
+            send(generate_news_now(db,bot,chat_id),True)
+            return {'ok':True,'command':'generate'}
         if txt in ('/start','/help') and not sess:
             send('🛰 Unfounded Theory Newsroom\n\nPilih tombol di bawah untuk mengelola berita.',True)
             return {'ok':True,'command':'help'}
