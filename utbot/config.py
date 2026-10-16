@@ -1,5 +1,6 @@
 """Runtime settings. All credentials must be supplied as environment secrets."""
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 from dataclasses import dataclass
 # Local .env is loaded only if present; production environment variables take precedence.
@@ -36,7 +37,7 @@ class Config:
     # Vercel permits temporary writes only under /tmp; final media is uploaded immediately.
     media_dir: str = '/tmp/unfounded-media' if os.getenv('VERCEL') else os.getenv('MEDIA_DIR', './media')  # nosec B108
     # Owner approved the existing shipped cover badge as the official production logo.
-    brand_logo: str = os.getenv('BRAND_LOGO_PATH',str(__import__('pathlib').Path(__file__).resolve().parent / 'assets' / 'reference_badge.png'))
+    brand_logo: str = os.getenv('BRAND_LOGO_PATH',str(Path(__file__).resolve().parent / 'assets' / 'reference_badge.png'))
     font_path: str = os.getenv('BRAND_FONT_PATH','')
     supabase_url: str = os.getenv('SUPABASE_URL','')
     supabase_key: str = os.getenv('SUPABASE_SERVICE_ROLE_KEY','')
