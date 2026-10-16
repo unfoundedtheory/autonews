@@ -3,7 +3,7 @@ from dataclasses import replace
 from sqlalchemy.orm import sessionmaker
 import pytest
 import httpx
-from utbot.models import Base,make_engine,Story,Draft
+from utbot.models import Base,make_engine,Story,Draft,Audit
 from utbot.research import fingerprint
 from utbot.editorial import approve
 from utbot import web
@@ -51,6 +51,7 @@ def test_admin_one_click_approval_flow(db,monkeypatch):
 def test_instagram_container_waits_then_publishes_once(db,monkeypatch,tmp_path):
     d=seeded(db);d.rights_reviewed=True
     approve(db,d,'42')
+    db.add(Audit(draft_id=d.id,event='photo_only_approved',actor='42',detail={'version':d.version}))
     d.scheduled_at=datetime.now(timezone.utc)-timedelta(minutes=1)
     db.commit()
     logo=tmp_path/'logo.png';logo.write_bytes(b'valid-placeholder-for-test')
@@ -74,6 +75,7 @@ def test_instagram_container_waits_then_publishes_once(db,monkeypatch,tmp_path):
 
 def test_uncertain_publish_never_retries(db,monkeypatch,tmp_path):
     d=seeded(db);d.rights_reviewed=True;approve(db,d,'42')
+    db.add(Audit(draft_id=d.id,event='photo_only_approved',actor='42',detail={'version':d.version}))
     d.scheduled_at=datetime.now(timezone.utc)-timedelta(minutes=1)
     db.commit()
     logo=tmp_path/'logo.png';logo.write_bytes(b'placeholder')
@@ -107,10 +109,6 @@ def test_telegram_approved_final_image_and_caption_reach_instagram_unchanged(db,
     monkeypatch.setattr(web,'CONFIG',cfg)
     bot=FakeBot()
     monkeypatch.setattr(web,'_bot',lambda:bot)
-    assert web.telegram_webhook(callback(d,'approve'),db=db)
-    assert d.status=='approved' and d.approved_version==d.version
-    d.scheduled_at=datetime.now(timezone.utc)-timedelta(seconds=5)
-    db.commit()
     capture=[]
     class FakeIG:
         def __init__(self,*args):
@@ -124,10 +122,15 @@ def test_telegram_approved_final_image_and_caption_reach_instagram_unchanged(db,
         def publish(self,ident):
             pytest.fail('Publishing must not occur while container remains IN_PROGRESS')
     monkeypatch.setattr(web,'InstagramPublisher',FakeIG)
-    result=web.publish_job(db=db)
-    assert result['container_status']=='IN_PROGRESS'
+    result=web.telegram_webhook(callback(d,'approve'),db=db)
+    assert result['approval']=='approved_for_instagram'
+    assert d.status=='approved' and d.approved_version==d.version
     assert capture==[('create',final_image,final_caption)]
     assert d.publish_state=='awaiting_container'
+    # The scheduled cron can inspect the same container without duplicating creation.
+    checked=web.publish_job(db=db)
+    assert checked['container_status']=='IN_PROGRESS'
+    assert capture==[('create',final_image,final_caption)]
 
 
 def test_telegram_approved_dry_run_never_calls_instagram(db,monkeypatch):
@@ -168,3 +171,22 @@ def test_editorial_qc_telegram_message_readable():
     assert '🧾 PERIKSA MANUAL' in message
     assert '➡️ LANGKAH BERIKUTNYA' in message
     assert len(message)<=3900
+
+
+def test_older_music_approval_cannot_autopost_after_switch_to_no_music(db,monkeypatch,tmp_path):
+    draft=seeded(db)
+    draft.rights_reviewed=True
+    approve(db,draft,'42')  # Explicit earlier approval, but without photo-only consent event
+    draft.scheduled_at=datetime.now(timezone.utc)-timedelta(minutes=1)
+    db.commit()
+    logo=tmp_path/'brand.png';logo.write_bytes(b'fake-logo-test')
+    monkeypatch.setattr(web,'CONFIG',replace(web.CONFIG,
+        photo_music_mode='off',live_publish=True,brand_logo=str(logo),
+        ig_user_id='123',ig_token='mock'))
+    monkeypatch.setattr(web,'_bot',lambda:None)
+    class MustNotPublish:
+        def __init__(self,*args):
+            pytest.fail('Previous manual approval must never publish without photo-only consent')
+    monkeypatch.setattr(web,'InstagramPublisher',MustNotPublish)
+    assert web.publish_job(db=db)['due']==0
+    assert draft.status=='approved' and draft.publish_state=='unpublished'
