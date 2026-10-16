@@ -521,26 +521,27 @@ def telegram_webhook(payload:dict,db=Depends(session)):
             if not expected.isascii() or not expected.isdigit() or len(expected)>8:
                 if bot:bot.answer(cb.get('id'),'Konfirmasi tidak valid')
                 return {'ok':True,'invalid_confirmation':True}
-            from sqlalchemy import func, update
-            total = db.execute(select(func.count(Draft.id)).where(
-                Draft.status == 'pending_approval')).scalar_one()
-            if total != int(expected) or total == 0:
+            pending = db.execute(select(Draft).where(
+                Draft.status == 'pending_approval')).scalars().all()
+            if len(pending) != int(expected) or not pending:
                 if bot:bot.answer(cb.get('id'),'Daftar pending berubah')
                 send('⚠️ Jumlah draft pending berubah. Konfirmasi ulang diperlukan.')
                 show_pending()
                 return {'ok':True,'confirmation_expired':True}
-            result = db.execute(update(Draft).where(Draft.status == 'pending_approval')
-                        .values(status='rejected',approved_at=None,
-                                approved_by=None,approved_version=None,
-                                scheduled_at=None))
-            db.add(Audit(event='bulk_decline',actor=str(uid),
-                         detail={'count':result.rowcount,'source':'telegram_confirmed'}))
+            for draft in pending:
+                draft.status = 'rejected'
+                draft.approved_at = None
+                draft.approved_by = None
+                draft.approved_version = None
+                draft.scheduled_at = None
+                db.add(Audit(draft_id=draft.id,event='bulk_decline',
+                             actor=str(uid),detail={'source':'telegram_confirmed'}))
             db.commit()
             if bot:
                 bot.answer(cb.get('id'),'Semua draft pending ditolak')
-            send(f'✅ {result.rowcount} draft Pending Approval ditolak. '
+            send(f'✅ {len(pending)} draft Pending Approval ditolak. '
                  'Draft approved dan published tetap aman.',True)
-            return {'ok':True,'declined':result.rowcount}
+            return {'ok':True,'declined':len(pending)}
         page = 0
         for section in ('pending', 'approved', 'stories'):
             if action.startswith(section+':'):
