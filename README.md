@@ -1,7 +1,7 @@
 ## Vercel serverless deployment (v0.8 staging)
 
 - Vercel serves the root `app.py` entrypoint, which mounts the newsroom under `/api/*`; no always-on worker.
-- `vercel.json` schedules discovery ~01:00 WIB, draft preparation ~03:00 WIB, and publishing checks ~06:00, 12:00, 18:00 WIB (expressions in UTC). Four distinct daily cron entries comply with current Vercel Hobby rules, but may run up to 59 minutes late.
+- `vercel.json` defines **seven once-daily cron jobs** in UTC: discovery 01:00 WIB, draft preparation 03:00 and 15:00 WIB, maintenance 04:00 WIB, and publishing checks 06:00, 12:00 and 18:00 WIB. Hobby permits multiple daily jobs (each expression may run only once per day), with execution potentially delayed up to 59 minutes. Precise posting times require an always-on worker or more precise scheduling.
 - Use persistent Postgres `DATABASE_URL`; Vercel rejects SQLite in scheduled jobs.
 - Configure `CRON_SECRET`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_ADMIN_USER_IDS`, `TELEGRAM_CHAT_ID`, provider API keys and Instagram Professional API secrets as Vercel environment variables, never in Git.
 - For Vercel, images render in `/tmp`, then immediately upload to immutable Supabase Storage object paths. Sources may be fetched again when an editor revises a headline.
@@ -110,10 +110,10 @@ source .venv/bin/activate
 pip install '.[test]'
 pytest -q
 # export env vars or use `docker run --env-file .env`.
-uvicorn utbot.web:app --host 127.0.0.1 --port 8000
+DATABASE_URL=sqlite:///./ut_local.db uvicorn utbot.web:app --host 127.0.0.1 --port 8000
 ```
 
-Untuk mode lokal boleh `DATABASE_URL=sqlite:///./ut_local.db`. Supabase Postgres lebih cocok untuk staging dan production. `.env.example` hanya template; simpan token asli di **secrets manager**, tidak di repository.
+Untuk mode lokal boleh `DATABASE_URL=sqlite:///./ut_local.db`. Supabase Postgres lebih cocok untuk staging dan production. Docker Compose memakai `DATABASE_URL=sqlite:////app/state/ut_local.db` dari contoh `.env` sehingga state tetap di volume `ut_state`. Untuk Vercel ganti `DATABASE_URL` dengan URL PostgreSQL persisten. `docs/editorial-guide.md` wajib ikut masuk image Docker karena AI/QC membacanya setiap eksekusi. `.env.example` hanya template; simpan token asli di **secrets manager**, tidak di repository.
 
 ### Urutan staging
 
