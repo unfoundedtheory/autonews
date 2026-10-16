@@ -18,7 +18,7 @@
 - Dedicated Supabase project, Postgres database, storage and service keys.
 - Chosen AI API key(s), configured rate limits and safe budget.
 - Meta Developer app, Instagram Professional account, proper scopes/token, first official test publish.
-- New dedicated GitHub repository and remote push.
+- Production deployment authorization, live Cron invocation, and verified Telegram/Instagram delivery (repository and CI are already on GitHub).
 - Always-on public HTTPS container host.
 
 Do not claim fully automatic publishing or successful integration until the items above are connected and the end-to-end tests are performed. The current "verified" story status only reflects literal source-quote matches from a trusted primary source; it is not cross-source independent verification.
