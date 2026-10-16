@@ -496,6 +496,51 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         log.warning('Could not refresh legacy Telegram keyboard')
             send('ℹ️ Menu percobaan sudah diganti. Gunakan menu operasional berikut.', True)
             return {'ok':True, 'deprecated_menu':action}
+        if action == 'decline_all':
+            from sqlalchemy import func
+            total = db.execute(select(func.count(Draft.id)).where(
+                Draft.status == 'pending_approval')).scalar_one()
+            if not total:
+                send('✅ Tidak ada draft pending yang perlu ditolak.')
+            elif bot:
+                bot.message(chat_id, f'⚠️ Tolak SEMUA {total} draft Pending Approval?\\n'
+                            'Tindakan ini tidak dapat dibatalkan lewat tombol. '
+                            'Draft approved dan published tidak akan diubah.',
+                            {'inline_keyboard':[
+                                [{'text':'✅ Yes, Decline All',
+                                  'callback_data':f'nav:decline_confirm:{total}'}],
+                                [{'text':'↩️ No, Batal','callback_data':'nav:decline_cancel'}]]})
+            if bot:bot.answer(cb.get('id'),'Konfirmasi diperlukan')
+            return {'ok':True,'confirm_decline_all':total}
+        if action == 'decline_cancel':
+            if bot:bot.answer(cb.get('id'),'Dibatalkan')
+            show_pending()
+            return {'ok':True,'decline_cancelled':True}
+        if action.startswith('decline_confirm:'):
+            expected = action.partition(':')[2]
+            if not expected.isascii() or not expected.isdigit() or len(expected)>8:
+                if bot:bot.answer(cb.get('id'),'Konfirmasi tidak valid')
+                return {'ok':True,'invalid_confirmation':True}
+            from sqlalchemy import func, update
+            total = db.execute(select(func.count(Draft.id)).where(
+                Draft.status == 'pending_approval')).scalar_one()
+            if total != int(expected) or total == 0:
+                if bot:bot.answer(cb.get('id'),'Daftar pending berubah')
+                send('⚠️ Jumlah draft pending berubah. Konfirmasi ulang diperlukan.')
+                show_pending()
+                return {'ok':True,'confirmation_expired':True}
+            result = db.execute(update(Draft).where(Draft.status == 'pending_approval')
+                        .values(status='rejected',approved_at=None,
+                                approved_by=None,approved_version=None,
+                                scheduled_at=None))
+            db.add(Audit(event='bulk_decline',actor=str(uid),
+                         detail={'count':result.rowcount,'source':'telegram_confirmed'}))
+            db.commit()
+            if bot:
+                bot.answer(cb.get('id'),'Semua draft pending ditolak')
+            send(f'✅ {result.rowcount} draft Pending Approval ditolak. '
+                 'Draft approved dan published tetap aman.',True)
+            return {'ok':True,'declined':result.rowcount}
         page = 0
         for section in ('pending', 'approved', 'stories'):
             if action.startswith(section+':'):
