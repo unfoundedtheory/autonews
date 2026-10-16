@@ -55,3 +55,73 @@ def photo_keyboard(draft):
     rows.append([{'text':'↩️ Kembali ke Draf',
                   'callback_data':f'open:{draft.id}:{draft.version}'}])
     return {'inline_keyboard':rows}
+
+
+def approved_page(drafts, total, page=0):
+    """Browse live approved drafts; opening one reuses the versioned draft controls."""
+    from datetime import timezone
+    from .scheduler import WIB
+    max_page = max(0, (total - 1) // PENDING_PAGE_SIZE)
+    page = max(0, min(page, max_page))
+    lines = ['✅ Draft Disetujui', f'{total} draf • Halaman {page+1}/{max_page+1}']
+    actions = []
+    if not drafts:
+        lines.extend(['', 'Belum ada draf disetujui yang menunggu proses posting.'])
+    else:
+        lines.append('')
+        for offset, draft in enumerate(drafts, 1):
+            index = page * PENDING_PAGE_SIZE + offset
+            state = draft.publish_state
+            if state == 'manual_music_pending':
+                label = 'Menunggu konfirmasi posting Instagram'
+            elif state == 'awaiting_container':
+                label = 'Menunggu container Instagram'
+            elif draft.scheduled_at:
+                when = draft.scheduled_at
+                if when.tzinfo is None:
+                    when = when.replace(tzinfo=timezone.utc)
+                label = 'Terjadwal ' + when.astimezone(WIB).strftime('%d/%m %H:%M WIB')
+            else:
+                label = 'Menunggu jadwal'
+            lines.append(f'{index}. {clean_text(draft.highlight, 90)}')
+            lines.append('   ' + label)
+            actions.append([{'text':f'👁 Buka {index} · {draft.id[:8]}',
+                             'callback_data':f'open:{draft.id}:{draft.version}'}])
+    nav = []
+    if page > 0:
+        nav.append({'text':'⬅️ Sebelumnya','callback_data':f'nav:approved:{page-1}'})
+    if page < max_page:
+        nav.append({'text':'Berikutnya ➡️','callback_data':f'nav:approved:{page+1}'})
+    if nav:
+        actions.append(nav)
+    actions.append([{'text':'🏠 Menu Utama','callback_data':'nav:home'}])
+    return '\n'.join(lines), {'inline_keyboard':actions}
+
+
+def stories_page(stories, total, page=0):
+    """Read-only discovery list: source buttons never trigger a new AI request."""
+    from .editorial import trusted_source
+    max_page = max(0, (total - 1) // PENDING_PAGE_SIZE)
+    page = max(0, min(page, max_page))
+    lines = ['🗞 Kandidat Berita', f'{total} artikel tercatat • Halaman {page+1}/{max_page+1}']
+    actions = []
+    if not stories:
+        lines.extend(['', 'Belum ada artikel ditemukan. Discovery otomatis berjalan sesuai jadwal.'])
+    else:
+        lines.append('')
+        for offset, story in enumerate(stories, 1):
+            index = page * PENDING_PAGE_SIZE + offset
+            lines.append(f'{index}. {clean_text(story.title, 90)}')
+            lines.append('   ' + clean_text(story.source_name, 40) +
+                         ' • ' + clean_text(story.verification_status, 40))
+            if trusted_source(story.source_url):
+                actions.append([{'text':f'🔎 Baca Sumber {index}', 'url':story.source_url}])
+    nav = []
+    if page > 0:
+        nav.append({'text':'⬅️ Sebelumnya','callback_data':f'nav:stories:{page-1}'})
+    if page < max_page:
+        nav.append({'text':'Berikutnya ➡️','callback_data':f'nav:stories:{page+1}'})
+    if nav:
+        actions.append(nav)
+    actions.append([{'text':'🏠 Menu Utama','callback_data':'nav:home'}])
+    return '\n'.join(lines), {'inline_keyboard':actions}

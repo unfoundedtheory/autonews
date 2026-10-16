@@ -60,7 +60,7 @@ def test_discovery_checks_one_bounded_archive_pass_and_never_loops(monkeypatch):
         db.close()
 
 
-def test_telegram_update_idempotent_after_delivery(monkeypatch):
+def test_telegram_update_idempotent_after_legacy_test_callback(monkeypatch):
     db=db_session()
     class Bot:
         def __init__(self):self.messages=[]
@@ -75,10 +75,13 @@ def test_telegram_update_idempotent_after_delivery(monkeypatch):
         monkeypatch.setattr(web,'generate_test_news',lambda *a:invocations.append('generated') or 'done')
         update={'update_id':12345,'callback_query':{'id':'callback-12345','from':{'id':42},
                  'message':{'chat':{'id':123}},'data':'nav:test_news'}}
-        assert web.telegram_webhook(update,db=db)['ok']
+        first=web.telegram_webhook(update,db=db)
+        assert first['ok'] and first['deprecated_menu']=='test_news'
+        count=len(bot.messages)
         again=web.telegram_webhook(update,db=db)
         assert again['ignored']=='duplicate_telegram_update'
-        assert invocations==['generated']
+        assert invocations==[]  # retired legacy action cannot trigger AI or generation
+        assert len(bot.messages)==count
         assert db.get(TelegramUpdateReceipt,'12345') is not None
     finally:
         db.close()

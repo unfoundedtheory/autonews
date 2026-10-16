@@ -42,14 +42,14 @@ def keyboard(draft):
     return {'inline_keyboard':rows}
 
 def main_menu():
+    """Production-only navigation: no AI-consuming demo actions on the home screen."""
     return {'inline_keyboard':[
         [{'text':'📝 Pending Approval','callback_data':'nav:pending'},
-         {'text':'📅 Jadwal Posting','callback_data':'nav:queue'}],
-        [{'text':'📊 Status Redaksi','callback_data':'nav:status'},
-         {'text':'🔄 Refresh','callback_data':'nav:home'}],
-        [{'text':'🧪 Test Gemini','callback_data':'nav:test_gemini'}],
-        [{'text':'📰 Generate Test News','callback_data':'nav:test_news'},
-         {'text':'🖼 Test Cover','callback_data':'nav:test_cover'}]]}
+         {'text':'✅ Draft Disetujui','callback_data':'nav:approved'}],
+        [{'text':'📅 Jadwal Posting','callback_data':'nav:queue'},
+         {'text':'🗞 Kandidat Berita','callback_data':'nav:stories'}],
+        [{'text':'📊 Status Otomasi','callback_data':'nav:status'},
+         {'text':'🔄 Refresh Menu','callback_data':'nav:home'}]]}
 
 def photo_keyboard(draft):
     from .telegram_ui import photo_keyboard as make_keyboard
