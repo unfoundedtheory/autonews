@@ -824,6 +824,34 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     return {'ok':True,'approval':'qc_not_passed',
                             'issues':(report.get('issues') or [])[:8]}
                 approve(db,d,uid)
+                if CONFIG.photo_music_mode == 'off':
+                    # Owner explicitly requested photo-only publication right after approval.
+                    # Only the JUST-approved, version-bound draft may be published here.
+                    d.scheduled_at = datetime.now(timezone.utc)
+                    db.commit()
+                    if not CONFIG.live_publish:
+                        send('✅ Draft disetujui, tetapi publikasi Instagram belum aktif. '
+                             'Posting menunggu ENABLE_LIVE_PUBLISH=true dan logo resmi.')
+                    else:
+                        send('✅ Draft disetujui. Mengirim foto dan caption ke Instagram…')
+                        try:
+                            outcome = publish_job(db=db, target_draft_id=d.id)
+                        except HTTPException as err:
+                            send('⚠️ Instagram belum dapat diposting: '+str(err.detail)[:220]+
+                                 '. Draft tetap approved, tidak ditandai published.')
+                        else:
+                            if outcome.get('published'):
+                                send('✅ Instagram mengonfirmasi foto sudah terbit. '
+                                     'Media ID: '+str(outcome.get('instagram_media_id')))
+                            elif outcome.get('waiting'):
+                                send('⏳ Foto diunggah dan sedang diproses Instagram. '
+                                     'Bot akan memeriksa lagi lewat cron.')
+                            else:
+                                send('⚠️ Belum dikonfirmasi terbit di Instagram. '
+                                     'Status: '+str(outcome.get('status') or
+                                                    outcome.get('blocked') or outcome.get('error') or
+                                                    outcome.get('note') or outcome)[:250])
+                    return {'ok':True,'approval':'approved_for_instagram'}
                 schedule_approved(db,daily_limit=CONFIG.daily_limit)
                 db.commit()
                 at=d.scheduled_at.astimezone(WIB).strftime('%d %b %Y %H:%M WIB') if d.scheduled_at else 'belum tersedia'
@@ -1133,7 +1161,7 @@ def format_editorial_qc(draft, report):
 
 
 @app.post('/jobs/publish',dependencies=[Depends(worker_auth)])
-def publish_job(db=Depends(session)):
+def publish_job(db=Depends(session), target_draft_id=None):
     manual_mode=CONFIG.photo_music_mode=='manual'
     if manual_mode:
         reminder=_manual_photo_music_handoff(db)
@@ -1156,6 +1184,8 @@ def publish_job(db=Depends(session)):
     q=select(Draft).where(Draft.status=='approved',Draft.approved_version==Draft.version,
           Draft.publish_state.in_(['unpublished','awaiting_container']),
           Draft.scheduled_at <= datetime.now(timezone.utc)).order_by(Draft.scheduled_at).limit(30 if manual_mode else 1)
+    if target_draft_id:
+        q=q.where(Draft.id == target_draft_id)
     if db.bind.dialect.name=='postgresql':q=q.with_for_update(skip_locked=True)
     rows=db.execute(q).scalars().all()
     if manual_mode:
