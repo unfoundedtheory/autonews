@@ -1194,7 +1194,7 @@ def publish_job(db=Depends(session), target_draft_id=None):
     # Single-worker deployment is mandatory with SQLite; Postgres supports skip_locked.
     q=select(Draft).where(Draft.status=='approved',Draft.approved_version==Draft.version,
           Draft.publish_state.in_(['unpublished','awaiting_container']),
-          Draft.scheduled_at <= datetime.now(timezone.utc)).order_by(Draft.scheduled_at).limit(30 if manual_mode else 1)
+          Draft.scheduled_at <= datetime.now(timezone.utc)).order_by(Draft.scheduled_at).limit(30)
     if target_draft_id:
         q=q.where(Draft.id == target_draft_id)
     if db.bind.dialect.name=='postgresql':q=q.with_for_update(skip_locked=True)
