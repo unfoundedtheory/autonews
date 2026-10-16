@@ -239,3 +239,54 @@ def test_manual_import_without_automated_audit_keeps_single_human_review(db,monk
     assert preflight_approval(db,draft,db.get(Story,draft.story_id)) is None
     assert web.telegram_webhook(callback(draft),db=db)['ok']
     assert draft.status=='approved'
+
+
+def test_photo_only_approval_posts_only_the_approved_draft(db,monkeypatch):
+    _,draft=seed(db)
+    audit(db,draft)
+    bot=configure(monkeypatch)
+    monkeypatch.setattr(web,'CONFIG',replace(web.CONFIG,photo_music_mode='off',live_publish=True))
+    monkeypatch.setattr('utbot.quality_control.review_style',passing_style)
+    calls=[]
+    def fake_publish(*,db,target_draft_id):
+        calls.append(target_draft_id)
+        return {'published':[target_draft_id],'instagram_media_id':'1789000000000'}
+    monkeypatch.setattr(web,'publish_job',fake_publish)
+    result=web.telegram_webhook(callback(draft),db=db)
+    assert result['approval']=='approved_for_instagram'
+    assert draft.status=='approved' and draft.scheduled_at is not None
+    assert calls==[draft.id]
+    assert any('Instagram mengonfirmasi' in msg for msg in bot.sent)
+    repeated=web.telegram_webhook(callback(draft),db=db)
+    assert repeated['approval']=='already_approved'
+    assert calls==[draft.id]
+
+
+def test_photo_only_approval_never_claims_publish_when_gate_disabled(db,monkeypatch):
+    _,draft=seed(db)
+    audit(db,draft)
+    bot=configure(monkeypatch)
+    monkeypatch.setattr(web,'CONFIG',replace(web.CONFIG,photo_music_mode='off',live_publish=False))
+    monkeypatch.setattr('utbot.quality_control.review_style',passing_style)
+    monkeypatch.setattr(web,'publish_job',lambda **kwargs: (_ for _ in ()).throw(
+        AssertionError('Never publish when live flag is disabled')))
+    result=web.telegram_webhook(callback(draft),db=db)
+    assert result['approval']=='approved_for_instagram'
+    assert draft.status=='approved'
+    assert any('belum aktif' in msg for msg in bot.sent)
+    assert not any('mengonfirmasi foto sudah terbit' in msg for msg in bot.sent)
+
+
+def test_photo_only_approval_reports_missing_prerequisite(db,monkeypatch):
+    from fastapi import HTTPException
+    _,draft=seed(db)
+    audit(db,draft)
+    bot=configure(monkeypatch)
+    monkeypatch.setattr(web,'CONFIG',replace(web.CONFIG,photo_music_mode='off',live_publish=True))
+    monkeypatch.setattr('utbot.quality_control.review_style',passing_style)
+    monkeypatch.setattr(web,'publish_job',lambda **kwargs: (_ for _ in ()).throw(
+        HTTPException(status_code=503,detail='Logo resmi belum dikonfigurasi')))
+    out=web.telegram_webhook(callback(draft),db=db)
+    assert out['approval']=='approved_for_instagram'
+    assert draft.status=='approved' and draft.publish_state=='unpublished'
+    assert any('belum dapat diposting' in msg for msg in bot.sent)
