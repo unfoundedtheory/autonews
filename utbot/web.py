@@ -19,7 +19,7 @@ from .photo_music import manual_music_message,manual_music_caption,instagram_pos
 from .approval_flow import preflight_approval, approval_qc_message
 from .meta_delivery import publish_facebook_once
 from .telegram import TelegramClient,keyboard,send_preview,photo_keyboard,main_menu
-from .telegram_ui import pending_page,photo_candidate_message,PENDING_PAGE_SIZE
+from .telegram_ui import pending_page,approved_page,stories_page,photo_candidate_message,PENDING_PAGE_SIZE
 from .research import discover,fingerprint
 from .rewrite import rewrite
 from .pipeline import prepare_batch
@@ -451,41 +451,90 @@ def telegram_webhook(payload:dict,db=Depends(session)):
         if bot:
             body,actions=pending_page(pending,total,page)
             bot.message(chat_id,body,actions)
+    def show_approved(page=0):
+        from sqlalchemy import func
+        active = (Draft.status == 'approved',
+                  Draft.approved_version == Draft.version,
+                  Draft.publish_state.in_(['unpublished', 'manual_music_pending',
+                                            'awaiting_container']))
+        total = db.execute(select(func.count(Draft.id)).where(*active)).scalar_one()
+        page = max(0, min(page, max(0, (total-1)//PENDING_PAGE_SIZE)))
+        drafts = db.execute(select(Draft).where(*active)
+                    .order_by(Draft.approved_at.desc(), Draft.id.desc())
+                    .offset(page*PENDING_PAGE_SIZE).limit(PENDING_PAGE_SIZE)).scalars().all()
+        if bot:
+            body, actions = approved_page(drafts, total, page)
+            bot.message(chat_id, body, actions)
+
+    def show_stories(page=0):
+        from sqlalchemy import func
+        total = db.execute(select(func.count(Story.id))).scalar_one()
+        page = max(0, min(page, max(0, (total-1)//PENDING_PAGE_SIZE)))
+        stories = db.execute(select(Story)
+                    .order_by(Story.created_at.desc(), Story.id.desc())
+                    .offset(page*PENDING_PAGE_SIZE).limit(PENDING_PAGE_SIZE)).scalars().all()
+        if bot:
+            body, actions = stories_page(stories, total, page)
+            bot.message(chat_id, body, actions)
+
     if cb and str(cb.get('data','')).startswith('nav:'):
-        action=cb['data'][4:]
-        pending_index=0
-        if action.startswith('pending:'):
-            page_text=action.partition(':')[2]
-            if not page_text.isascii() or not page_text.isdigit() or len(page_text)>5:
-                if bot:bot.answer(cb.get('id'),'Halaman tidak valid')
-                return {'ok':True,'invalid_page':True}
-            pending_index=int(page_text)
-            action='pending'
-        if action not in ('home','pending','queue','status','test_gemini','test_news','test_cover'):
+        action = cb['data'][4:]
+        if action in ('test_gemini', 'test_news', 'test_cover'):
+            # Old Telegram messages cannot be retroactively erased without their IDs.
+            # Disable legacy actions and replace the clicked message's obsolete keyboard.
+            if bot:
+                bot.answer(cb.get('id'), 'Tombol percobaan lama sudah dinonaktifkan.')
+                old_message = cb.get('message') or {}
+                if hasattr(bot, 'call') and isinstance(old_message.get('message_id'), int):
+                    try:
+                        bot.call('editMessageReplyMarkup', {
+                            'chat_id':chat_id,
+                            'message_id':old_message['message_id'],
+                            'reply_markup':main_menu(),
+                        })
+                    except (httpx.HTTPError, RuntimeError, ValueError):
+                        log.warning('Could not refresh legacy Telegram keyboard')
+            send('ℹ️ Menu percobaan sudah diganti. Gunakan menu operasional berikut.', True)
+            return {'ok':True, 'deprecated_menu':action}
+        page = 0
+        for section in ('pending', 'approved', 'stories'):
+            if action.startswith(section+':'):
+                page_text = action.partition(':')[2]
+                if not page_text.isascii() or not page_text.isdigit() or len(page_text)>5:
+                    if bot:
+                        bot.answer(cb.get('id'), 'Halaman tidak valid')
+                    return {'ok':True, 'invalid_page':True}
+                page = int(page_text)
+                action = section
+                break
+        if action not in ('home','pending','approved','stories','queue','status'):
             if bot:bot.answer(cb.get('id'),'Menu tidak valid')
             return {'ok':True}
-        if action=='test_news':
-            if bot:bot.answer(cb.get('id'),'Memproses satu draf')
-            send('📰 Memproses satu berita percobaan...')
-            send(generate_test_news(db,bot,chat_id))
-        elif action=='test_cover':
-            if bot:bot.answer(cb.get('id'),'Mencoba membuat satu cover')
-            send('🖼 Membuat satu cover dari draf pending dan artikel resmi...')
-            send(generate_test_cover(db,bot,chat_id))
-        elif action=='test_gemini':
-            send(gemini_test_message(),True)
-        elif action=='home':
-            send('🛰 Unfounded Theory Newsroom\nPilih menu di bawah.',True)
+        if action=='home':
+            send('🛰 Unfounded Theory Newsroom\nPilih menu operasional di bawah.', True)
         elif action=='status':
             from sqlalchemy import func
             groups=db.execute(select(Draft.status,func.count(Draft.id)).group_by(Draft.status)).all()
-            send('📊 Status redaksi\n'+('\n'.join(f'{s}: {n}' for s,n in groups) or 'Belum ada berita')+'\n\n'+automation_status(db),True)
+            send('📊 Status otomasi dan redaksi\n'+
+                 ('\n'.join(f'{s}: {n}' for s,n in groups) or 'Belum ada berita')+
+                 '\n\n'+automation_status(db), True)
         elif action=='pending':
-            show_pending(pending_index)
-        else:
-            rows=db.execute(select(Draft).where(Draft.status=='approved',Draft.scheduled_at.is_not(None)).order_by(Draft.scheduled_at).limit(15)).scalars().all()
-            send('📅 Jadwal WIB\n'+('\n'.join(f'{d.scheduled_at.astimezone(WIB):%d/%m %H:%M} - {d.highlight}' for d in rows) or 'Belum ada antrean'),True)
-        if bot and action not in ('test_news','test_cover'):bot.answer(cb.get('id'),'Diperbarui')
+            show_pending(page)
+        elif action=='approved':
+            show_approved(page)
+        elif action=='stories':
+            show_stories(page)
+        elif action=='queue':
+            rows=db.execute(select(Draft).where(
+                Draft.status=='approved',Draft.scheduled_at.is_not(None))
+                .order_by(Draft.scheduled_at).limit(15)).scalars().all()
+            def describe_scheduled(d):
+                at=d.scheduled_at
+                at=at.replace(tzinfo=timezone.utc) if at.tzinfo is None else at
+                return f'{at.astimezone(WIB):%d/%m %H:%M} - {d.highlight}'
+            send('📅 Jadwal WIB\n'+
+                 ('\n'.join(describe_scheduled(d) for d in rows) or 'Belum ada antrean'), True)
+        if bot:bot.answer(cb.get('id'),'Diperbarui')
         return {'ok':True,'menu':action}
     if cb:
         cb_id=cb.get('id')
@@ -799,23 +848,23 @@ def telegram_webhook(payload:dict,db=Depends(session)):
     if msg:
         txt=(msg.get('text') or msg.get('caption') or '').strip()
         sess=db.get(TelegramSession,str(uid))
-        if txt=='/testnews' and not sess:
-            send('📰 Memproses satu berita percobaan...')
-            send(generate_test_news(db,bot,chat_id))
-            return {'ok':True,'command':'testnews'}
-        if txt=='/testgemini' and not sess:
-            send(gemini_test_message(),True)
-            return {'ok':True,'command':'testgemini'}
+        if txt in ('/testnews','/testgemini','/testcover') and not sess:
+            send('ℹ️ Perintah percobaan lama sudah dinonaktifkan. Gunakan menu AutoNews terbaru.',True)
+            return {'ok':True,'deprecated_command':txt[1:]}
         if txt in ('/start','/help') and not sess:
             send('🛰 Unfounded Theory Newsroom\n\nPilih tombol di bawah untuk mengelola berita.',True)
             return {'ok':True,'command':'help'}
-        if txt in ('/queue','/pending','/status') and not sess:
+        if txt in ('/queue','/pending','/approved','/stories','/status') and not sess:
             from sqlalchemy import func
             if txt=='/status':
                 groups=db.execute(select(Draft.status,func.count(Draft.id)).group_by(Draft.status)).all()
                 send('📊 Status redaksi\n'+('\n'.join(f'{status}: {qty}' for status,qty in groups) or 'Belum ada berita')+'\n\n'+automation_status(db))
             elif txt=='/pending':
                 show_pending()
+            elif txt=='/approved':
+                show_approved()
+            elif txt=='/stories':
+                show_stories()
             else:
                 rows=db.execute(select(Draft).where(Draft.status=='approved',Draft.scheduled_at.is_not(None)).order_by(Draft.scheduled_at).limit(15)).scalars().all()
                 def row(d):
