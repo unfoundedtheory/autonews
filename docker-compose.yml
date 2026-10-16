@@ -5,6 +5,10 @@ services:
     build: .
     restart: unless-stopped
     env_file: .env
+    # Put local SQLite in the persistent shared volume, not the read-only /app root.
+    # On production set DATABASE_URL in .env to a managed PostgreSQL connection.
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-sqlite:////app/state/ut_local.db}
     ports:
       - '127.0.0.1:8000:8000'
     volumes:
@@ -14,6 +18,10 @@ services:
     build: .
     restart: unless-stopped
     env_file: .env
+    # Put local SQLite in the persistent shared volume, not the read-only /app root.
+    # On production set DATABASE_URL in .env to a managed PostgreSQL connection.
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-sqlite:////app/state/ut_local.db}
     command: ['python', '-m', 'utbot.runner', 'loop']
     volumes:
       - ut_media:/app/media
