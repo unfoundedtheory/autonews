@@ -28,6 +28,8 @@ def pending_page(drafts,total,page=0):
     if page>0:nav.append({'text':'⬅️ Sebelumnya','callback_data':f'nav:pending:{page-1}'})
     if page<max_page:nav.append({'text':'Berikutnya ➡️','callback_data':f'nav:pending:{page+1}'})
     if nav:actions.append(nav)
+    if total > 0:
+        actions.append([{'text':'❌ Decline All','callback_data':'nav:decline_all'}])
     actions.append([{'text':'🏠 Menu Utama','callback_data':'nav:home'}])
     return '\n'.join(lines),{'inline_keyboard':actions}
 
