@@ -825,6 +825,10 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                             'issues':(report.get('issues') or [])[:8]}
                 approve(db,d,uid)
                 if CONFIG.photo_music_mode == 'off':
+                    # Consent is version-bound: do not publish older manually approved
+                    # music handoffs merely because deployment mode switches to off.
+                    db.add(Audit(draft_id=d.id,event='photo_only_approved',
+                                 actor=str(uid),detail={'version':d.version}))
                     # Approve is the owner's final editorial/photo-rights review.
                     # Do not infer rights from bare image URLs or missing metadata.
                     if (d.image_credit or '').strip() and (d.photo_license or '').strip():
@@ -1195,6 +1199,17 @@ def publish_job(db=Depends(session), target_draft_id=None):
         q=q.where(Draft.id == target_draft_id)
     if db.bind.dialect.name=='postgresql':q=q.with_for_update(skip_locked=True)
     rows=db.execute(q).scalars().all()
+    if not manual_mode:
+        # Only explicit new photo-only approvals are eligible for automatic posting.
+        # Old manual-with-music approvals must never silently switch publication mode.
+        consented = []
+        for item in rows:
+            details=db.execute(select(Audit.detail).where(
+                Audit.draft_id==item.id, Audit.event=='photo_only_approved'
+            )).scalars().all()
+            if any((detail or {}).get('version')==item.version for detail in details):
+                consented.append(item)
+        rows=consented
     if manual_mode:
         from .stock_flow import is_auto_approved
         d=next((row for row in rows if is_auto_approved(db,row)),None)
