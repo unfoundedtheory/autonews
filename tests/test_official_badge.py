@@ -12,6 +12,9 @@ def test_approved_badge_is_real_and_default():
 
 
 def test_explicit_logo_override_remains_possible(monkeypatch):
-    from utbot.config import Config
+    import subprocess
+    import sys
     monkeypatch.setenv('BRAND_LOGO_PATH','/tmp/official-alternate.png')
-    assert Config().brand_logo == '/tmp/official-alternate.png'
+    result=subprocess.check_output([sys.executable,'-c',
+        'from utbot.config import CONFIG; print(CONFIG.brand_logo)'], text=True)
+    assert result.strip() == '/tmp/official-alternate.png'
