@@ -6,7 +6,15 @@
 2. **Telegram.** Open [@BotFather](https://t.me/BotFather), create a bot and copy its token to `TELEGRAM_BOT_TOKEN`. Add your numeric Telegram user ID to `TELEGRAM_ADMIN_USER_IDS` and private chat ID to `TELEGRAM_CHAT_ID`. Create long random `WORKER_SECRET` and `TELEGRAM_WEBHOOK_SECRET` (32+ characters each).
 3. **AI.** Create Gemini API key in [Google AI Studio](https://aistudio.google.com/apikey). Fill `GEMINI_API_KEY`; keep `AI_PROVIDER=gemini`, paid failover OFF. Optional other providers are in `.env.example`.
 4. **Instagram.** Switch to an eligible **Instagram Professional** account, configure Meta Developer app with approved publishing access, perform proper authorization and place the granted IG account ID/token into `INSTAGRAM_USER_ID` / `INSTAGRAM_ACCESS_TOKEN`. Review token expiry and permission scope. Never use Instagram password or browser automation.
-5. **Server.** Have an always-on Docker-capable HTTPS host with persistent media storage and a reverse proxy (or a managed container host with a persistent volume). Vercel's ephemeral serverless filesystem is not appropriate for this existing FastAPI + long-running worker layout. The backend uses one worker process to avoid scheduling collisions.
+5. **Server.** Choose either (a) Vercel serverless with persistent PostgreSQL, public Supabase Storage and `CRON_SECRET` (uses the mounted FastAPI `/api/*` endpoints and seven daily cron entries), or (b) an always-on Docker-capable HTTPS host with one worker, persistent media and a reverse proxy. Vercel cannot run `utbot.runner loop` continuously or persist `/tmp` between requests. Hobby Cron timing can drift by up to 59 minutes. Do not run both cron and the Docker worker against the same database.
+
+## Vercel automatic schedule (serverless)
+
+- Git-connected production deployments register all seven `vercel.json` cron entries. Preview deployments do not run them.
+- Configure `DATABASE_URL` with persistent PostgreSQL, `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`, `WORKER_SECRET`, Telegram admin/webhook secrets, and the selected AI provider key as Vercel Production secrets. Do not reuse the Docker-demo SQLite URL.
+- Verify `GET /api/health`, `GET /api/internal/readiness` with `x-worker-secret`, and check the Telegram `/status` cron heartbeat. A heartbeat confirms the endpoint ran, not that Telegram/Meta accepted output.
+- Leave `ENABLE_LIVE_PUBLISH=false`, `AUTO_APPROVE_AFTER_24H=false`, and `PHOTO_MUSIC_MODE=manual` until the owner completes one real end-to-end approval and posting test.
+- Test timeouts and provider quotas: serverless request duration is finite; a large batch may need a dedicated worker/queue.
 
 ## Start safely
 
