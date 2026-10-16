@@ -825,6 +825,13 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                             'issues':(report.get('issues') or [])[:8]}
                 approve(db,d,uid)
                 if CONFIG.photo_music_mode == 'off':
+                    # Approve is the owner's final editorial/photo-rights review.
+                    # Do not infer rights from bare image URLs or missing metadata.
+                    if (d.image_credit or '').strip() and (d.photo_license or '').strip():
+                        d.rights_reviewed = True
+                        db.add(Audit(draft_id=d.id,event='photo_rights_reviewed',
+                                     actor=str(uid),detail={'version':d.version,
+                                                            'source':'telegram_final_approve'}))
                     # Owner explicitly requested photo-only publication right after approval.
                     # Only the JUST-approved, version-bound draft may be published here.
                     d.scheduled_at = datetime.now(timezone.utc)
