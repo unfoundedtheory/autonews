@@ -45,10 +45,10 @@ def update(action, message_id=91):
 def test_home_has_only_real_production_actions():
     actions = [item['callback_data']
                for row in main_menu()['inline_keyboard'] for item in row]
-    assert len(actions) == len(set(actions)) == 6
+    assert len(actions) == len(set(actions)) == 7
     assert set(actions) == {
         'nav:pending', 'nav:approved', 'nav:queue',
-        'nav:stories', 'nav:status', 'nav:home'}
+        'nav:stories', 'nav:status', 'nav:home', 'nav:generate_now'}
     assert all('test' not in item for item in actions)
 
 
@@ -138,5 +138,24 @@ def test_old_buttons_and_slash_commands_cannot_run_demo(monkeypatch):
                 'from': {'id': 42}, 'chat': {'id': 123}, 'text': old}}
             assert web.telegram_webhook(message, db=db)['deprecated_command'] == old[1:]
             assert 'dinonaktifkan' in bot.messages[-1][0]
+    finally:
+        db.close()
+
+
+def test_generate_now_uses_real_pipeline_and_keeps_approval_required(monkeypatch):
+    db = session()
+    bot = FakeTelegram()
+    monkeypatch.setattr(web, '_bot', lambda: bot)
+    monkeypatch.setattr(web, 'CONFIG', replace(web.CONFIG, admin_ids=frozenset({42})))
+    calls=[]
+    def generate(db, b, chat_id):
+        calls.append((b, chat_id))
+        return '✅ Draft dibuat. Menunggu approval.'
+    monkeypatch.setattr(web, 'generate_news_now', generate)
+    try:
+        response=web.telegram_webhook(update('generate_now'), db=db)
+        assert response['menu']=='generate_now'
+        assert calls == [(bot, 123)]
+        assert 'Menunggu approval' in bot.messages[-1][0]
     finally:
         db.close()
