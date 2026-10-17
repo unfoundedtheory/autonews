@@ -7,6 +7,7 @@ from sqlalchemy import select
 from .models import Audit, Draft, Story
 from .editorial import approve, evidence_ready
 from .stock_flow import photo_auto_safe
+from .config import CONFIG
 
 SETTING_ID='system:editorial_automation'
 EVENT='automation_mode_changed'
@@ -38,7 +39,6 @@ def auto_approve_ready(db,limit=15):
     if mode!=FULL_AUTO or not activated_at:
         return {'mode':mode,'approved':[],'blocked':[]}
     from .quality_control import report_for_draft
-    from .config import CONFIG
     if not CONFIG.live_publish or CONFIG.photo_music_mode!='off':
         return {'mode':mode,'approved':[],'blocked':['Instagram photo-only publishing is not enabled']}
     q=select(Draft).where(Draft.status=='pending_approval',
