@@ -192,7 +192,7 @@ def test_queue_only_lists_future_unpublished_approved_posts(monkeypatch):
         assert 'Queue test 0' not in text
         assert 'Queue test 2' not in text
         assert 'Queue test 3' not in text
-        assert bot.messages[-1][1] is None
+        assert bot.messages[-1][1]['inline_keyboard'][-1][0]['callback_data']=='nav:home'
     finally:
         db.close()
 
