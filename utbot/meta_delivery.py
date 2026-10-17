@@ -1,4 +1,4 @@
-"""Optional independent Facebook Page cross-post after owner's Instagram music post.
+"""Optional independent Facebook Page post after confirmed Instagram publication.
 
 All attempts are durably recorded *before* posting. An uncertain Graph API
 outcome must NEVER be reissued automatically. Native IG→FB sharing may already
@@ -40,7 +40,7 @@ def publish_facebook_once(db,draft,*,actor="worker",poster=None,config=None):
     try:
         adapter=poster or MetaGraph(config.facebook_page_token,config.facebook_graph_version)
         result=adapter.publish_page_photo(config.facebook_page_id,draft.image_url,
-                                          caption_text(draft))
+                                          caption_text(draft,allow_missing_credit=True))
         db.add(Audit(draft_id=draft.id,event='facebook_published',actor=str(actor),
                      detail={'page_id':config.facebook_page_id,
                              'photo_id':result['photo_id'],'post_id':result['id']}))
