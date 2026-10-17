@@ -1,5 +1,6 @@
 """Optional AI editing with evidence-bound instructions. Never silently invent facts."""
 import json
+import re
 from .editorial import lint
 from .ai_provider import generate_json
 from .editorial import editorial_instructions
@@ -26,3 +27,20 @@ def rewrite(field,instruction,draft,story):
     if not value:raise ValueError("Revisi kosong")
     if "—" in value or "--" in value:raise ValueError("Dilarang em dash")
     return value
+
+
+def normalize_caption_format(value):
+    """Normalize presentation only; never invent facts or questions."""
+    if not isinstance(value,str):
+        raise ValueError('Caption AI harus berupa teks.')
+    value=value.replace('\\r\\n','\\n').replace('\\r','\\n').strip()
+    # Model often places the five hashtags at the bottom despite instructions.
+    # Hashtags are stored separately in Draft.hashtags.
+    value=re.sub(r'(?<!\\w)#[A-Za-z0-9_]+', '', value)
+    # A single newline between prose blocks is a paragraph separator.
+    parts=[re.sub(r'\\s+', ' ', p).strip() for p in re.split(r'\\n+',value) if p.strip()]
+    # Do not invent additional paragraphs; let AI repair missing structure.
+    # Excess line-separated fragments may be grouped without altering words.
+    if len(parts)>5:
+        parts=parts[:4]+[' '.join(parts[4:])]
+    return '\\n\\n'.join(parts).strip()
