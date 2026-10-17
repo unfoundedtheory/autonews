@@ -159,3 +159,39 @@ def test_generate_now_uses_real_pipeline_and_keeps_approval_required(monkeypatch
         assert 'Menunggu approval' in bot.messages[-1][0]
     finally:
         db.close()
+
+
+def test_queue_only_lists_future_unpublished_approved_posts(monkeypatch):
+    from datetime import timedelta
+    db=session()
+    bot=FakeTelegram()
+    monkeypatch.setattr(web,'_bot',lambda:bot)
+    monkeypatch.setattr(web,'CONFIG',replace(web.CONFIG,admin_ids=frozenset({42})))
+    now=datetime.now(timezone.utc)
+    try:
+        for i,(offset,status,publish_state) in enumerate([
+            (-60,'approved','unpublished'),
+            (60,'approved','unpublished'),
+            (90,'published','published'),
+            (120,'pending_approval','unpublished'),
+        ]):
+            url=f'https://science.nasa.gov/test-queue-{i}'
+            story=Story(fingerprint=fingerprint(url),title='Queue fixture',
+                        source_url=url,source_name='NASA',topic='astronomy')
+            db.add(story);db.flush()
+            db.add(Draft(story_id=story.id,highlight=f'Queue test {i}',
+                         caption='Fixture',hashtags=[],status=status,
+                         approved_version=1 if status!='pending_approval' else None,
+                         publish_state=publish_state,
+                         scheduled_at=now+timedelta(minutes=offset)))
+        db.commit()
+        result=web.telegram_webhook(update('queue'),db=db)
+        assert result['menu']=='queue'
+        text=bot.messages[-1][0]
+        assert 'Queue test 1' in text
+        assert 'Queue test 0' not in text
+        assert 'Queue test 2' not in text
+        assert 'Queue test 3' not in text
+        assert bot.messages[-1][1]==main_menu()
+    finally:
+        db.close()
