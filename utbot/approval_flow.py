@@ -127,6 +127,7 @@ def auto_repair_rejected_caption(db, draft, story, report, *, actor, max_attempt
         return None
     if not story or not evidence_ready(story) or not story.evidence:
         return None
+    import httpx
     from .rewrite import rewrite
     from .editorial import revise
     from .quality_control import run_draft_qc
@@ -164,7 +165,7 @@ def auto_repair_rejected_caption(db, draft, story, report, *, actor, max_attempt
             if fresh['passed']:
                 return fresh
             reasons='; '.join(fresh.get('issues') or [])[:300]+'; '+str(fresh.get('note') or '')[:200]
-        except (ValueError,RuntimeError,TypeError,KeyError) as exc:
+        except (ValueError,RuntimeError,TypeError,KeyError,httpx.HTTPError) as exc:
             db.rollback()
             reasons=type(exc).__name__
             break
