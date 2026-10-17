@@ -63,27 +63,38 @@ def deliver_pending_previews(db, bot, chat_id, limit=12):
 def do_prepare():
     bot = TelegramClient(CONFIG.telegram_token) if CONFIG.telegram_token and CONFIG.chat_id else None
     with Session() as db:
+        from .automation_mode import auto_approve_ready
         # Send already-prepared drafts first: generating new AI text does not
         # help if the editor never received the existing pending news.
         delivery=deliver_pending_previews(db,bot,CONFIG.chat_id)
         from .stock_flow import stock_to_prepare
         quota = stock_to_prepare(db)
         if quota <= 0:
+            automatic=auto_approve_ready(db)
+            if automatic['approved']:
+                schedule_approved(db,daily_limit=CONFIG.daily_limit)
+                db.commit()
             log.info('draft stock target reached; recovery=%s',delivery)
-            return {'prepared':[], 'delivery':delivery}
+            return {'prepared':[], 'delivery':delivery,'automatic':automatic}
         # prepare_batch commits new drafts before notifying. The recovery pass
         # owns Telegram delivery and writes a durable delivery marker.
         result=prepare_batch(db, limit=quota, notifier=None)
+        automatic=auto_approve_ready(db)
+        if automatic['approved']:
+            schedule_approved(db,daily_limit=CONFIG.daily_limit)
+            db.commit()
         latest=deliver_pending_previews(db,bot,CONFIG.chat_id)
         log.info('prepared=%s delivery=%s', result,latest)
         return {'prepared':result, 'delivery':{
             'sent':delivery['sent']+latest['sent'],
-            'failed':delivery['failed']+latest['failed']}}
+            'failed':delivery['failed']+latest['failed']},'automatic':automatic}
 
 def do_reschedule():
     with Session() as db:
         from .stock_flow import auto_approve_overdue
         auto_approve_overdue(db)
+        from .automation_mode import auto_approve_ready
+        auto_approve_ready(db)
         result = schedule_approved(db, daily_limit=CONFIG.daily_limit)
         db.commit()
         return result
