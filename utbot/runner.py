@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timezone, timedelta
 from .models import Session, init_db, Story, Draft, Audit, TelegramUpdateReceipt
 from .research import discover
-from sqlalchemy import delete, select, select
+from sqlalchemy import delete, select
 from .pipeline import prepare_batch
 from .telegram import TelegramClient, send_preview
 from .scheduler import schedule_approved, WIB
@@ -57,38 +57,6 @@ def deliver_pending_previews(db, bot, chat_id, limit=12):
             log.warning('Pending preview delivery failed for %s: %s',
                         draft.id, type(exc).__name__)
             failed.append({'draft_id':draft.id,'error_type':type(exc).__name__})
-    return {'sent':sent,'failed':failed}
-
-
-def deliver_pending_previews(db, bot, chat_id, *, limit=10):
-    """Recover pending drafts without a recorded successful Telegram preview.
-
-    A successful send is recorded only after Telegram acknowledges the message.
-    Failures remain eligible on the next scheduled run.
-    """
-    if not bot or not chat_id:
-        log.warning('Auto-preview delivery unavailable: Telegram destination not configured')
-        return {'sent': [], 'failed': [], 'blocked': 'telegram_not_configured'}
-    drafts=db.execute(select(Draft).where(Draft.status=='pending_approval')
-        .order_by(Draft.created_at, Draft.id).limit(100)).scalars().all()
-    sent, failed=[], []
-    for d in drafts:
-        prior=db.execute(select(Audit.detail).where(
-            Audit.draft_id==d.id, Audit.event=='telegram_preview_sent'
-        )).scalars().all()
-        if any((entry or {}).get('version')==d.version for entry in prior):
-            continue
-        if len(sent)+len(failed)>=limit:break
-        try:
-            send_preview(bot,chat_id,d,db.get(Story,d.story_id))
-            db.add(Audit(draft_id=d.id,event='telegram_preview_sent',actor='worker',
-                         detail={'version':d.version,'delivery':'automatic'}))
-            db.commit()
-            sent.append(d.id)
-        except Exception as exc:
-            db.rollback()
-            failed.append({'draft_id':d.id,'error_type':type(exc).__name__})
-            log.exception('Automatic Telegram preview delivery failed for %s',d.id)
     return {'sent':sent,'failed':failed}
 
 
