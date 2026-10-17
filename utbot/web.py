@@ -507,7 +507,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 db.rollback()
                 log.warning('Generate news failed: %s',type(exc).__name__)
                 response = '⚠️ Proses gagal: '+type(exc).__name__+'. Periksa Status Otomasi.'
-            send(response,True)
+            send(response)
             return {'ok':True,'menu':'generate_now'}
         if action == 'decline_all':
             from sqlalchemy import func
@@ -576,7 +576,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
             groups=db.execute(select(Draft.status,func.count(Draft.id)).group_by(Draft.status)).all()
             send('📊 Status otomasi dan redaksi\n'+
                  ('\n'.join(f'{s}: {n}' for s,n in groups) or 'Belum ada berita')+
-                 '\n\n'+automation_status(db), True)
+                 '\n\n'+automation_status(db))
         elif action=='pending':
             show_pending(page)
         elif action=='approved':
@@ -595,7 +595,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 at=at.replace(tzinfo=timezone.utc) if at.tzinfo is None else at
                 return f'{at.astimezone(WIB):%d/%m %H:%M} - {d.highlight}'
             send('📅 Jadwal WIB\n'+
-                 ('\n'.join(describe_scheduled(d) for d in rows) or 'Belum ada antrean'), True)
+                 ('\n'.join(describe_scheduled(d) for d in rows) or 'Belum ada antrean'))
         if bot:bot.answer(cb.get('id'),'Diperbarui')
         return {'ok':True,'menu':action}
     if cb:
@@ -1002,7 +1002,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
             return {'ok':True,'deprecated_command':txt[1:]}
         if txt=='/generate' and not sess:
             send('📰 Menyiapkan satu berita untuk approval…')
-            send(generate_news_now(db,bot,chat_id),True)
+            send(generate_news_now(db,bot,chat_id))
             return {'ok':True,'command':'generate'}
         if txt in ('/start','/help') and not sess:
             send('🛰 Unfounded Theory Newsroom\n\nPilih tombol di bawah untuk mengelola berita.',True)
