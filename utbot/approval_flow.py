@@ -114,3 +114,59 @@ def approval_qc_message(report):
             '\n'.join('• ' + reason for reason in details[:4]) +
             '\n\nLihat 📋 Hasil QC untuk detail atau revisi bagian yang disebutkan. '
             'Setelah diperbaiki, tekan Approve kembali.')
+
+
+def auto_repair_rejected_caption(db, draft, story, report, *, actor, max_attempts=3):
+    """Repair semantic caption issues without changing verified facts or cover.
+
+    Every revised version gets a fresh independent QC. A changed post must
+    be previewed and explicitly approved again; never silently publish it.
+    """
+    issues=set(report.get('issues') or [])
+    if not issues.intersection({'qc_curiosity_gap','qc_caption_story','qc_reader_relevance'}):
+        return None
+    if not story or not evidence_ready(story) or not story.evidence:
+        return None
+    import httpx
+    from .rewrite import rewrite
+    from .editorial import revise
+    from .quality_control import run_draft_qc
+    from .models import Audit
+    from .quality_control import assess
+    checks=report.get('checks') or {}
+    reasons='; '.join(str((checks.get(key) or {}).get('reason') or '')
+                      for key in ('curiosity_gap','caption_story','reader_relevance'))
+    for attempt in range(max_attempts):
+        instruction=(
+            'Perbaiki kegagalan QC ini: '+reasons[:650]+
+            '. Pertahankan highlight, fakta, nama, angka, batas kepastian, '
+            'dan semua bukti primer. Caption harus bercerita dalam 4-5 paragraf. '
+            'Jangan langsung membocorkan payoff pada paragraf pembuka. '
+            'Bangun ketegangan faktual dan ungkapkan jawabannya secara bertahap. '
+            'Akhiri pertanyaan terbuka. Jangan menambah klaim atau sumber baru. '
+            'Ini percobaan revisi '+str(attempt+1)+'.')
+        try:
+            candidate=rewrite('caption',instruction,draft,story)
+            if candidate.strip()==draft.caption.strip():
+                continue
+            deterministic=assess(draft.highlight,candidate,draft.hashtags,story.evidence,
+                                 tragedy=bool(draft.is_tragedy))
+            if not deterministic['passed']:
+                reasons=', '.join(deterministic['issues'])[:300]
+                continue
+            # Persist each new version and its independent review. Even if it
+            # fails, the next attempt receives the latest QC feedback.
+            revise(db,draft,'caption',candidate,actor)
+            fresh=run_draft_qc(db,draft,story,trigger='telegram_auto_repair')
+            db.add(Audit(draft_id=draft.id,event='approval_caption_auto_revised',
+                         actor=str(actor),detail={'version':draft.version,
+                         'attempt':attempt+1,'passed':bool(fresh['passed'])}))
+            db.commit()
+            if fresh['passed']:
+                return fresh
+            reasons='; '.join(fresh.get('issues') or [])[:300]+'; '+str(fresh.get('note') or '')[:200]
+        except (ValueError,RuntimeError,TypeError,KeyError,httpx.HTTPError) as exc:
+            db.rollback()
+            reasons=type(exc).__name__
+            break
+    return None
