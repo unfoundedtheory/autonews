@@ -82,13 +82,22 @@ Dirangkum dari koreksi, teori hook, dan diskusi selama proses pembuatan konten. 
 - Jangan menulis "ini bukan clickbait". Pembaca harus merasakannya tanpa dikatakan.
 - Istilah teknis ditulis dengan penjelasan singkat di dalam kalimat yang sama.
 
+**Kredit foto untuk caption publik (WAJIB)**
+- Setelah paragraf penutup berupa pertanyaan dan sebelum lima hashtag, cantumkan tepat satu baris kredit singkat: `Photo by : {nama fotografer/kreator/institusi}`.
+- Contoh benar: `Photo by : Dheera Venkatraman`, `Photo by : NASA/Hubble Mission`.
+- Jangan tulis `Sumber gambar:`, tautan `https://...`, URL halaman media, atau tautan lisensi di caption Instagram maupun pesan preview Telegram. Keduanya harus memakai aturan kredit yang sama.
+- Ambil nama kreator dari metadata sumber asli yang terverifikasi, bukan menganggap nama situs/hosting sebagai fotografer. Jangan mengarang nama atau mengganti semua kredit menjadi NASA jika kredit sebenarnya milik fotografer tertentu.
+- Bila kredit belum diketahui atau tidak jelas, tahan proses publikasi dan minta perbaikan kredit pada editor; jangan menggantinya dengan link sumber. URL asli, metadata lisensi, dan bukti hak penggunaan tetap disimpan secara internal dan dapat ditinjau melalui menu **Sumber**.
+- Label dan spasi harus persis `Photo by : `, diikuti nama kredit tanpa URL. Jangan gandakan baris kredit bila sudah terbentuk dari metadata.
+
 **Template caption**
 1. Paragraf 1: adegan atau angka pembuka yang memancing rasa ingin tahu.
 2. Paragraf 2: fakta inti (siapa, apa, kapan, di mana).
 3. Paragraf 3: pivot atau twist (kata kontras).
 4. Paragraf 4: batas data, bantahan, atau konteks jujur.
 5. Paragraf terakhir: open loop question.
-6. Baris terakhir: 5 hashtag.
+6. Satu baris: `Photo by : {nama fotografer/kreator/institusi}` (tanpa link).
+7. Baris terakhir: 5 hashtag.
 
 ---
 
@@ -237,6 +246,8 @@ Dirangkum dari koreksi, teori hook, dan diskusi selama proses pembuatan konten. 
 - [ ] Paragraf terakhir berupa open loop question
 - [ ] Batas data dan bantahan sudah dicantumkan
 - [ ] 5 hashtag relevan, diakhiri `#UnfoundedTheory`
+- [ ] Kredit foto tampil tepat satu kali sebagai `Photo by : Nama Kredit` setelah pertanyaan dan sebelum hashtag; tidak ada URL/sumber gambar di caption atau preview Telegram
+- [ ] Nama kredit sesuai metadata asli dan hak penggunaan diverifikasi; bila kosong, publikasi ditahan sampai diperbaiki
 - [ ] Untuk berita tragedi: tidak mengeksploitasi korban, penutup empatik
 - [ ] Foto menunjukkan subjek/peristiwa yang sama dengan berita; bukan dokumen atau gambar generik tak relevan
 - [ ] Identitas foto, citra/komposit, sumber primer, kredit, hak penggunaan, dan crop sudah diperiksa

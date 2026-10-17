@@ -106,7 +106,8 @@ def test_manual_music_uses_known_photo_source_without_second_confirmation(monkey
                               telegram_token='test-token',chat_id='123'))
         assert web.publish_job(db=db)['manual_music']=='awaiting_editor'
         assert d.publish_state=='manual_music_pending'
-        assert 'Sumber gambar: https://science.nasa.gov/universe/' in sent[1]
+        assert 'Sumber gambar:' not in sent[1]
+        assert 'https://science.nasa.gov/universe/' not in sent[1]
     finally:
         db.close()
 
