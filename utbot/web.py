@@ -1249,7 +1249,7 @@ def publish_job(db=Depends(session), target_draft_id=None):
             d.image_url=upload_public_jpeg(d.image_local_path,f'{d.id}/v{d.version}.jpg')
             db.commit()
         if not d.ig_container_id:
-            d.ig_container_id=publisher.create_container(d.image_url,caption_text(d))
+            d.ig_container_id=publisher.create_container(d.image_url,caption_text(d,allow_missing_credit=True))
             db.commit()
         status=publisher.container_status(d.ig_container_id)
         if status not in ('FINISHED','ERROR','EXPIRED'):
