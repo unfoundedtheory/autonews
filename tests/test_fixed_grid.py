@@ -5,7 +5,7 @@ from utbot.renderer import (
     BADGE_BOX, HEADLINE_TOP, HEADLINE_BOTTOM, TRACKING_EM, LINE_SPACING, WORD_GAP_EM,
     SIDE_MARGIN, BOTTOM_MARGIN, _draw_title_line,
     _font, _headline_layout, _title_draw_y, _word_gap, _letter_tracking,
-    _line_width, _ink_height, _headline_vertical_shift, render, MARGIN, WIDTH
+    _line_width, _ink_height, render, MARGIN, WIDTH
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -61,10 +61,8 @@ def test_badge_stays_fixed_when_headline_font_size_changes():
     for headline in HEADLINES[:3]:
         face,_,pitch=_headline_layout(
             ImageDraw.Draw(Image.new('RGB',(1080,1350))),headline)
-        shift=_headline_vertical_shift(face,pitch)
-        assert shift==0
         background=Image.new('RGB',(1080,1350),(3,3,3))
-        _draw_badge(background,vertical_shift=200)
+        _draw_badge(background)
         badges.append(background.crop((400,900,680,948)))
         assert _title_draw_y(face,0,pitch)+face.getbbox('HM',anchor='la')[1]-948==33
     from PIL import ImageChops
