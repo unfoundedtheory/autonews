@@ -72,6 +72,22 @@ def main_menu():
         [{'text':'📊 Status Otomasi','callback_data':'nav:status'},
          {'text':'🔄 Refresh Menu','callback_data':'nav:home'}]]}
 
+def home_button():
+    """One compact return-to-/start button, not the entire main menu."""
+    return {'inline_keyboard': [[
+        {'text':'🏠 Menu Utama','callback_data':'nav:home'}
+    ]]}
+
+
+def with_home_button(markup=None):
+    """Append the single home action below a submenu's existing controls."""
+    rows=list((markup or {}).get('inline_keyboard') or [])
+    if not any(button.get('callback_data')=='nav:home'
+               for row in rows for button in row):
+        rows.append(home_button()['inline_keyboard'][0])
+    return {'inline_keyboard':rows}
+
+
 def photo_keyboard(draft):
     from .telegram_ui import photo_keyboard as make_keyboard
     return make_keyboard(draft)

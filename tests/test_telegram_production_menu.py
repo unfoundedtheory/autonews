@@ -192,7 +192,7 @@ def test_queue_only_lists_future_unpublished_approved_posts(monkeypatch):
         assert 'Queue test 0' not in text
         assert 'Queue test 2' not in text
         assert 'Queue test 3' not in text
-        assert bot.messages[-1][1] is None
+        assert bot.messages[-1][1]['inline_keyboard'][-1][0]['callback_data']=='nav:home'
     finally:
         db.close()
 
@@ -233,3 +233,28 @@ def test_queue_post_now_overrides_future_slot_and_targets_single_draft(monkeypat
         assert 'postnow:' not in str(bot.messages[-1][1])
     finally:
         db.close()
+
+
+def test_submenus_have_single_home_button_that_opens_start_menu(monkeypatch):
+    db=session()
+    bot=FakeTelegram()
+    monkeypatch.setattr(web,'_bot',lambda:bot)
+    monkeypatch.setattr(web,'CONFIG',replace(web.CONFIG,admin_ids=frozenset({42})))
+    try:
+        for action in ('pending','approved','stories','queue','status'):
+            assert web.telegram_webhook(update(action),db=db)['menu']==action
+            buttons=[button for row in bot.messages[-1][1]['inline_keyboard']
+                     for button in row]
+            assert [b['callback_data'] for b in buttons].count('nav:home')==1
+            assert buttons[-1]['text']=='🏠 Menu Utama'
+            assert not any(b['callback_data']=='nav:generate_now' for b in buttons)
+        assert web.telegram_webhook(update('home'),db=db)['menu']=='home'
+        assert bot.messages[-1][1]==main_menu()
+    finally:
+        db.close()
+
+
+def test_home_button_does_not_duplicate_existing_navigation():
+    from utbot.telegram import with_home_button
+    menu={'inline_keyboard':[[{'text':'🏠 Menu Utama','callback_data':'nav:home'}]]}
+    assert with_home_button(menu)==menu
