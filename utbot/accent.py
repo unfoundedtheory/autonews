@@ -232,3 +232,40 @@ def accent_for_hook(text, existing=()):
 
     # Preserve left-to-right order so Telegram and stored metadata stay clear.
     return [' '.join(span) for _,span in sorted(groups,key=lambda item:item[0])]
+
+
+MANUAL_GREEN_MARKER = '__MANUAL_GREEN__'
+
+
+def manual_green_phrases(headline, response):
+    """Validate exact user-selected words/phrases without changing headline."""
+    if not isinstance(response,str) or not response.strip():
+        raise ValueError('Kirim kata atau frasa headline dipisahkan koma.')
+    phrases=[part.strip() for part in response.split(',')]
+    if not 1 <= len(phrases) <= 4 or any(not part for part in phrases):
+        raise ValueError('Pilih 1–4 frasa, dipisahkan koma.')
+    words=_tokens(headline)
+    selected=[]
+    used=set()
+    for phrase in phrases:
+        tokens=_tokens(phrase)
+        if not tokens or len(tokens)>5:
+            raise ValueError('Setiap frasa hijau maksimal 5 kata.')
+        matches=[i for i in range(len(words)-len(tokens)+1)
+                 if words[i:i+len(tokens)]==tokens and
+                 not any(j in used for j in range(i,i+len(tokens)))]
+        if not matches:
+            raise ValueError('Frasa "'+phrase[:60]+'" harus ada persis di headline.')
+        i=matches[0]
+        used.update(range(i,i+len(tokens)))
+        selected.append(' '.join(tokens))
+    if len(used)>10:
+        raise ValueError('Total highlight hijau maksimal 10 kata.')
+    return [MANUAL_GREEN_MARKER]+selected
+
+
+def cover_accent_phrases(headline, existing=()):
+    """Explicit user color selection takes precedence over automatic heuristics."""
+    if existing and existing[0]==MANUAL_GREEN_MARKER:
+        return existing[1:]
+    return accent_for_hook(headline,existing)
