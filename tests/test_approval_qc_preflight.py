@@ -26,8 +26,10 @@ class FakeBot:
     def __init__(self):
         self.sent = []
         self.answered = []
+        self.markups = []
     def message(self, chat_id, text, buttons=None):
         self.sent.append(text)
+        self.markups.append(buttons)
     def answer(self, callback_id, text):
         self.answered.append(text)
 
