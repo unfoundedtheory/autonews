@@ -4,41 +4,54 @@ import httpx
 from .instagram import caption_text
 
 def keyboard(draft):
-    ref=draft.id;v=draft.version
-    if (draft.status=='approved' and draft.publish_state in ('unpublished','manual_music_pending')
-        and not str(draft.approved_by or '').startswith('system:24h_timeout')):
-        music_rows=[
-            [{'text':'📦 Kirim Paket Instagram','callback_data':f'musickit:{ref}:{v}'}],
-            [{'text':'🎵 Konfirmasi Post Instagram','callback_data':f'musicdone:{ref}:{v}'}],
-            [{'text':'↩️ Batalkan & Revisi','callback_data':f'musiccancel:{ref}:{v}'}]]
+    """Keep the preview compact; advanced editing tools live under Lainnya."""
+    ref=draft.id; v=draft.version
+    if draft.status=='pending_approval':
+        rows=[
+            [{'text':'✅ Approve','callback_data':f'approve:{ref}:{v}'},
+             {'text':'❌ Tolak','callback_data':f'reject:{ref}:{v}'}],
+            [{'text':'✏️ Revisi Hook','callback_data':f'highlight:{ref}:{v}'},
+             {'text':'📝 Revisi Caption','callback_data':f'caption:{ref}:{v}'}],
+            [{'text':'🖼 Ganti Foto','callback_data':f'photo:{ref}:{v}'},
+             {'text':'⋯ Lainnya','callback_data':f'more:{ref}:{v}'}],
+        ]
+    elif draft.status=='approved':
+        rows=[[{'text':'📋 Detail & Opsi','callback_data':f'more:{ref}:{v}'}]]
     else:
-        music_rows=[]
-    rows=music_rows+[
-        [{'text':'✅ Approve','callback_data':f'approve:{ref}:{v}'},
-         {'text':'❌ Tolak','callback_data':f'reject:{ref}:{v}'}],
-        [{'text':'✨ Hook Alternatif','callback_data':f'hookideas:{ref}:{v}'},
-         {'text':'✍️ Tulis Hook Sendiri','callback_data':f'manualhook:{ref}:{v}'}],
-        [{'text':'✏️ Revisi Hook via AI','callback_data':f'highlight:{ref}:{v}'},
-         {'text':'📝 Caption','callback_data':f'caption:{ref}:{v}'}],
-        [{'text':'🖼 Ganti Foto','callback_data':f'photo:{ref}:{v}'},
-         {'text':'🔎 Sumber','callback_data':f'sources:{ref}:{v}'}],
-        [{'text':'📋 Hasil QC','callback_data':f'qc:{ref}:{v}'}]]
-    if not draft.image_url and not draft.image_local_path and draft.status=='pending_approval':
+        rows=[[{'text':'📋 Detail','callback_data':f'more:{ref}:{v}'}]]
+    return {'inline_keyboard':rows}
+
+
+def advanced_keyboard(draft):
+    """Less common actions, opened only when the editor asks for them."""
+    ref=draft.id; v=draft.version
+    rows=[]
+    editable=(draft.status in ('pending_approval','approved')
+              and draft.publish_state not in ('publishing','published','uncertain','awaiting_container'))
+    if editable:
+        rows.append([
+            {'text':'✨ Alternatif Hook','callback_data':f'hookideas:{ref}:{v}'},
+            {'text':'✍️ Tulis Hook Sendiri','callback_data':f'manualhook:{ref}:{v}'},
+        ])
+        rows.append([{'text':'🎨 Render Ulang Cover','callback_data':f'redesign:{ref}:{v}'}])
+    if draft.status=='pending_approval' and not draft.image_url and not draft.image_local_path:
         if 'empat baris' in (draft.last_error or '').lower():
-            rows.append([{'text':'✨ Perbaiki Cover Otomatis','callback_data':f'autofit:{ref}:{v}'}])
+            rows.append([{'text':'✨ Perbaiki Cover','callback_data':f'autofit:{ref}:{v}'}])
         rows.append([{'text':'🖼 Buat Cover dari Sumber','callback_data':f'retrycover:{ref}:{v}'}])
-    if (draft.source_image_url or draft.image_url) and (not draft.photo_license or not draft.image_credit):
-        rows.append([{'text':'🧾 Kredit & Lisensi (Opsional)','callback_data':f'credit:{ref}:{v}'}])
-    if ((draft.image_url or draft.image_local_path)
-            and draft.status in ('pending_approval','approved')
-            and draft.publish_state not in ('publishing','published','uncertain','awaiting_container')):
-        rows.append([{'text':'🎨 Render Ulang Desain Cover',
-                      'callback_data':f'redesign:{ref}:{v}'}])
-    if draft.status=='approved' and draft.publish_state=='manual_music_pending':
-        rows.append([{'text':'🎵 Konfirmasi Post Instagram',
-                      'callback_data':f'musicdone:{ref}:{v}'}])
-    # One editorial Approve is enough. Preserve optional credit editing,
-    # but do not present a second mandatory rights confirmation.
+    if editable and (draft.source_image_url or draft.image_url) and (
+        not draft.photo_license or not draft.image_credit):
+        rows.append([{'text':'🧾 Kredit & Lisensi','callback_data':f'credit:{ref}:{v}'}])
+    rows.append([
+        {'text':'🔎 Sumber','callback_data':f'sources:{ref}:{v}'},
+        {'text':'📋 Hasil QC','callback_data':f'qc:{ref}:{v}'},
+    ])
+    if draft.status=='approved' and draft.publish_state in ('unpublished','manual_music_pending') and not str(draft.approved_by or '').startswith('system:24h_timeout'):
+        rows.append([{'text':'📦 Paket Instagram','callback_data':f'musickit:{ref}:{v}'}])
+        rows.append([
+            {'text':'🎵 Konfirmasi Post','callback_data':f'musicdone:{ref}:{v}'},
+            {'text':'↩️ Batalkan & Revisi','callback_data':f'musiccancel:{ref}:{v}'},
+        ])
+    rows.append([{'text':'⬅️ Kembali','callback_data':f'actions:{ref}:{v}'}])
     return {'inline_keyboard':rows}
 
 def main_menu():
