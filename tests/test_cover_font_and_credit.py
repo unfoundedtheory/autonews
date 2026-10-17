@@ -61,10 +61,21 @@ def test_missing_credit_blocks_publishing_but_is_honest_in_telegram_preview():
     with pytest.raises(ValueError,match='Kredit foto'):
         caption_text(d)
     preview=preview_text(d,None)
-    assert 'Sumber gambar: https://science.nasa.gov/mission' in preview
+    assert 'Sumber gambar:' not in preview
+    assert 'https://science.nasa.gov/mission' not in preview
     assert preview.endswith(' '.join(TAGS))
 
 def test_caption_char_limit_includes_credit_and_hashtags():
     d=draft(credit='NASA',caption='a'*2150)
     with pytest.raises(ValueError,match='2.200'):
         caption_text(d)
+
+
+def test_source_link_removed_and_verified_author_displayed_once():
+    d=draft(credit='Dheera Venkatraman',
+            caption=BODY+'\\n\\nSumber gambar: https://science.nasa.gov/image-article/apod-2025-january-27-pleiades-over-half-dome/')
+    result=caption_text(d)
+    assert 'Sumber gambar:' not in result
+    assert 'https://science.nasa.gov/' not in result
+    assert result.count('Photo by : Dheera Venkatraman')==1
+    assert result.endswith('Photo by : Dheera Venkatraman\\n\\n'+' '.join(TAGS))
