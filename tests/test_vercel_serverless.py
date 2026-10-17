@@ -13,6 +13,8 @@ def test_cron_schedules_wib():
       ('/api/cron/discover','0 18 * * *'),
       ('/api/cron/prepare','0 20 * * *'),
       ('/api/cron/prepare/afternoon','0 8 * * *'),
+      ('/api/cron/prepare/morning','0 2 * * *'),
+      ('/api/cron/prepare/evening','0 14 * * *'),
       ('/api/cron/tick/morning','0 23 * * *'),
       ('/api/cron/tick/noon','0 5 * * *'),
       ('/api/cron/tick/evening','0 11 * * *'),
