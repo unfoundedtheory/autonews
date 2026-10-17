@@ -286,7 +286,7 @@ def generate_news_now(db, bot, chat_id):
                 str(done.get('photo_error') or 'Pilih foto dari menu Telegram.')[:400])
 
     # 1. Finish the unreviewed queue before consuming any more sources.
-    results=prepare_batch(db,limit=1,notifier=notify)
+    results=prepare_batch(db,limit=3,notifier=notify)
     done=prepared(results)
     if done:return result_message(done)
 
