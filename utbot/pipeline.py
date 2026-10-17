@@ -44,11 +44,15 @@ def fetch_primary(url,transport=None):
     return text[:EXTRACT_MAX]
 
 def check_evidence(data,source_url,source_text):
+    if not isinstance(data,dict):
+        raise ValueError('AI harus memberikan JSON object berisi berita dan kutipan.')
     rows=data.get('evidence')
     if not isinstance(rows,list) or len(rows)<2:raise ValueError('Minimal dua kutipan pendukung wajib ada.')
     checked=[]
     for obj in rows[:8]:
-        claim=(obj.get('claim') or '').strip()
+        if not isinstance(obj,dict):
+            raise ValueError('Setiap evidence wajib berupa object dengan claim dan quote, bukan teks.')
+        claim=str(obj.get('claim') or '').strip()
         quote=normalize(obj.get('quote'))
         if not claim or len(quote)<25 or quote not in source_text:
             raise ValueError('Klaim tidak didukung kutipan persis dari sumber primer.')
@@ -110,6 +114,8 @@ def author_from_source(story,source_text,llm=None,revision_feedback=None):
                       'Verifikasi status teori dan jangan samakan perkiraan dengan fakta.'),
                   'revision_feedback':revision_feedback},ensure_ascii=False)
     data=llm(query)
+    if not isinstance(data,dict):
+        raise ValueError('Respons penulis AI tidak valid: wajib JSON object.')
     verified=check_evidence(data,story.source_url,source_text)
     hashtags=repair_hashtags(data.get('hashtags'),data.get('caption',''),story.topic)
     data['hashtags']=hashtags
@@ -142,9 +148,9 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
     guide_sha = editorial_guide_sha256()
     # Custom writers in local tests do not incur external AI review.
     reviewer = review_style if writer is author_from_source else None
-    # Retry at most three complete drafts; never mark an unverified result as passed.
+    # Bounded automatic rewriting; never mark an unverified result as passed.
     failures=[]
-    for attempt in range(1,4):
+    for attempt in range(1,6):
         try:
             if writer is author_from_source:
                 data,checked=writer(story,article,revision_feedback=failures[-1] if failures else None)
@@ -152,7 +158,7 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
                 data,checked=writer(story,article)
         except ValueError as exc:
             failures.append({'attempt':attempt,'issues':[str(exc)[:160]]})
-            if attempt==3:raise ValueError('Penulisan gagal setelah 3 percobaan: '+str(exc)[:180]) from exc
+            if attempt==5:raise ValueError('Penulisan gagal setelah 5 percobaan: '+str(exc)[:180]) from exc
             continue
         qc=assess(data['highlight'],data['caption'],data['hashtags'],checked,
                   tragedy=bool(data.get('tragedy')),check_cover=False)
@@ -162,8 +168,8 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
                                  tragedy=bool(data.get('tragedy')))
             except (ValueError,RuntimeError,httpx.HTTPError) as exc:
                 failures.append({'attempt':attempt,'issues':['ai_style_qc_unavailable']})
-                if attempt==3:
-                    raise ValueError('QC gaya tidak tersedia setelah tiga percobaan.') from exc
+                if attempt==5:
+                    raise ValueError('QC gaya tidak tersedia setelah lima percobaan.') from exc
                 continue
             if not style['passed']:
                 qc['passed']=False
@@ -171,7 +177,7 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
         if qc['passed']:break
         failures.append({'attempt':attempt,'issues':qc['issues']})
     else:
-        raise ValueError('Editorial QC gagal setelah 3 percobaan: '+', '.join(qc['issues']))
+        raise ValueError('Editorial QC gagal setelah 5 percobaan: '+', '.join(qc['issues']))
     data['highlight']=data['highlight'].rstrip().rstrip('.')
     original_highlight=data['highlight']
     cover_issue=None
@@ -355,10 +361,9 @@ def prepare_batch(db,limit=3,notifier=None):
                     outcome[-1]['notify_error']=str(exc)[:150]
         except Exception as exc:
             db.rollback()
-            # Flag failed candidates; editor can restore after inspecting failure reason.
-            st=db.get(Story,st.id)
-            st.verification_status='needs_manual_fact_check'
-            db.commit()
-            failures.append({'story_id':st.id,'status':'manual_review','reason':str(exc)[:250]})
+            # AI/QC failure is not proof the candidate is invalid.
+            # It stays eligible for rewriting on the next scheduled run.
+            failures.append({'story_id':st.id,'status':'retry_pending',
+                             'reason':type(exc).__name__})
         if len(outcome)>=limit:break
     return outcome if outcome else failures[:1]
