@@ -238,6 +238,11 @@ def _draw_title_line(draw, line, y, font, accent):
     return (WIDTH-width)/2, (WIDTH+width)/2
 
 
+def _headline_vertical_shift(font, pitch):
+    """Legacy compatibility: the owner reference forbids any vertical shift."""
+    return 0
+
+
 def _title_draw_y(font, line_index, pitch):
     """Keep the first ink row anchored below the fixed logo."""
     return HEADLINE_TOP - font.getbbox('HM', anchor='la')[1] + line_index*pitch
