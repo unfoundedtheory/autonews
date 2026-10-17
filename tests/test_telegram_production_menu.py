@@ -195,3 +195,41 @@ def test_queue_only_lists_future_unpublished_approved_posts(monkeypatch):
         assert bot.messages[-1][1] is None
     finally:
         db.close()
+
+
+def test_queue_post_now_overrides_future_slot_and_targets_single_draft(monkeypatch):
+    from datetime import timedelta
+    from utbot.models import Audit
+    db=session()
+    bot=FakeTelegram()
+    monkeypatch.setattr(web,'_bot',lambda:bot)
+    monkeypatch.setattr(web,'CONFIG',replace(web.CONFIG,admin_ids=frozenset({42}),
+                        photo_music_mode='off',live_publish=True))
+    now=datetime.now(timezone.utc)
+    try:
+        url='https://science.nasa.gov/test-post-now/'
+        story=Story(fingerprint=fingerprint(url),title='New science',
+                    source_url=url,source_name='NASA',topic='astronomy')
+        db.add(story);db.flush()
+        draft=Draft(story_id=story.id,highlight='Scheduled astronomy news',
+                    caption='Caption',hashtags=[],status='approved',approved_version=1,
+                    publish_state='unpublished',scheduled_at=now+timedelta(days=1))
+        db.add(draft);db.flush()
+        db.add(Audit(draft_id=draft.id,event='photo_only_approved',actor='42',
+                     detail={'version':1}))
+        db.commit()
+        web.telegram_webhook(update('queue'),db=db)
+        assert f'postnow:{draft.id}:1' in str(bot.messages[-1][1])
+        calls=[]
+        monkeypatch.setattr(web,'publish_job',lambda *,db,target_draft_id:
+                            (calls.append(target_draft_id) or {'waiting':target_draft_id}))
+        payload={'callback_query':{'id':'cb','from':{'id':42},
+                 'message':{'chat':{'id':123}},'data':f'postnow:{draft.id}:1'}}
+        assert web.telegram_webhook(payload,db=db)['instagram_retry']
+        assert calls==[draft.id]
+        assert draft.scheduled_at<=datetime.now(timezone.utc)
+        draft.publish_state='published';draft.status='published';db.commit()
+        web.telegram_webhook(update('queue'),db=db)
+        assert 'postnow:' not in str(bot.messages[-1][1])
+    finally:
+        db.close()
