@@ -65,3 +65,38 @@ def test_full_auto_never_approves_old_or_unverified_drafts(monkeypatch):
         assert old.status=='pending_approval'
     finally:
         db.close()
+
+
+def test_full_auto_approves_only_new_qc_passed_rights_safe_draft(monkeypatch):
+    db=session()
+    monkeypatch.setattr('utbot.automation_mode.CONFIG',
+        replace(web.CONFIG,live_publish=True,photo_music_mode='off'))
+    try:
+        from utbot.research import fingerprint
+        url='https://science.nasa.gov/full-auto-safe-test'
+        story=Story(fingerprint=fingerprint(url),title='NASA Science',
+            source_url=url,source_name='NASA',topic='space',
+            verification_status='verified',
+            evidence=[{'claim':'Evidence one','url':url,'evidence_checked':True},
+                      {'claim':'Evidence two','url':url,'evidence_checked':True}])
+        db.add(story);db.commit()
+        set_mode(db,'full_auto',42)
+        draft=Draft(story_id=story.id,highlight='A verified astronomical finding',
+            caption='Verified text',hashtags=[],
+            image_url='https://example.org/verified-cover.jpg')
+        db.add(draft);db.commit()
+        monkeypatch.setattr('utbot.automation_mode.photo_auto_safe',
+                            lambda d: True)
+        monkeypatch.setattr('utbot.quality_control.report_for_draft',
+                            lambda *args:{'passed':True,'style_review':'passed'})
+        outcome=auto_approve_ready(db)
+        assert outcome['approved']==[draft.id]
+        assert draft.status=='approved'
+        assert draft.approved_version==draft.version
+        assert draft.rights_reviewed is True
+        events=db.query(Audit).filter(Audit.draft_id==draft.id).all()
+        assert any(e.event=='photo_only_approved' and
+                   e.detail.get('version')==draft.version for e in events)
+        assert auto_approve_ready(db)['approved']==[]
+    finally:
+        db.close()
