@@ -1388,10 +1388,21 @@ def publish_job(db=Depends(session), target_draft_id=None):
         d.ig_media_id=media_id;d.publish_state='published';d.status='published'
         db.add(Audit(draft_id=d.id,event='published',actor='worker',detail={'instagram_media_id':media_id}))
         db.commit()
-        alert('✅ Unfounded Theory berhasil terbit. Media ID: '+media_id)
-        return {'published':[d.id],'instagram_media_id':media_id}
     except Exception as exc:
         db.rollback()
         d=db.get(Draft,d.id);d.publish_state='uncertain';d.last_error=str(exc)[:700];db.commit()
         alert('⚠️ Publikasi belum dapat dikonfirmasi. Jangan retry manual sebelum memeriksa Instagram. Draf '+d.id[:8])
         return {'status':'uncertain','draft_id':d.id,'note':'Reconcile on Instagram before retry'}
+
+    # Instagram is durably confirmed before the independent Facebook action.
+    # A Facebook error must never turn a successful IG post into an uncertain
+    # one or cause media_publish to be repeated.
+    try:
+        fb=publish_facebook_once(db,d,actor='worker',config=CONFIG)
+    except Exception:
+        db.rollback()
+        log.exception('Facebook delivery failed after confirmed Instagram publication')
+        fb={'facebook':'error','requires_reconciliation':True}
+    fb_status=str(fb.get('facebook','error'))
+    alert('✅ Instagram berhasil terbit. Media ID: '+media_id+'\nFacebook: '+fb_status)
+    return {'published':[d.id],'instagram_media_id':media_id,**fb}
