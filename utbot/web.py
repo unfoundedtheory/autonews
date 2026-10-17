@@ -18,7 +18,7 @@ from .instagram import InstagramPublisher,caption_text
 from .photo_music import manual_music_message,manual_music_caption,instagram_post_url
 from .approval_flow import preflight_approval, approval_qc_message
 from .meta_delivery import publish_facebook_once
-from .telegram import TelegramClient,keyboard,send_preview,photo_keyboard,main_menu
+from .telegram import TelegramClient,keyboard,advanced_keyboard,send_preview,photo_keyboard,main_menu
 from .telegram_ui import pending_page,approved_page,stories_page,photo_candidate_message,PENDING_PAGE_SIZE
 from .research import discover,fingerprint
 from .rewrite import rewrite
@@ -611,6 +611,10 @@ def telegram_webhook(payload:dict,db=Depends(session)):
         try:
             if action=='open':
                 if bot:send_preview(bot,chat_id,d,st)
+            elif action=='more':
+                if bot:bot.message(chat_id,'⋯ Opsi lanjutan untuk draf ini:',advanced_keyboard(d))
+            elif action=='actions':
+                if bot:bot.message(chat_id,'Pilih tindakan untuk draf:',keyboard(d))
             elif action=='hookideas':
                 if d.status in ('published','rejected') or d.publish_state in ('publishing','published','uncertain'):
                     raise ValueError('Draf ini tidak boleh direvisi.')
