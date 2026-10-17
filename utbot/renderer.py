@@ -17,12 +17,12 @@ WHITE = "#FFFFFF"
 SIDE_MARGIN = 56
 BOTTOM_MARGIN = 56
 MARGIN = SIDE_MARGIN              # backward-compatible horizontal safe area
-LAYOUT_STYLE = "responsive_four_line_editorial_v08_equal_bottom_margin"
-# Lift badge and headline together by 24px; preserve their 33px separation.
-# Screen edges share one 56px safe area on left, right and bottom.
-GROUP_RAISE_PX = 24
-BADGE_BOX = (402, 900-GROUP_RAISE_PX, 678, 948-GROUP_RAISE_PX)
-HEADLINE_TOP = 981-GROUP_RAISE_PX
+LAYOUT_STYLE = "fixed_reference_logo_responsive_headline_v09"
+# Owner's 1080×1350 reference: logo is locked at (402,900)-(678,948).
+# Headline ALWAYS begins beneath it, at y=981. Only font size and
+# inter-line pitch may adapt to the available space. Safe edge gap: 56px.
+BADGE_BOX = (402, 900, 678, 948)
+HEADLINE_TOP = 981
 HEADLINE_BOTTOM = HEIGHT-BOTTOM_MARGIN
 TRACKING_EM = -0.047             # League Spartan letter spacing -47
 LINE_SPACING = 1.08              # optically relaxed compared with prior 1.05
@@ -241,27 +241,19 @@ def _draw_title_line(draw, line, y, font, accent):
 
 
 def _headline_vertical_shift(font, pitch):
-    """Move logo and headline together so rendered bottom ink ends at 56px.
-
-    Headline font is already the largest that fits the 56px side margins.
-    Horizontal space can prevent further font growth; in that case don't
-    invent stretched glyphs or excessively loose leading. Move the entire
-    fixed-gap logo/title group down into the previously unused lower space.
-    """
-    return max(0, HEADLINE_BOTTOM - 2 -
-               (HEADLINE_TOP + 3*pitch + _ink_height(font)))
+    """Legacy helper retained for callers; logo and title must not move."""
+    return 0
 
 
 def _title_draw_y(font, line_index, pitch):
-    return (HEADLINE_TOP + _headline_vertical_shift(font,pitch)
-            - font.getbbox('HM', anchor='la')[1] + line_index*pitch)
+    """Fixed reference title box, regardless of font size or copy length."""
+    return (HEADLINE_TOP - font.getbbox('HM', anchor='la')[1]
+            + line_index*pitch)
 
 
 def _draw_badge(img, logo_path=None, *, vertical_shift=0):
-    """Badge follows the title while preserving their 33px optical gap."""
+    """Logo stays at the owner's reference coordinates for every headline."""
     left, top, right, bottom = BADGE_BOX
-    top+=vertical_shift
-    bottom+=vertical_shift
     logo_file = Path(logo_path) if logo_path else DEFAULT_BADGE
     if logo_file.is_file():
         badge = Image.open(logo_file).convert('RGBA')
@@ -321,12 +313,12 @@ def render(input_image, highlight, outpath, accent_words=None, logo_path=None,
     img.paste(black, (0, 0), gradient)
     draw = ImageDraw.Draw(img)
 
-    # Consistent 56px side/bottom safe area; both badge and headline raised
-    # together without moving the focal photograph. Font size remains adaptive.
+    # Lock the logo at reference y=900–948 and start text at y=981.
+    # Auto-fit font inside 56px side and bottom safe margins. Font size remains adaptive.
     font, lines, pitch = _headline_layout(draw, highlight, font_path)
     if _ink_height(font) + HEADLINE_TOP + (len(lines)-1)*pitch > HEADLINE_BOTTOM:
         raise ValueError('Headline overflow: requires editorial revision')
-    _draw_badge(img, logo_path, vertical_shift=_headline_vertical_shift(font,pitch))
+    _draw_badge(img, logo_path)
     accent = set()
     # Re-evaluate even existing legacy accents: the old bot could persist
     # only "LINGKARAN" and lose the key phrase "CAHAYA AURORAL UTUH".
