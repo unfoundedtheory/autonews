@@ -507,7 +507,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 db.rollback()
                 log.warning('Generate news failed: %s',type(exc).__name__)
                 response = '⚠️ Proses gagal: '+type(exc).__name__+'. Periksa Status Otomasi.'
-            send(response,True)
+            send(response)
             return {'ok':True,'menu':'generate_now'}
         if action == 'decline_all':
             from sqlalchemy import func
@@ -1002,7 +1002,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
             return {'ok':True,'deprecated_command':txt[1:]}
         if txt=='/generate' and not sess:
             send('📰 Menyiapkan satu berita untuk approval…')
-            send(generate_news_now(db,bot,chat_id),True)
+            send(generate_news_now(db,bot,chat_id))
             return {'ok':True,'command':'generate'}
         if txt in ('/start','/help') and not sess:
             send('🛰 Unfounded Theory Newsroom\n\nPilih tombol di bawah untuk mengelola berita.',True)
