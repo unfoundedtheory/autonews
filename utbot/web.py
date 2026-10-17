@@ -898,12 +898,13 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         Audit.event=='approval_caption_repair_failed'
                     ).order_by(Audit.id.desc()).first()
                     if diagnostic and (diagnostic.detail or {}).get('version')==d.version:
-                        reason=(diagnostic.detail or {}).get('reason') or 'unknown'
-                        send('⚠️ Revisi otomatis sudah dicoba tetapi belum lolos QC. '
+                        detail=diagnostic.detail or {}
+                        reason=detail.get('diagnostic') or detail.get('reason') or 'QC belum lolos'
+                        send('⚠️ Revisi otomatis belum lolos QC. '
                              'Draft asli tetap aman dan tidak dipublikasikan. '
-                             'Penyebab terakhir: '+str(reason)[:100]+
-                             '. Silakan pilih Revisi Caption atau coba Approve lagi '
-                             'untuk menjalankan percobaan revisi baru.')
+                             'Masalah yang masih perlu diperbaiki: '+str(reason)[:220]+
+                             '. Pilih Revisi Caption atau tekan Approve untuk '
+                             'menjalankan percobaan revisi baru.')
                     else:
                         send(approval_qc_message(report))
                     return {'ok':True,'approval':'qc_not_passed',
