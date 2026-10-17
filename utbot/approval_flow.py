@@ -128,7 +128,7 @@ def auto_repair_rejected_caption(db, draft, story, report, *, actor, max_attempt
     if not story or not evidence_ready(story) or not story.evidence:
         return None
     import httpx
-    from .rewrite import rewrite
+    from .rewrite import rewrite, normalize_caption_format
     from .editorial import revise
     from .quality_control import run_draft_qc
     from .models import Audit
@@ -147,10 +147,13 @@ def auto_repair_rejected_caption(db, draft, story, report, *, actor, max_attempt
             'mekanisme secara bertahap, dengan bukti primer. Paragraf keempat '
             'atau kelima berisi implikasi dan pertanyaan terbuka. '
             'Pertahankan semua klaim terverifikasi, jangan menambah fakta, '
-            'dan gunakan 4-5 paragraf. '
+            'dan gunakan TEPAT 4 atau 5 paragraf, masing-masing dipisahkan '
+            'oleh satu baris kosong. DILARANG hashtag dalam caption. '
+            'Kalimat terakhir HARUS pertanyaan nyata yang berakhir tanda ?. '
+            'Jangan gunakan daftar bernomor atau judul subbagian. '
             'Percobaan revisi '+str(attempt+1)+'.')
         try:
-            candidate=rewrite('caption',instruction,draft,story)
+            candidate=normalize_caption_format(rewrite('caption',instruction,draft,story))
             if candidate.strip()==draft.caption.strip():
                 last_error='unchanged_caption'
                 reasons='Caption tidak berubah; tulis ulang struktur pembuka.'
@@ -159,7 +162,8 @@ def auto_repair_rejected_caption(db, draft, story, report, *, actor, max_attempt
                                  tragedy=bool(draft.is_tragedy))
             if not deterministic['passed']:
                 last_error='deterministic_qc'
-                reasons=', '.join(deterministic['issues'])[:300]
+                reasons=(', '.join(deterministic['issues'])[:300]+
+                         '. WAJIB perbaiki semua masalah ini pada percobaan berikutnya.')
                 continue
             # Keep the revised text only when independent QC accepts it.
             # This avoids leaving the user with an unapproved, worse draft.
