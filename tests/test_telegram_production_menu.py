@@ -192,6 +192,6 @@ def test_queue_only_lists_future_unpublished_approved_posts(monkeypatch):
         assert 'Queue test 0' not in text
         assert 'Queue test 2' not in text
         assert 'Queue test 3' not in text
-        assert bot.messages[-1][1]==main_menu()
+        assert bot.messages[-1][1] is None
     finally:
         db.close()
