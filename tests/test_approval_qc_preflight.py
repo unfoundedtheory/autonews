@@ -292,14 +292,15 @@ def test_photo_only_approval_reports_missing_prerequisite(db,monkeypatch):
     assert any('belum dapat diposting' in msg for msg in bot.sent)
 
 
-def test_live_photo_approval_missing_rights_remains_pending(db,monkeypatch):
+def test_live_photo_approval_without_credit_is_allowed(db,monkeypatch):
     _,draft=seed(db)
     bot=configure(monkeypatch)
     monkeypatch.setattr(web,'CONFIG',replace(web.CONFIG,photo_music_mode='off',live_publish=True))
+    monkeypatch.setattr(web,'publish_job',lambda **kwargs: {'waiting':draft.id})
     result=web.telegram_webhook(callback(draft),db=db)
-    assert result['approval']=='photo_credit_required'
-    assert draft.status=='pending_approval' and draft.approved_version is None
-    assert any('kredit fotografer' in msg for msg in bot.sent)
+    assert result['approval']=='approved_for_instagram'
+    assert draft.status=='approved' and draft.rights_reviewed
+    assert any('sedang diproses Instagram' in msg for msg in bot.sent)
 
 
 def test_live_photo_approval_reports_actual_blocker_not_draft_uuid(db,monkeypatch):
