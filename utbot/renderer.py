@@ -159,11 +159,9 @@ def _reference_line_pitch(font):
 
 
 def _headline_layout(draw, highlight, font_path=None, max_width=WIDTH-2*MARGIN):
-    """Use exactly four lines with the largest readable font that fits.
+    """Use four lines with the largest readable font below the fixed logo.
 
-    Font size is NOT fixed. Search from largest to smallest against both
-    measured League Spartan Bold 700 width (with -47 tracking) and the
-    locked logo/title margins. Never silently make a fifth line.
+    Font size and pitch adapt; neither the logo nor headline anchor moves.
     """
     words=_headline_tokens(highlight)
     # Large/simple hooks can expand; longer ones shrink until four lines fit.
@@ -240,15 +238,9 @@ def _draw_title_line(draw, line, y, font, accent):
     return (WIDTH-width)/2, (WIDTH+width)/2
 
 
-def _headline_vertical_shift(font, pitch):
-    """Legacy helper retained for callers; logo and title must not move."""
-    return 0
-
-
 def _title_draw_y(font, line_index, pitch):
-    """Fixed reference title box, regardless of font size or copy length."""
-    return (HEADLINE_TOP - font.getbbox('HM', anchor='la')[1]
-            + line_index*pitch)
+    """Keep the first ink row anchored below the fixed logo."""
+    return HEADLINE_TOP - font.getbbox('HM', anchor='la')[1] + line_index*pitch
 
 
 def _draw_badge(img, logo_path=None, *, vertical_shift=0):
