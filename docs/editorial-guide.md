@@ -196,6 +196,13 @@ Dirangkum dari koreksi, teori hook, dan diskusi selama proses pembuatan konten. 
 3. Arsip ilmiah/Wikimedia Commons yang terbukti menggambarkan subjek yang sama, dengan sumber, tanggal, kredit, dan izin penggunaan yang jelas.
 4. Jika tidak ada kandidat yang benar-benar relevan, **tahan draf dan minta penggantian foto manual**. Jangan mengisi cover dengan gambar generik yang sekadar tampak ilmiah.
 
+**Komposisi objek dan gradient bawah (koreksi pemilik 17 Oktober 2026)**
+- Pada cover final, **pusat visual objek utama harus sedikit di atas titik tengah kanvas**. Untuk kanvas 1080 × 1350, gunakan sekitar y=580–620 px sebagai panduan awal (tengah kanvas y=675), lalu sesuaikan crop dengan bentuk objek. Ini panduan komposisi, bukan koordinat kaku untuk semua foto.
+- Atur crop/fokus berdasarkan lokasi objek sebenarnya; parameter crop sumber saja tidak membuktikan bahwa objek sudah berada di posisi yang benar. Jangan memotong bagian ilmiah penting, meregangkan foto, atau menutup objek utama dengan logo/teks. Bila tidak muat, pilih gambar lain.
+- **Batas bawah gambar tidak boleh terlihat** sebagai garis, potongan persegi, atau transisi mendadak. Gunakan gradient hitam halus yang makin pekat ke bawah dan mencapai hitam penuh di baris pixel terakhir (y=1349); foto tetap memenuhi kanvas, tanpa bidang kosong atau letterbox.
+- Periksa hasil render penuh dan thumbnail: objek utama sedikit di atas center, bagian atas foto tetap jelas, dan foto menyatu ke hitam di bawah. Gradient berada di bawah logo serta teks putih/hijau sehingga tidak meredupkannya.
+- Posisi logo tetap pada kotak (402, 900, 678, 948); penyesuaian fokus foto tidak boleh menggeser logo atau area headline yang sudah dikunci.
+
 **Resolusi sumber (bukan resolusi cover final)**
 - **Diutamakan**: sisi terpendek foto sumber ≥ 1080 px.
 - **Diterima**: sisi terpendek ≥ 720 px jika objek tetap jelas setelah crop.
