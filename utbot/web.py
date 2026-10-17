@@ -884,7 +884,6 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 report=preflight_approval(db,d,st)
                 if report is not None and not report['passed']:
                     from .approval_flow import auto_repair_rejected_caption
-                    if bot:bot.answer(cb_id,'Memperbaiki caption dan mengulang QC')
                     repaired=auto_repair_rejected_caption(
                         db,d,st,report,actor=uid)
                     if repaired is not None and repaired['passed']:
