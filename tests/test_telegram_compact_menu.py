@@ -36,3 +36,14 @@ def test_lainnya_contains_optional_actions_and_back():
 def test_approved_draft_does_not_show_old_approve_button():
     draft=fake_draft(status='approved',publish_state='published')
     assert actions(keyboard(draft))==['more']
+
+
+def test_approved_unpublished_has_photo_recovery_not_music_actions(monkeypatch):
+    from utbot import telegram
+    from dataclasses import replace
+    monkeypatch.setattr(telegram,'CONFIG',replace(telegram.CONFIG,photo_music_mode='off'))
+    draft=fake_draft(status='approved',publish_state='unpublished')
+    options=actions(advanced_keyboard(draft))
+    assert 'retryig' in options
+    assert 'musicdone' not in options
+    assert 'musickit' not in options
