@@ -883,6 +883,17 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     render_draft(d)
                 report=preflight_approval(db,d,st)
                 if report is not None and not report['passed']:
+                    from .approval_flow import auto_repair_rejected_caption
+                    if bot:bot.answer(cb_id,'Memperbaiki caption dan mengulang QC')
+                    repaired=auto_repair_rejected_caption(
+                        db,d,st,report,actor=uid)
+                    if repaired is not None and repaired['passed']:
+                        if bot:send_preview(bot,chat_id,d,st)
+                        send('✨ Caption sudah diperbaiki otomatis dan lolos QC terbaru. '
+                             'Karena isi posting berubah, periksa preview versi '+str(d.version)+
+                             ' lalu tekan Approve sekali lagi untuk menjadwalkan atau memposting.')
+                        return {'ok':True,'approval':'auto_revised_needs_confirmation',
+                                'version':d.version}
                     send(approval_qc_message(report))
                     return {'ok':True,'approval':'qc_not_passed',
                             'issues':(report.get('issues') or [])[:8]}
