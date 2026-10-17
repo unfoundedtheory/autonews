@@ -83,6 +83,20 @@ def cron_prepare_afternoon():
     from .runner import do_prepare
     return tracked_cron('prepare_afternoon',lambda: {'prepared':do_prepare()})
 
+@app.get('/cron/prepare/morning', dependencies=[Depends(cron_auth)])
+def cron_prepare_morning():
+    """Third daily batch, at approximately 09:00 WIB."""
+    from .runner import do_prepare
+    return tracked_cron('prepare_morning',lambda: {'prepared':do_prepare()})
+
+
+@app.get('/cron/prepare/evening', dependencies=[Depends(cron_auth)])
+def cron_prepare_evening():
+    """Fourth daily batch, at approximately 21:00 WIB."""
+    from .runner import do_prepare
+    return tracked_cron('prepare_evening',lambda: {'prepared':do_prepare()})
+
+
 @app.get('/cron/tick/{slot}', dependencies=[Depends(cron_auth)])
 def cron_tick(slot: str):
     """Publish only pre-approved eligible drafts around 06/12/18 WIB."""
