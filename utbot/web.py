@@ -308,8 +308,11 @@ def generate_news_now(db, bot, chat_id):
         if done:return result_message(done)
 
     if results:
-        return ('⚠️ Kandidat sumber sudah ditemukan tetapi belum lolos QC. '+
-                str(results[0].get('reason') or 'Periksa kutipan sumber dan relevansi.')[:320])
+        # Keep transient failures queued for the next automatic prepare cron.
+        # Never surface a low-level exception or accidentally call .get on str.
+        return ('📰 Kandidat ditemukan. AI sedang memperbaiki naskah dan '
+                'memeriksa ulang QC secara otomatis pada proses berikutnya. '
+                'Draft hanya dikirim setelah pemeriksaan selesai.')
     checked=sum(f.get('seen',0) for f in normal+archived)
     duplicates=sum(f.get('duplicates',0) for f in normal+archived)
     failures=[f for f in normal if f.get('error')]
