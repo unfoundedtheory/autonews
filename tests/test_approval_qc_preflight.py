@@ -365,3 +365,40 @@ def test_auto_repair_does_not_override_failed_independent_qc(db,monkeypatch):
     assert result['approval']=='qc_not_passed'
     assert draft.status=='pending_approval'
     assert draft.scheduled_at is None
+
+
+def test_failed_repair_keeps_original_version_and_records_diagnostic(db,monkeypatch):
+    story,draft=seed(db)
+    from utbot.approval_flow import auto_repair_rejected_caption
+    before=draft.caption
+    monkeypatch.setattr('utbot.rewrite.rewrite',lambda *a,**k:before)
+    result=auto_repair_rejected_caption(db,draft,story,
+        {'issues':['qc_curiosity_gap'],'checks':failed_style()['checks']},
+        actor='42',max_attempts=2)
+    assert result is None
+    assert draft.caption==before
+    assert draft.version==1
+    record=db.query(Audit).filter_by(draft_id=draft.id,
+            event='approval_caption_repair_failed').first()
+    assert record.detail['reason']=='unchanged_caption'
+
+
+def test_repair_can_retry_after_bad_first_candidate(db,monkeypatch):
+    story,draft=seed(db)
+    from utbot.approval_flow import auto_repair_rejected_caption
+    original=draft.caption
+    good=original.replace('Para peneliti memeriksa struktur sinar-X di angkasa.',
+                          'Di ruang angkasa, pengamatan baru membuka teka-teki besar.')
+    calls=[]
+    def fake_rewrite(*a,**k):
+        calls.append(1)
+        return 'Invalid' if len(calls)==1 else good
+    monkeypatch.setattr('utbot.rewrite.rewrite',fake_rewrite)
+    monkeypatch.setattr('utbot.quality_control.review_style',passing_style)
+    result=auto_repair_rejected_caption(db,draft,story,
+        {'issues':['qc_curiosity_gap'],'checks':failed_style()['checks']},
+        actor='42',max_attempts=3)
+    assert result and result['passed']
+    assert len(calls)==2
+    assert draft.version==2 and draft.caption==good
+    assert draft.status=='pending_approval'
