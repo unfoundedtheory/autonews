@@ -17,7 +17,7 @@ from .scheduler import schedule_approved,due,WIB
 from .instagram import InstagramPublisher,caption_text
 from .photo_music import manual_music_message,manual_music_caption,instagram_post_url
 from .meta_delivery import publish_facebook_once
-from .telegram import TelegramClient,keyboard,advanced_keyboard,send_preview,photo_keyboard,main_menu
+from .telegram import TelegramClient,keyboard,advanced_keyboard,send_preview,photo_keyboard,main_menu,home_button,with_home_button
 from .telegram_ui import pending_page,approved_page,stories_page,photo_candidate_message,PENDING_PAGE_SIZE
 from .research import discover,fingerprint
 from .rewrite import rewrite
@@ -457,7 +457,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
             db.rollback()
             return {'ok':True,'ignored':'duplicate_telegram_update'}
     def send(s,menu=False):
-        if bot:bot.message(chat_id,s,main_menu() if menu else None)
+        if bot:bot.message(chat_id,s,main_menu() if menu else home_button())
     def show_pending(page=0):
         from sqlalchemy import func
         total=db.execute(select(func.count(Draft.id)).where(
@@ -468,7 +468,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                    .offset(page*PENDING_PAGE_SIZE).limit(PENDING_PAGE_SIZE)).scalars().all()
         if bot:
             body,actions=pending_page(pending,total,page)
-            bot.message(chat_id,body,actions)
+            bot.message(chat_id,body,with_home_button(actions))
     def show_approved(page=0):
         from sqlalchemy import func
         active = (Draft.status == 'approved',
@@ -482,7 +482,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     .offset(page*PENDING_PAGE_SIZE).limit(PENDING_PAGE_SIZE)).scalars().all()
         if bot:
             body, actions = approved_page(drafts, total, page)
-            bot.message(chat_id, body, actions)
+            bot.message(chat_id, body, with_home_button(actions))
 
     def show_stories(page=0):
         from sqlalchemy import func
@@ -538,7 +538,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                             {'inline_keyboard':[
                                 [{'text':'✅ Yes, Decline All',
                                   'callback_data':f'nav:decline_confirm:{total}'}],
-                                [{'text':'↩️ No, Batal','callback_data':'nav:decline_cancel'}]]})
+                                [{'text':'↩️ No, Batal','callback_data':'nav:decline_cancel'}]]}))
             if bot:bot.answer(cb.get('id'),'Konfirmasi diperlukan')
             return {'ok':True,'confirm_decline_all':total}
         if action == 'decline_cancel':
@@ -625,7 +625,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         eligible.append([{'text':f'📸 Post Sekarang #{i+1}',
                                           'callback_data':f'postnow:{d.id}:{d.version}'}])
             if bot:bot.message(chat_id,message,
-                {'inline_keyboard':eligible} if eligible else None)
+                with_home_button({'inline_keyboard':eligible}))
         if bot:bot.answer(cb.get('id'),'Diperbarui')
         return {'ok':True,'menu':action}
     if cb:
@@ -938,7 +938,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                                        outcome.get('status') or 'Periksa kredit, hak foto, dan koneksi Meta.')
                                 send('⚠️ Instagram belum mengonfirmasi publikasi. Alasan: '+
                                      str(issue)[:260])
-                    send('🏠 Menu utama — pilih tindakan berikutnya.',True)
+                    send('🏠 Kembali ke Menu Utama melalui tombol di bawah.')
                     return {'ok':True,'approval':'approved_for_instagram'}
                 schedule_approved(db,daily_limit=CONFIG.daily_limit)
                 db.commit()
