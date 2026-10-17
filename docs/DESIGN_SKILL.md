@@ -176,3 +176,11 @@ panjang headline atau ruang kosong di bawahnya.
   minta revisi headline di Telegram; jangan menggeser elemen identitas.
 - Foto referensi pemilik dipakai sebagai **panduan koordinat saja**,
   bukan sebagai sumber berita atau aset publikasi.
+
+
+## 18. Koreksi komposisi foto — objek di atas center dan dasar hitam (17 Oktober 2026)
+
+- Pusat visual objek utama pada **hasil crop akhir** harus sedikit di atas center kanvas. Panduan awal untuk 1080×1350: sekitar y=580–620 px, dibanding titik tengah y=675; sesuaikan dengan bentuk dan kelengkapan objek, bukan angka kaku untuk semua foto. Jangan menyamakan parameter crop sumber dengan posisi objek pada hasil akhir.
+- Lindungi bagian ilmiah penting dari crop dan tumpang tindih logo/headline; pilih foto lain bila komposisi tidak dapat dicapai tanpa merusak subjek. Tidak boleh stretch, letterbox, padding, atau bidang kosong.
+- Batas bawah foto **tidak terlihat**: gradient hitam halus menutup foto secara progresif sampai hitam penuh pada baris pixel terakhir y=1349, tanpa garis potong/transisi mendadak. Bagian atas dan subjek utama tetap jelas. Gradient di bawah logo dan headline, bukan di atas teks.
+- QA wajib memeriksa cover penuh serta thumbnail, termasuk input landscape/portrait/square. Aturan ini mengatur foto; logo tetap di (402,900)–(678,948), headline mulai y=981, dan margin aman 56px tetap berlaku.
