@@ -457,7 +457,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
             db.rollback()
             return {'ok':True,'ignored':'duplicate_telegram_update'}
     def send(s,menu=False):
-        if bot:bot.message(chat_id,s,main_menu() if menu else home_button())
+        if bot:bot.message(chat_id,s,main_menu() if menu else None)
     def show_pending(page=0):
         from sqlalchemy import func
         total=db.execute(select(func.count(Draft.id)).where(
@@ -563,7 +563,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 db.rollback()
                 log.warning('Generate news failed: %s',type(exc).__name__)
                 response = '⚠️ Proses gagal: '+type(exc).__name__+'. Periksa Status Otomasi.'
-            send(response)
+            if bot:bot.message(chat_id,response,home_button())
             return {'ok':True,'menu':'generate_now'}
         if action == 'decline_all':
             from sqlalchemy import func
@@ -938,7 +938,10 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                      'Periksa apakah posting sudah terbit di Instagram sebelum menyetujui ulang.')
             elif action=='approve':
                 if d.status=='approved' and d.approved_version==d.version:
-                    send('✅ Berita ini sudah disetujui. Cek menu Jadwal Posting.',True)
+                    if bot:bot.message(chat_id,'✅ Berita ini sudah dijadwalkan.',
+                        with_home_button({'inline_keyboard':[[
+                            {'text':'📸 Post Sekarang','callback_data':f'postnow:{d.id}:{d.version}'}]]})
+                        if d.publish_state=='unpublished' else home_button())
                     return {'ok':True,'approval':'already_approved'}
                 if d.status!='pending_approval' or d.publish_state!='unpublished':
                     raise ValueError('Hanya draf pending yang belum dipublikasikan dapat disetujui.')
@@ -950,53 +953,22 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     render_draft(d)
                 approve(db,d,uid)
                 if CONFIG.photo_music_mode == 'off':
-                    # Consent is version-bound: do not publish older manually approved
-                    # music handoffs merely because deployment mode switches to off.
+                    # Approval records consent but NEVER posts. The owner may
+                    # separately choose Post Sekarang or wait for schedule.
                     db.add(Audit(draft_id=d.id,event='photo_only_approved',
                                  actor=str(uid),detail={'version':d.version}))
-                    # Human approval is the final check of cover relevance and
-                    # permission to use the selected image; credit metadata is optional.
-                    # Never invent photographer names or photo licences.
-                    d.rights_reviewed = True
+                    d.rights_reviewed=True
                     db.add(Audit(draft_id=d.id,event='photo_reviewed_by_owner',
                                  actor=str(uid),detail={'version':d.version,
                                                         'source':'telegram_final_approve'}))
-                    # Owner explicitly requested photo-only publication right after approval.
-                    # Only the JUST-approved, version-bound draft may be published here.
-                    d.scheduled_at = datetime.now(timezone.utc)
-                    db.commit()
-                    if not CONFIG.live_publish:
-                        send('✅ Draft disetujui, tetapi publikasi Instagram belum aktif. '
-                             'Posting menunggu ENABLE_LIVE_PUBLISH=true dan logo resmi.')
-                    else:
-                        send('✅ Draft disetujui. Mengirim foto dan caption ke Instagram…')
-                        try:
-                            outcome = publish_job(db=db, target_draft_id=d.id)
-                        except HTTPException as err:
-                            send('⚠️ Instagram belum dapat diposting: '+str(err.detail)[:220]+
-                                 '. Draft tetap approved, tidak ditandai published.')
-                        else:
-                            if outcome.get('published'):
-                                send('✅ Instagram mengonfirmasi foto sudah terbit. '
-                                     'Media ID: '+str(outcome.get('instagram_media_id')))
-                            elif outcome.get('waiting'):
-                                send('⏳ Foto diunggah dan sedang diproses Instagram. '
-                                     'Bot akan memeriksa lagi lewat cron.')
-                            else:
-                                issue=(outcome.get('error') or outcome.get('note') or
-                                       ('Posting telah kedaluwarsa. Periksa dan buat draft baru.'
-                                        if outcome.get('expired') else None) or
-                                       ('Tidak ada draft siap dikirim atau izin posting belum terpenuhi.'
-                                        if outcome.get('due')==0 else None) or
-                                       outcome.get('status') or 'Periksa kredit, hak foto, dan koneksi Meta.')
-                                send('⚠️ Instagram belum mengonfirmasi publikasi. Alasan: '+
-                                     str(issue)[:260])
-                    send('🏠 Kembali ke Menu Utama melalui tombol di bawah.')
-                    return {'ok':True,'approval':'approved_for_instagram'}
                 schedule_approved(db,daily_limit=CONFIG.daily_limit)
                 db.commit()
                 at=d.scheduled_at.astimezone(WIB).strftime('%d %b %Y %H:%M WIB') if d.scheduled_at else 'belum tersedia'
-                send('✅ Draft versi '+str(d.version)+' disetujui. Jadwal: '+at)
+                if bot:
+                    bot.message(chat_id,'✅ Draft versi '+str(d.version)+' disetujui dan dijadwalkan: '+at,
+                                with_home_button({'inline_keyboard':[[
+                                    {'text':'📸 Post Sekarang',
+                                     'callback_data':f'postnow:{d.id}:{d.version}'}]]}))
                 if CONFIG.photo_music_mode=='manual':
                     from .stock_flow import send_music_kit
                     try:
@@ -1008,7 +980,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         send('⚠️ Approval dan jadwal tetap tersimpan, tetapi paket Draft Instagram '
                              'belum terkirim: '+type(kit_error).__name__+
                              '. Bot akan mencoba kembali saat pemeriksaan berkala.')
-                send('🏠 Menu utama — pilih tindakan berikutnya.',True)
+
             elif action=='reject':
                 if d.status=='published' or d.publish_state in {'publishing','published','uncertain','awaiting_container'}:
                     raise ValueError('Posting sudah terbit atau sedang diproses, tidak dapat ditolak.')
@@ -1037,7 +1009,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 # Legacy inline buttons may remain in old Telegram messages.
                 send('ℹ️ Verifikasi foto terpisah sudah tidak diperlukan. '
                      'Periksa cover dan sumber, lalu langsung klik Approve.')
-            elif action in ('highlight','caption','photo','manualhook'):
+            elif action in ('highlight','caption','photo','manualhook','green'):
                 if d.status in ('published','rejected') or d.publish_state in ('publishing','published','uncertain'):
                     raise ValueError('Draf ini tidak dapat diedit.')
                 sess=db.get(TelegramSession,str(uid))
@@ -1055,6 +1027,10 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                          'Untuk menulis sendiri tanpa AI, gunakan Tulis Hook Sendiri. /cancel untuk batal.')
                 elif action=='caption':
                     send('📝 Kirim instruksi atau teks pengganti caption. /cancel untuk batal.')
+                elif action=='green':
+                    send('🟢 Kirim kata/frasa yang ingin berwarna hijau PERSIS dari headline, '
+                         'pisahkan dengan koma. Contoh: LUBANG HITAM, GALAKSI. '
+                         'Headline tidak diubah. /cancel untuk batal.')
                 else:
                     send('🖼 Kirim foto langsung, URL HTTPS, atau kata kunci Commons. '
                          'Foto memerlukan kredit dan pemeriksaan hak penggunaan. /cancel untuk batal.')
@@ -1157,6 +1133,16 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         d.photo_license=lic.group(1).strip()[:120]
                         if link:d.media_page_url=link.group(1)
                         # Review button still required, never self-certify permission.
+                    elif sess.mode=='green':
+                        from .accent import manual_green_phrases
+                        chosen=manual_green_phrases(d.highlight,txt)
+                        revise(db,d,'highlight',d.highlight,uid)
+                        d.accent_words=chosen
+                        if d.source_image_url or d.source_image_path:
+                            render_draft(d)
+                        db.add(Audit(draft_id=d.id,event='green_highlight_changed',
+                                     actor=str(uid),detail={'version':d.version,
+                                                            'phrases':chosen[1:]}))
                     elif sess.mode in ('highlight','caption','manual_hook'):
                         if sess.mode=='manual_hook':
                             from .manual_hook import validate_typed_hook,accent_for_hook
