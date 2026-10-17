@@ -152,13 +152,14 @@ def test_valid_cached_qc_does_not_call_ai(db,monkeypatch):
     assert len(all_qc(db,draft))==1
 
 
-def test_failed_curiosity_gap_not_automatically_approved_or_retried(db,monkeypatch):
+def test_failed_curiosity_gap_without_repair_remains_unapproved(db,monkeypatch):
     _,draft=seed(db)
     audit(db,draft)
     bot=configure(monkeypatch)
     called=[]
     monkeypatch.setattr('utbot.quality_control.review_style',
                         lambda *args,**kwargs:(called.append(1) or failed_style()))
+    monkeypatch.setattr('utbot.approval_flow.auto_repair_rejected_caption',lambda *a,**k:None)
     first=web.telegram_webhook(callback(draft),db=db)
     assert first['approval']=='qc_not_passed'
     assert draft.status=='pending_approval' and draft.scheduled_at is None
@@ -317,3 +318,50 @@ def test_live_photo_approval_reports_actual_blocker_not_draft_uuid(db,monkeypatc
     assert result['approval']=='approved_for_instagram'
     assert any('Alasan: Hak foto belum dikonfirmasi' in msg for msg in bot.sent)
     assert not any('Status: '+draft.id in msg for msg in bot.sent)
+
+
+def test_approve_repairs_curiosity_gap_then_requires_owner_to_confirm(db,monkeypatch):
+    story,draft=seed(db)
+    audit(db,draft,{
+        'version':draft.version,'status':'needs_manual_review','passed':False,
+        'issues':['qc_curiosity_gap'],'style_review':'rejected',
+        'checks':failed_style()['checks'],
+        'rubric_version':QC_RUBRIC_VERSION,
+        'guide_sha256':editorial_guide_sha256()})
+    bot=configure(monkeypatch)
+    old_caption=draft.caption
+    replacement=old_caption.replace('Para peneliti memeriksa struktur sinar-X di angkasa.',
+                                    'Di langit yang gelap, teleskop melihat pola yang belum terjelaskan.')
+    monkeypatch.setattr('utbot.rewrite.rewrite',lambda *args,**kwargs:replacement)
+    monkeypatch.setattr('utbot.quality_control.review_style',passing_style)
+    previews=[]
+    monkeypatch.setattr(web,'send_preview',lambda *args:previews.append(1))
+    result=web.telegram_webhook(callback(draft),db=db)
+    assert result['approval']=='auto_revised_needs_confirmation'
+    assert draft.status=='pending_approval'
+    assert draft.version==2
+    assert draft.caption==replacement
+    assert draft.scheduled_at is None
+    assert previews==[1]
+    assert all_qc(db,draft)[-1].detail['passed']
+    assert 'tekan Approve sekali lagi' in bot.sent[-1]
+    second=web.telegram_webhook(callback(draft),db=db)
+    assert second['ok'] and draft.status=='approved'
+
+
+def test_auto_repair_does_not_override_failed_independent_qc(db,monkeypatch):
+    story,draft=seed(db)
+    audit(db,draft,{
+        'version':1,'passed':False,'issues':['qc_curiosity_gap'],
+        'style_review':'rejected','checks':failed_style()['checks'],
+        'rubric_version':QC_RUBRIC_VERSION,
+        'guide_sha256':editorial_guide_sha256()})
+    configure(monkeypatch)
+    monkeypatch.setattr('utbot.rewrite.rewrite',lambda *a,**k:
+                        draft.caption.replace('Para peneliti memeriksa',
+                                              'Sejumlah peneliti mengamati'))
+    monkeypatch.setattr('utbot.quality_control.review_style',failed_style)
+    result=web.telegram_webhook(callback(draft),db=db)
+    assert result['approval']=='qc_not_passed'
+    assert draft.status=='pending_approval'
+    assert draft.scheduled_at is None
