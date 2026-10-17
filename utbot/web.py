@@ -300,6 +300,7 @@ def generate_news_now(db, bot, chat_id):
 
     # 1. Finish the unreviewed queue before consuming any more sources.
     results=prepare_batch(db,limit=3,notifier=notify)
+    attempted=list(results)
     done=prepared(results)
     if done:return result_message(done)
 
@@ -308,6 +309,7 @@ def generate_news_now(db, bot, chat_id):
     db.commit()
     if sum(int(f.get('inserted',0)) for f in normal):
         results=prepare_batch(db,limit=1,notifier=notify)
+        attempted.extend(results)
         done=prepared(results)
         if done:return result_message(done)
 
@@ -320,12 +322,23 @@ def generate_news_now(db, bot, chat_id):
         done=prepared(results)
         if done:return result_message(done)
 
-    if results:
-        # Keep transient failures queued for the next automatic prepare cron.
-        # Never surface a low-level exception or accidentally call .get on str.
-        return ('📰 Kandidat ditemukan. AI sedang memperbaiki naskah dan '
-                'memeriksa ulang QC secara otomatis pada proses berikutnya. '
-                'Draft hanya dikirim setelah pemeriksaan selesai.')
+    failures_pending=[row for row in attempted if row.get('status')=='retry_pending']
+    if failures_pending:
+        # A failed API call or invalid draft is NOT an active background job.
+        # Tell the owner what failed instead of falsely claiming AI is working.
+        reasons=[]
+        for row in failures_pending:
+            label=row.get('reason','UnknownError')
+            status=row.get('http_status')
+            if status is not None:
+                label+=f' (HTTP {status})'
+            if label not in reasons:
+                reasons.append(label)
+        return ('⚠️ Kandidat berita ditemukan, tetapi pembuatan draft GAGAL '
+                'pada percobaan ini ('+', '.join(reasons[:4])+'). '
+                'Belum ada AI yang bekerja di latar belakang. Kandidat akan '
+                'dicoba lagi pada jadwal otomatis berikutnya. '
+                'Periksa konfigurasi provider AI/API dan log jika berulang.')
     checked=sum(f.get('seen',0) for f in normal+archived)
     duplicates=sum(f.get('duplicates',0) for f in normal+archived)
     failures=[f for f in normal if f.get('error')]
