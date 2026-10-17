@@ -48,7 +48,11 @@ def advanced_keyboard(draft):
     if draft.status=='approved' and draft.publish_state=='unpublished':
         rows.append([{'text':'📸 Posting Foto Sekarang',
                       'callback_data':f'retryig:{ref}:{v}'}])
-    if draft.status=='approved' and draft.publish_state in ('unpublished','manual_music_pending') and not str(draft.approved_by or '').startswith('system:24h_timeout'):
+    from .config import CONFIG
+    if (CONFIG.photo_music_mode == 'manual' and
+        draft.status=='approved' and
+        draft.publish_state in ('unpublished','manual_music_pending') and
+        not str(draft.approved_by or '').startswith('system:24h_timeout')):
         rows.append([{'text':'📦 Paket Instagram','callback_data':f'musickit:{ref}:{v}'}])
         rows.append([
             {'text':'🎵 Konfirmasi Post','callback_data':f'musicdone:{ref}:{v}'},
