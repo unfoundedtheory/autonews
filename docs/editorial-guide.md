@@ -87,7 +87,7 @@ Dirangkum dari koreksi, teori hook, dan diskusi selama proses pembuatan konten. 
 - Contoh benar: `Photo by : Dheera Venkatraman`, `Photo by : NASA/Hubble Mission`.
 - Jangan tulis `Sumber gambar:`, tautan `https://...`, URL halaman media, atau tautan lisensi di caption Instagram maupun pesan preview Telegram. Keduanya harus memakai aturan kredit yang sama.
 - Ambil nama kreator dari metadata sumber asli yang terverifikasi, bukan menganggap nama situs/hosting sebagai fotografer. Jangan mengarang nama atau mengganti semua kredit menjadi NASA jika kredit sebenarnya milik fotografer tertentu.
-- Bila kredit belum diketahui atau tidak jelas, tahan proses publikasi dan minta perbaikan kredit pada editor; jangan menggantinya dengan link sumber. URL asli, metadata lisensi, dan bukti hak penggunaan tetap disimpan secara internal dan dapat ditinjau melalui menu **Sumber**.
+- Bila nama kreator belum diketahui, **jangan mengarang nama dan jangan jadikan kredit kosong sebagai penghalang teknis Approve atau posting**. Lewati baris `Photo by :` bila belum ada nama terverifikasi. URL asli dan metadata lisensi tetap disimpan secara internal dan dapat ditinjau lewat **Sumber**.
 - Label dan spasi harus persis `Photo by : `, diikuti nama kredit tanpa URL. Jangan gandakan baris kredit bila sudah terbentuk dari metadata.
 
 **Template caption**
@@ -247,7 +247,8 @@ Dirangkum dari koreksi, teori hook, dan diskusi selama proses pembuatan konten. 
 - [ ] Batas data dan bantahan sudah dicantumkan
 - [ ] 5 hashtag relevan, diakhiri `#UnfoundedTheory`
 - [ ] Kredit foto tampil tepat satu kali sebagai `Photo by : Nama Kredit` setelah pertanyaan dan sebelum hashtag; tidak ada URL/sumber gambar di caption atau preview Telegram
-- [ ] Nama kredit sesuai metadata asli dan hak penggunaan diverifikasi; bila kosong, publikasi ditahan sampai diperbaiki
+- [ ] Kredit ditulis hanya jika nama kreator terverifikasi tersedia; kredit kosong tidak menghalangi approval, dan nama fotografer tidak boleh dikarang
+- [ ] Prioritas foto adalah **relevansi objek/peristiwa ilmiah**, ketepatan identitas foto, dan kualitas visual; foto tidak relevan harus diganti sebelum approval
 - [ ] Untuk berita tragedi: tidak mengeksploitasi korban, penutup empatik
 - [ ] Foto menunjukkan subjek/peristiwa yang sama dengan berita; bukan dokumen atau gambar generik tak relevan
 - [ ] Identitas foto, citra/komposit, sumber primer, kredit, hak penggunaan, dan crop sudah diperiksa

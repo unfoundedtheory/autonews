@@ -18,7 +18,7 @@ from .instagram import InstagramPublisher,caption_text
 from .photo_music import manual_music_message,manual_music_caption,instagram_post_url
 from .approval_flow import preflight_approval, approval_qc_message
 from .meta_delivery import publish_facebook_once
-from .telegram import TelegramClient,keyboard,send_preview,photo_keyboard,main_menu
+from .telegram import TelegramClient,keyboard,advanced_keyboard,send_preview,photo_keyboard,main_menu
 from .telegram_ui import pending_page,approved_page,stories_page,photo_candidate_message,PENDING_PAGE_SIZE
 from .research import discover,fingerprint
 from .rewrite import rewrite
@@ -611,6 +611,48 @@ def telegram_webhook(payload:dict,db=Depends(session)):
         try:
             if action=='open':
                 if bot:send_preview(bot,chat_id,d,st)
+            elif action=='more':
+                if bot:bot.message(chat_id,'⋯ Opsi lanjutan untuk draf ini:',advanced_keyboard(d))
+            elif action=='actions':
+                if bot:bot.message(chat_id,'Pilih tindakan untuk draf:',keyboard(d))
+            elif action=='retryig':
+                # Explicit owner request to retry an already-approved photo.
+                # The persisted consent event prevents old manual-music drafts
+                # from being silently republished after switching modes.
+                if (CONFIG.photo_music_mode!='off' or not CONFIG.live_publish or
+                    d.status!='approved' or d.approved_version!=d.version or
+                    d.publish_state!='unpublished'):
+                    raise ValueError('Posting langsung hanya tersedia untuk draft foto '
+                                     'yang disetujui dan belum diproses.')
+                approvals=db.execute(select(Audit.detail).where(
+                    Audit.draft_id==d.id,Audit.event=='photo_only_approved')).scalars().all()
+                if not any((entry or {}).get('version')==d.version for entry in approvals):
+                    raise ValueError('Draft ini disetujui dalam mode lama. '
+                                     'Jangan posting otomatis tanpa approval foto baru.')
+                d.rights_reviewed=True
+                if not d.scheduled_at:
+                    d.scheduled_at=datetime.now(timezone.utc)
+                db.add(Audit(draft_id=d.id,event='photo_post_retry_requested',
+                             actor=str(uid),detail={'version':d.version}))
+                db.commit()
+                if bot:bot.answer(cb_id,'Mencoba publikasi foto')
+                send('📸 Memeriksa kembali publikasi foto yang sudah disetujui…')
+                try:
+                    outcome=publish_job(db=db,target_draft_id=d.id)
+                except HTTPException as err:
+                    send('⚠️ Belum berhasil: '+str(err.detail)[:250])
+                else:
+                    if outcome.get('published'):
+                        send('✅ Foto berhasil terbit di Instagram. Media ID: '+
+                             str(outcome.get('instagram_media_id')))
+                    elif outcome.get('waiting'):
+                        send('⏳ Instagram masih memproses foto. Cron akan melanjutkan.')
+                    else:
+                        issue=outcome.get('error') or outcome.get('note') or (
+                            'Tidak ada draft yang memenuhi syarat posting.'
+                            if outcome.get('due')==0 else outcome.get('status')) or 'Cek status koneksi Meta.'
+                        send('⚠️ Belum terbit. Alasan: '+str(issue)[:250])
+                return {'ok':True,'instagram_retry':True}
             elif action=='hookideas':
                 if d.status in ('published','rejected') or d.publish_state in ('publishing','published','uncertain'):
                     raise ValueError('Draf ini tidak boleh direvisi.')
@@ -829,13 +871,13 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     # music handoffs merely because deployment mode switches to off.
                     db.add(Audit(draft_id=d.id,event='photo_only_approved',
                                  actor=str(uid),detail={'version':d.version}))
-                    # Approve is the owner's final editorial/photo-rights review.
-                    # Do not infer rights from bare image URLs or missing metadata.
-                    if (d.image_credit or '').strip() and (d.photo_license or '').strip():
-                        d.rights_reviewed = True
-                        db.add(Audit(draft_id=d.id,event='photo_rights_reviewed',
-                                     actor=str(uid),detail={'version':d.version,
-                                                            'source':'telegram_final_approve'}))
+                    # Human approval is the final check of cover relevance and
+                    # permission to use the selected image; credit metadata is optional.
+                    # Never invent photographer names or photo licences.
+                    d.rights_reviewed = True
+                    db.add(Audit(draft_id=d.id,event='photo_reviewed_by_owner',
+                                 actor=str(uid),detail={'version':d.version,
+                                                        'source':'telegram_final_approve'}))
                     # Owner explicitly requested photo-only publication right after approval.
                     # Only the JUST-approved, version-bound draft may be published here.
                     d.scheduled_at = datetime.now(timezone.utc)
@@ -858,10 +900,14 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                                 send('⏳ Foto diunggah dan sedang diproses Instagram. '
                                      'Bot akan memeriksa lagi lewat cron.')
                             else:
-                                send('⚠️ Belum dikonfirmasi terbit di Instagram. '
-                                     'Status: '+str(outcome.get('status') or
-                                                    outcome.get('blocked') or outcome.get('error') or
-                                                    outcome.get('note') or outcome)[:250])
+                                issue=(outcome.get('error') or outcome.get('note') or
+                                       ('Posting telah kedaluwarsa. Periksa dan buat draft baru.'
+                                        if outcome.get('expired') else None) or
+                                       ('Tidak ada draft siap dikirim atau izin posting belum terpenuhi.'
+                                        if outcome.get('due')==0 else None) or
+                                       outcome.get('status') or 'Periksa kredit, hak foto, dan koneksi Meta.')
+                                send('⚠️ Instagram belum mengonfirmasi publikasi. Alasan: '+
+                                     str(issue)[:260])
                     return {'ok':True,'approval':'approved_for_instagram'}
                 schedule_approved(db,daily_limit=CONFIG.daily_limit)
                 db.commit()
@@ -1241,7 +1287,7 @@ def publish_job(db=Depends(session), target_draft_id=None):
             d.image_url=upload_public_jpeg(d.image_local_path,f'{d.id}/v{d.version}.jpg')
             db.commit()
         if not d.ig_container_id:
-            d.ig_container_id=publisher.create_container(d.image_url,caption_text(d))
+            d.ig_container_id=publisher.create_container(d.image_url,caption_text(d,allow_missing_credit=True))
             db.commit()
         status=publisher.container_status(d.ig_container_id)
         if status not in ('FINISHED','ERROR','EXPIRED'):
