@@ -456,8 +456,8 @@ def telegram_webhook(payload:dict,db=Depends(session)):
         except IntegrityError:
             db.rollback()
             return {'ok':True,'ignored':'duplicate_telegram_update'}
-    def send(s,menu=False):
-        if bot:bot.message(chat_id,s,main_menu() if menu else None)
+    def send(s,menu=False,finished=False):
+        if bot:bot.message(chat_id,s,main_menu() if menu else home_button() if finished else None)
     def show_pending(page=0):
         from sqlalchemy import func
         total=db.execute(select(func.count(Draft.id)).where(
@@ -727,18 +727,18 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 try:
                     outcome=publish_job(db=db,target_draft_id=d.id)
                 except HTTPException as err:
-                    send('⚠️ Belum berhasil: '+str(err.detail)[:250])
+                    send('⚠️ Belum berhasil: '+str(err.detail)[:250],finished=True)
                 else:
                     if outcome.get('published'):
                         send('✅ Foto berhasil terbit di Instagram. Media ID: '+
-                             str(outcome.get('instagram_media_id')))
+                             str(outcome.get('instagram_media_id')),finished=True)
                     elif outcome.get('waiting'):
-                        send('⏳ Instagram masih memproses foto. Cron akan melanjutkan.')
+                        send('⏳ Instagram masih memproses foto. Cron akan melanjutkan.',finished=True)
                     else:
                         issue=outcome.get('error') or outcome.get('note') or (
                             'Tidak ada draft yang memenuhi syarat posting.'
                             if outcome.get('due')==0 else outcome.get('status')) or 'Cek status koneksi Meta.'
-                        send('⚠️ Belum terbit. Alasan: '+str(issue)[:250])
+                        send('⚠️ Belum terbit. Alasan: '+str(issue)[:250],finished=True)
                 return {'ok':True,'instagram_retry':True}
             elif action=='hookideas':
                 if d.status in ('published','rejected') or d.publish_state in ('publishing','published','uncertain'):
@@ -986,7 +986,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     raise ValueError('Posting sudah terbit atau sedang diproses, tidak dapat ditolak.')
                 d.status='rejected';d.scheduled_at=None
                 db.add(Audit(draft_id=d.id,event='rejected',actor=str(uid)))
-                db.commit();send('❌ Draf ditolak. Tidak akan dipublikasikan.')
+                db.commit();send('❌ Draf ditolak. Tidak akan dipublikasikan.',finished=True)
             elif action=='sources':
                 lines=[f'Sumber utama: {st.source_url}',f'Verifikasi: {st.verification_status}',
                        f'Foto: {d.media_page_url}',f'Kredit: {d.image_credit}',f'Lisensi: {d.photo_license}',
@@ -1082,7 +1082,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 send('📆 Jadwal WIB\n'+('\n'.join(row(d) for d in rows) or 'Belum ada antrean'))
             return {'ok':True,'command':txt[1:]}
         if txt=='/cancel' and sess:
-            db.delete(sess);db.commit();send('Revisi dibatalkan.')
+            db.delete(sess);db.commit();send('Revisi dibatalkan.',finished=True)
         elif sess and (txt or (sess.mode=='photo' and msg.get('photo'))):
             d=db.get(Draft,sess.draft_id)
             if not d or d.version!=sess.version:
@@ -1193,7 +1193,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                              ('Cover terbaru siap diperiksa.' if d.image_url or d.image_local_path else
                               'Cover belum tersedia: '+str(d.last_error or 'Pilih foto sumber.')))
                     else:
-                        send('✏️ Versi baru tersimpan. Approval versi sebelumnya dibatalkan.')
+                        send('✏️ Versi baru tersimpan. Approval versi sebelumnya dibatalkan.',finished=True)
                 except (ValueError,RuntimeError,httpx.HTTPError,OSError) as exc:
                     db.rollback();send('⚠️ '+str(exc)[:300]+' Coba ulangi atau /cancel.')
     return {'ok':True}
