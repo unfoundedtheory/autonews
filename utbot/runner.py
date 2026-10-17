@@ -6,9 +6,9 @@ This service never enables live Instagram publishing; ENABLE_LIVE_PUBLISH remain
 import logging
 import time
 from datetime import datetime, timezone, timedelta
-from .models import Session, init_db, Story, TelegramUpdateReceipt
+from .models import Session, init_db, Story, Draft, Audit, TelegramUpdateReceipt
 from .research import discover
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from .pipeline import prepare_batch
 from .telegram import TelegramClient, send_preview
 from .scheduler import schedule_approved, WIB
@@ -28,20 +28,57 @@ def do_discover():
         log.info('discovery=%s', result)
         return result
 
+def deliver_pending_previews(db, bot, chat_id, limit=12):
+    """Recover unacknowledged Telegram previews, even when stock is already full.
+
+    A successful Telegram delivery is audited by draft version. Failures are
+    kept eligible for the next scheduled run and never counted as delivered.
+    """
+    if not bot or not chat_id:
+        return {'sent': [], 'failed': [], 'blocked': 'Telegram destination not configured'}
+    candidates=db.execute(select(Draft).where(
+        Draft.status=='pending_approval', Draft.publish_state=='unpublished'
+    ).order_by(Draft.created_at.desc(),Draft.id.desc()).limit(limit)).scalars().all()
+    sent, failed=[],[]
+    for draft in candidates:
+        prior=db.execute(select(Audit.detail).where(
+            Audit.draft_id==draft.id, Audit.event=='telegram_preview_delivered'
+        )).scalars().all()
+        if any((record or {}).get('version')==draft.version for record in prior):
+            continue
+        try:
+            send_preview(bot,chat_id,draft,db.get(Story,draft.story_id))
+            db.add(Audit(draft_id=draft.id,event='telegram_preview_delivered',
+                         actor='worker',detail={'version':draft.version}))
+            db.commit()
+            sent.append(draft.id)
+        except Exception as exc:
+            db.rollback()
+            log.warning('Pending preview delivery failed for %s: %s',
+                        draft.id, type(exc).__name__)
+            failed.append({'draft_id':draft.id,'error_type':type(exc).__name__})
+    return {'sent':sent,'failed':failed}
+
+
 def do_prepare():
     bot = TelegramClient(CONFIG.telegram_token) if CONFIG.telegram_token and CONFIG.chat_id else None
     with Session() as db:
-        def notify(d):
-            if bot:
-                send_preview(bot, CONFIG.chat_id, d, db.get(Story, d.story_id))
+        # Send already-prepared drafts first: generating new AI text does not
+        # help if the editor never received the existing pending news.
+        delivery=deliver_pending_previews(db,bot,CONFIG.chat_id)
         from .stock_flow import stock_to_prepare
         quota = stock_to_prepare(db)
         if quota <= 0:
-            log.info('draft stock target reached; skipping additional AI calls')
-            return []
-        result = prepare_batch(db, limit=quota, notifier=notify)
-        log.info('prepared=%s', result)
-        return result
+            log.info('draft stock target reached; recovery=%s',delivery)
+            return {'prepared':[], 'delivery':delivery}
+        # prepare_batch commits new drafts before notifying. The recovery pass
+        # owns Telegram delivery and writes a durable delivery marker.
+        result=prepare_batch(db, limit=quota, notifier=None)
+        latest=deliver_pending_previews(db,bot,CONFIG.chat_id)
+        log.info('prepared=%s delivery=%s', result,latest)
+        return {'prepared':result, 'delivery':{
+            'sent':delivery['sent']+latest['sent'],
+            'failed':delivery['failed']+latest['failed']}}
 
 def do_reschedule():
     with Session() as db:
