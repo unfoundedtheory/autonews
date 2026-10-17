@@ -125,6 +125,7 @@ def test_old_unrecorded_style_is_automatically_rechecked_and_scheduled(db,monkey
     assert all_qc(db,draft)[-1].detail['trigger']=='telegram_approve'
     assert all_qc(db,draft)[-1].detail['passed']
     assert any('Disetujui setelah QC' in s for s in bot.sent)
+    assert any('Menu utama' in s for s in bot.sent)
 
     original_time=draft.scheduled_at
     repeated=web.telegram_webhook(callback(draft),db=db)
