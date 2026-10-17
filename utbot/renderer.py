@@ -9,7 +9,7 @@ from pathlib import Path
 import re
 from functools import lru_cache
 from PIL import Image, ImageDraw, ImageFont, ImageOps
-from .accent import accent_for_hook
+from .accent import accent_for_hook, cover_accent_phrases
 
 WIDTH, HEIGHT = 1080, 1350
 GREEN = "#8FFF00"
@@ -330,7 +330,7 @@ def render(input_image, highlight, outpath, accent_words=None, logo_path=None,
     accent = set()
     # Re-evaluate even existing legacy accents: the old bot could persist
     # only "LINGKARAN" and lose the key phrase "CAHAYA AURORAL UTUH".
-    for phrase in accent_for_hook(highlight,accent_words):
+    for phrase in cover_accent_phrases(highlight,accent_words):
         accent.update(re.sub(r"[^\w\s-]", "", phrase.upper()).split())
     for i, line in enumerate(lines):
         _draw_title_line(draw, line, _title_draw_y(font,i,pitch), font, accent)
