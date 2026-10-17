@@ -514,6 +514,46 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         log.warning('Could not refresh legacy Telegram keyboard')
             send('ℹ️ Menu percobaan sudah diganti. Gunakan menu operasional berikut.', True)
             return {'ok':True, 'deprecated_menu':action}
+        if action in ('mode:approval','mode:full_auto'):
+            from .automation_mode import current_mode,set_mode
+            target=action.partition(':')[2]
+            current,_=current_mode(db)
+            if target==current:
+                send('✅ Mode ini sudah aktif.')
+                if bot:bot.answer(cb.get('id'),'Mode tidak berubah')
+                return {'ok':True,'automation_mode':current}
+            if target=='full_auto':
+                if not (CONFIG.live_publish and CONFIG.photo_music_mode=='off'):
+                    send('⚠️ Full Otomatis membutuhkan Instagram live publish aktif '
+                         'dan mode foto tanpa musik. Konfigurasi server belum siap.')
+                    return {'ok':True,'automation_mode':'unavailable'}
+                if bot:
+                    bot.message(chat_id,
+                        '⚠️ Aktifkan FULL OTOMATIS? Berita BARU yang lolos QC independen, '
+                        'verifikasi sumber, dan hak foto akan disetujui serta '
+                        'diposting otomatis sesuai jadwal tanpa Approve. '
+                        'Draft lama tidak otomatis dipublikasikan. '
+                        'Konten yang gagal QC atau izin foto tetap ditahan.',
+                        with_home_button({'inline_keyboard':[
+                            [{'text':'✅ Ya, Aktifkan Full Otomatis',
+                              'callback_data':'nav:mode_confirm:full_auto'}],
+                            [{'text':'↩️ Batal','callback_data':'nav:status'}]]}))
+                return {'ok':True,'automation_mode':'confirmation_required'}
+            set_mode(db,'approval',uid)
+            send('✅ Mode DENGAN APPROVAL aktif. Draft berikutnya menunggu '
+                 'persetujuan Anda sebelum dijadwalkan atau diposting.')
+            return {'ok':True,'automation_mode':'approval'}
+        if action=='mode_confirm:full_auto':
+            from .automation_mode import set_mode
+            if not (CONFIG.live_publish and CONFIG.photo_music_mode=='off'):
+                send('⚠️ Full Otomatis tidak tersedia karena konfigurasi Instagram.')
+                return {'ok':True,'automation_mode':'unavailable'}
+            set_mode(db,'full_auto',uid)
+            send('✅ FULL OTOMATIS aktif untuk berita BARU. '
+                 'Hanya draft yang lolos QC, sumber, dan izin foto '
+                 'yang akan dijadwalkan dan diposting tanpa Approve.')
+            if bot:bot.answer(cb.get('id'),'Full Otomatis aktif')
+            return {'ok':True,'automation_mode':'full_auto'}
         if action == 'generate_now':
             if bot:bot.answer(cb.get('id'),'Menyiapkan berita')
             send('📰 Menyiapkan satu berita dari sumber resmi untuk approval…')
@@ -590,9 +630,22 @@ def telegram_webhook(payload:dict,db=Depends(session)):
         elif action=='status':
             from sqlalchemy import func
             groups=db.execute(select(Draft.status,func.count(Draft.id)).group_by(Draft.status)).all()
-            send('📊 Status otomasi dan redaksi\n'+
-                 ('\n'.join(f'{s}: {n}' for s,n in groups) or 'Belum ada berita')+
-                 '\n\n'+automation_status(db))
+            from .automation_mode import current_mode
+            mode,_=current_mode(db)
+            status_text=('🟢 FULL OTOMATIS: berita baru yang lolos QC dan izin foto '
+                         'langsung masuk jadwal posting tanpa Approve.'
+                         if mode=='full_auto' else
+                         '🟡 DENGAN APPROVAL: draft menunggu Approve dari Anda.')
+            if bot:
+                bot.message(chat_id,'⚙️ KONFIGURASI OTOMASI\\n'+status_text+
+                    '\\n\\n📊 Status redaksi\\n'+
+                    ('\\n'.join(f'{s}: {n}' for s,n in groups) or 'Belum ada berita')+
+                    '\\n\\n'+automation_status(db),
+                    with_home_button({'inline_keyboard':[
+                        [{'text':('✅ ' if mode=='full_auto' else '')+'🤖 Full Otomatis',
+                          'callback_data':'nav:mode:full_auto'}],
+                        [{'text':('✅ ' if mode=='approval' else '')+'👤 Dengan Approval',
+                          'callback_data':'nav:mode:approval'}]]}))
         elif action=='pending':
             show_pending(page)
         elif action=='approved':
