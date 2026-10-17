@@ -154,3 +154,23 @@ Bagian ini **mengungguli panduan lama tentang batas resolusi sumber dan jumlah k
 - Lapisan dari belakang: **foto hasil crop → gradient black dengan alpha dari 0 sampai 255 menuju bawah → badge → headline**. Gradient tidak memudarkan seluruh gambar dari tepi atas; di y=1350 wajib hitam penuh sehingga **batas bawah foto tidak boleh tampak sebagai garis/potongan**.
 - Warna teks putih #FFFFFF dan hijau #8FFF00 100% opacity; jangan lapiskan gradient lagi setelah teks. Periksa bagian bawah di preview final dan thumbnail termasuk untuk input landscape, portrait, serta square.
 - Tetap gunakan pemeriksaan relevansi/lisensi dan batas kualitas sumber ≥600px yang dapat dibaca setelah crop. Tidak mengurangi editorial/Telegram approval.
+
+
+## 16. Koreksi pemilik 17 Oktober 2026 — logo absolut, teks responsif
+
+**Mengungguli §12 untuk posisi vertikal.** Berdasarkan contoh cover baru
+1080×1350 yang diberikan pemilik, logo tidak boleh lagi bergerak mengikuti
+panjang headline atau ruang kosong di bawahnya.
+
+- **Logo terkunci**: kotak (402, 900, 678, 948), pusat (540, 924).
+  Koordinat ini sama untuk setiap berita dan ukuran font.
+- **Headline selalu mulai di y=981** dengan jarak 33px dari batas kotak logo.
+  Font League Spartan Bold 700 dan pitch disesuaikan otomatis agar seluruh
+  headline masuk ke area di bawah logo hingga batas bawah y=1294.
+- **Margin aman minimal 56px** di kiri, kanan, dan bawah. Lebar maksimal
+  headline 968px; jangan memindahkan logo, mengecilkan margin, menabrakkan
+  teks dengan logo, atau menggeser blok teks berdasarkan sisa ruang.
+- Bila copy tidak dapat dirender dengan ukuran font terbaca dalam batas ini,
+  minta revisi headline di Telegram; jangan menggeser elemen identitas.
+- Foto referensi pemilik dipakai sebagai **panduan koordinat saja**,
+  bukan sebagai sumber berita atau aset publikasi.
