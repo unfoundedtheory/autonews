@@ -12,11 +12,15 @@ def keyboard(draft):
              {'text':'❌ Tolak','callback_data':f'reject:{ref}:{v}'}],
             [{'text':'✏️ Revisi Hook','callback_data':f'highlight:{ref}:{v}'},
              {'text':'📝 Revisi Caption','callback_data':f'caption:{ref}:{v}'}],
+            [{'text':'🟢 Ganti Highlight Hijau','callback_data':f'green:{ref}:{v}'}],
             [{'text':'🖼 Ganti Foto','callback_data':f'photo:{ref}:{v}'},
              {'text':'⋯ Lainnya','callback_data':f'more:{ref}:{v}'}],
         ]
     elif draft.status=='approved':
-        rows=[[{'text':'📋 Detail & Opsi','callback_data':f'more:{ref}:{v}'}]]
+        rows=[]
+        if draft.publish_state=='unpublished':
+            rows.append([{'text':'📸 Post Sekarang','callback_data':f'postnow:{ref}:{v}'}])
+        rows.append([{'text':'📋 Detail & Opsi','callback_data':f'more:{ref}:{v}'}])
     else:
         rows=[[{'text':'📋 Detail','callback_data':f'more:{ref}:{v}'}]]
     return {'inline_keyboard':rows}

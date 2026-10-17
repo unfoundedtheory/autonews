@@ -26,8 +26,10 @@ class FakeBot:
     def __init__(self):
         self.sent = []
         self.answered = []
+        self.markups = []
     def message(self, chat_id, text, buttons=None):
         self.sent.append(text)
+        self.markups.append(buttons)
     def answer(self, callback_id, text):
         self.answered.append(text)
 
@@ -171,81 +173,43 @@ def test_manual_import_without_automated_audit_keeps_single_human_review(db,monk
     assert draft.status=='approved'
 
 
-def test_photo_only_approval_posts_only_the_approved_draft(db,monkeypatch):
+def test_photo_only_approve_only_schedules_and_offers_post_now(db,monkeypatch):
     _,draft=seed(db)
     audit(db,draft)
     bot=configure(monkeypatch)
     monkeypatch.setattr(web,'CONFIG',replace(web.CONFIG,photo_music_mode='off',live_publish=True))
-    monkeypatch.setattr('utbot.quality_control.review_style',passing_style)
-    calls=[]
-    def fake_publish(*,db,target_draft_id):
-        calls.append(target_draft_id)
-        return {'published':[target_draft_id],'instagram_media_id':'1789000000000'}
-    monkeypatch.setattr(web,'publish_job',fake_publish)
+    monkeypatch.setattr(web,'publish_job',lambda **kwargs: (_ for _ in ()).throw(
+        AssertionError('Approve must never publish')))
     result=web.telegram_webhook(callback(draft),db=db)
-    assert result['approval']=='approved_for_instagram'
-    assert draft.status=='approved' and draft.scheduled_at is not None
-    assert calls==[draft.id]
-    assert any('Instagram mengonfirmasi' in msg for msg in bot.sent)
+    assert result['ok'] and draft.status=='approved'
+    assert draft.scheduled_at is not None
+    assert draft.publish_state=='unpublished'
+    assert any('dijadwalkan' in msg for msg in bot.sent)
+    assert any('postnow:'+draft.id+':'+str(draft.version) in str(markup)
+               for markup in bot.markups if markup)
     repeated=web.telegram_webhook(callback(draft),db=db)
     assert repeated['approval']=='already_approved'
-    assert calls==[draft.id]
 
 
-def test_photo_only_approval_never_claims_publish_when_gate_disabled(db,monkeypatch):
+def test_photo_only_approval_schedules_even_when_live_publish_disabled(db,monkeypatch):
     _,draft=seed(db)
-    audit(db,draft)
     bot=configure(monkeypatch)
     monkeypatch.setattr(web,'CONFIG',replace(web.CONFIG,photo_music_mode='off',live_publish=False))
-    monkeypatch.setattr('utbot.quality_control.review_style',passing_style)
     monkeypatch.setattr(web,'publish_job',lambda **kwargs: (_ for _ in ()).throw(
-        AssertionError('Never publish when live flag is disabled')))
+        AssertionError('Approval must never publish')))
     result=web.telegram_webhook(callback(draft),db=db)
-    assert result['approval']=='approved_for_instagram'
-    assert draft.status=='approved'
-    assert any('belum aktif' in msg for msg in bot.sent)
-    assert not any('mengonfirmasi foto sudah terbit' in msg for msg in bot.sent)
+    assert result['ok'] and draft.status=='approved'
+    assert draft.scheduled_at is not None
 
 
-def test_photo_only_approval_reports_missing_prerequisite(db,monkeypatch):
-    from fastapi import HTTPException
+def test_photo_only_approval_without_credit_is_allowed(db,monkeypatch):
     _,draft=seed(db)
-    audit(db,draft)
     bot=configure(monkeypatch)
     monkeypatch.setattr(web,'CONFIG',replace(web.CONFIG,photo_music_mode='off',live_publish=True))
-    monkeypatch.setattr('utbot.quality_control.review_style',passing_style)
     monkeypatch.setattr(web,'publish_job',lambda **kwargs: (_ for _ in ()).throw(
-        HTTPException(status_code=503,detail='Logo resmi belum dikonfigurasi')))
-    out=web.telegram_webhook(callback(draft),db=db)
-    assert out['approval']=='approved_for_instagram'
-    assert draft.status=='approved' and draft.publish_state=='unpublished'
-    assert any('belum dapat diposting' in msg for msg in bot.sent)
-
-
-def test_live_photo_approval_without_credit_is_allowed(db,monkeypatch):
-    _,draft=seed(db)
-    bot=configure(monkeypatch)
-    monkeypatch.setattr(web,'CONFIG',replace(web.CONFIG,photo_music_mode='off',live_publish=True))
-    monkeypatch.setattr(web,'publish_job',lambda **kwargs: {'waiting':draft.id})
+        AssertionError('Approval must never publish')))
     result=web.telegram_webhook(callback(draft),db=db)
-    assert result['approval']=='approved_for_instagram'
-    assert draft.status=='approved' and draft.rights_reviewed
-    assert any('sedang diproses Instagram' in msg for msg in bot.sent)
-
-
-def test_live_photo_approval_reports_actual_blocker_not_draft_uuid(db,monkeypatch):
-    _,draft=seed(db)
-    draft.image_credit='NASA/Hubble Mission'
-    draft.photo_license='Public Domain'
-    db.commit()
-    bot=configure(monkeypatch)
-    monkeypatch.setattr(web,'CONFIG',replace(web.CONFIG,photo_music_mode='off',live_publish=True))
-    monkeypatch.setattr(web,'publish_job',lambda **kwargs:
-                        {'blocked':draft.id,'error':'Hak foto belum dikonfirmasi'})
-    result=web.telegram_webhook(callback(draft),db=db)
-    assert result['approval']=='approved_for_instagram'
-    assert any('Alasan: Hak foto belum dikonfirmasi' in msg for msg in bot.sent)
-    assert not any('Status: '+draft.id in msg for msg in bot.sent)
+    assert result['ok'] and draft.status=='approved' and draft.rights_reviewed
 
 
 def test_failed_repair_keeps_original_version_and_records_diagnostic(db,monkeypatch):

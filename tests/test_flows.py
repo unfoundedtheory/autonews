@@ -123,11 +123,14 @@ def test_telegram_approved_final_image_and_caption_reach_instagram_unchanged(db,
             pytest.fail('Publishing must not occur while container remains IN_PROGRESS')
     monkeypatch.setattr(web,'InstagramPublisher',FakeIG)
     result=web.telegram_webhook(callback(d,'approve'),db=db)
-    assert result['approval']=='approved_for_instagram'
+    assert result['ok']
     assert d.status=='approved' and d.approved_version==d.version
-    assert capture==[('create',final_image,final_caption)]
-    assert d.publish_state=='awaiting_container'
-    # The scheduled cron can inspect the same container without duplicating creation.
+    assert d.scheduled_at is not None
+    assert d.publish_state=='unpublished'
+    assert capture==[]  # Approve only schedules; Meta API not called.
+    # Simulate scheduled cron becoming due, preserving the approved assets.
+    d.scheduled_at=datetime.now(timezone.utc)-timedelta(minutes=1)
+    db.commit()
     checked=web.publish_job(db=db)
     assert checked['container_status']=='IN_PROGRESS'
     assert capture==[('create',final_image,final_caption)]

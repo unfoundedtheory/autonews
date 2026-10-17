@@ -19,10 +19,10 @@ def actions(buttons):
             if 'callback_data' in b]
 
 
-def test_preview_is_six_buttons_only():
+def test_preview_includes_green_highlight_editor():
     draft=fake_draft()
     visible=actions(keyboard(draft))
-    assert visible==['approve','reject','highlight','caption','photo','more']
+    assert visible==['approve','reject','highlight','caption','green','photo','more']
     assert not {'hookideas','manualhook','credit','redesign','qc'}.intersection(visible)
 
 
