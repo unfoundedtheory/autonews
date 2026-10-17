@@ -45,6 +45,9 @@ def advanced_keyboard(draft):
         {'text':'🔎 Sumber','callback_data':f'sources:{ref}:{v}'},
         {'text':'📋 Hasil QC','callback_data':f'qc:{ref}:{v}'},
     ])
+    if draft.status=='approved' and draft.publish_state=='unpublished':
+        rows.append([{'text':'📸 Posting Foto Sekarang',
+                      'callback_data':f'retryig:{ref}:{v}'}])
     if draft.status=='approved' and draft.publish_state in ('unpublished','manual_music_pending') and not str(draft.approved_by or '').startswith('system:24h_timeout'):
         rows.append([{'text':'📦 Paket Instagram','callback_data':f'musickit:{ref}:{v}'}])
         rows.append([
