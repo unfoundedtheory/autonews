@@ -535,10 +535,10 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 bot.message(chat_id, f'⚠️ Tolak SEMUA {total} draft Pending Approval?\\n'
                             'Tindakan ini tidak dapat dibatalkan lewat tombol. '
                             'Draft approved dan published tidak akan diubah.',
-                            {'inline_keyboard':[
+                            with_home_button({'inline_keyboard':[
                                 [{'text':'✅ Yes, Decline All',
                                   'callback_data':f'nav:decline_confirm:{total}'}],
-                                [{'text':'↩️ No, Batal','callback_data':'nav:decline_cancel'}]]})
+                                [{'text':'↩️ No, Batal','callback_data':'nav:decline_cancel'}]]}))
             if bot:bot.answer(cb.get('id'),'Konfirmasi diperlukan')
             return {'ok':True,'confirm_decline_all':total}
         if action == 'decline_cancel':
@@ -645,9 +645,9 @@ def telegram_webhook(payload:dict,db=Depends(session)):
             if action=='open':
                 if bot:send_preview(bot,chat_id,d,st)
             elif action=='more':
-                if bot:bot.message(chat_id,'⋯ Opsi lanjutan untuk draf ini:',advanced_keyboard(d))
+                if bot:bot.message(chat_id,'⋯ Opsi lanjutan untuk draf ini:',with_home_button(advanced_keyboard(d)))
             elif action=='actions':
-                if bot:bot.message(chat_id,'Pilih tindakan untuk draf:',keyboard(d))
+                if bot:bot.message(chat_id,'Pilih tindakan untuk draf:',with_home_button(keyboard(d)))
             elif action in ('retryig','postnow'):
                 # Explicit owner request to retry an already-approved photo.
                 # The persisted consent event prevents old manual-music drafts
