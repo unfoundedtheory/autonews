@@ -39,9 +39,9 @@ def test_approved_draft_does_not_show_old_approve_button():
 
 
 def test_approved_unpublished_has_photo_recovery_not_music_actions(monkeypatch):
-    from utbot import telegram
+    from utbot import config
     from dataclasses import replace
-    monkeypatch.setattr(telegram,'CONFIG',replace(telegram.CONFIG,photo_music_mode='off'))
+    monkeypatch.setattr(config,'CONFIG',replace(config.CONFIG,photo_music_mode='off'))
     draft=fake_draft(status='approved',publish_state='unpublished')
     options=actions(advanced_keyboard(draft))
     assert 'retryig' in options
