@@ -827,6 +827,20 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     send(approval_qc_message(report))
                     return {'ok':True,'approval':'qc_not_passed',
                             'issues':(report.get('issues') or [])[:8]}
+                if CONFIG.photo_music_mode == 'off' and (
+                    not (d.image_credit or '').strip() or
+                    not (d.photo_license or '').strip()):
+                    send('⚠️ Belum bisa Approve untuk posting otomatis: kredit fotografer '
+                         'dan lisensi foto wajib terisi dan diverifikasi. '
+                         'Tekan tombol di bawah untuk melengkapi data foto.')
+                    if bot:
+                        bot.message(chat_id,'🧾 Lengkapi kredit dan lisensi foto terlebih dahulu.',
+                                    {'inline_keyboard':[
+                                        [{'text':'🧾 Isi Kredit & Lisensi',
+                                          'callback_data':f'credit:{d.id}:{d.version}'}],
+                                        [{'text':'⬅️ Kembali ke Draf',
+                                          'callback_data':f'open:{d.id}:{d.version}'}]]})
+                    return {'ok':True,'approval':'photo_credit_required'}
                 approve(db,d,uid)
                 if CONFIG.photo_music_mode == 'off':
                     # Consent is version-bound: do not publish older manually approved
@@ -862,10 +876,14 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                                 send('⏳ Foto diunggah dan sedang diproses Instagram. '
                                      'Bot akan memeriksa lagi lewat cron.')
                             else:
-                                send('⚠️ Belum dikonfirmasi terbit di Instagram. '
-                                     'Status: '+str(outcome.get('status') or
-                                                    outcome.get('blocked') or outcome.get('error') or
-                                                    outcome.get('note') or outcome)[:250])
+                                issue=(outcome.get('error') or outcome.get('note') or
+                                       ('Posting telah kedaluwarsa. Periksa dan buat draft baru.'
+                                        if outcome.get('expired') else None) or
+                                       ('Tidak ada draft siap dikirim atau izin posting belum terpenuhi.'
+                                        if outcome.get('due')==0 else None) or
+                                       outcome.get('status') or 'Periksa kredit, hak foto, dan koneksi Meta.')
+                                send('⚠️ Instagram belum mengonfirmasi publikasi. Alasan: '+
+                                     str(issue)[:260])
                     return {'ok':True,'approval':'approved_for_instagram'}
                 schedule_approved(db,daily_limit=CONFIG.daily_limit)
                 db.commit()
