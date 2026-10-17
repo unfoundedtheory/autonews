@@ -893,7 +893,19 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                              ' lalu tekan Approve sekali lagi untuk menjadwalkan atau memposting.')
                         return {'ok':True,'approval':'auto_revised_needs_confirmation',
                                 'version':d.version}
-                    send(approval_qc_message(report))
+                    diagnostic=db.query(Audit).filter(
+                        Audit.draft_id==d.id,
+                        Audit.event=='approval_caption_repair_failed'
+                    ).order_by(Audit.id.desc()).first()
+                    if diagnostic and (diagnostic.detail or {}).get('version')==d.version:
+                        reason=(diagnostic.detail or {}).get('reason') or 'unknown'
+                        send('⚠️ Revisi otomatis sudah dicoba tetapi belum lolos QC. '
+                             'Draft asli tetap aman dan tidak dipublikasikan. '
+                             'Penyebab terakhir: '+str(reason)[:100]+
+                             '. Silakan pilih Revisi Caption atau coba Approve lagi '
+                             'untuk menjalankan percobaan revisi baru.')
+                    else:
+                        send(approval_qc_message(report))
                     return {'ok':True,'approval':'qc_not_passed',
                             'issues':(report.get('issues') or [])[:8]}
                 approve(db,d,uid)
