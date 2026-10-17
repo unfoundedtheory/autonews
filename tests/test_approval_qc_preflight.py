@@ -290,3 +290,28 @@ def test_photo_only_approval_reports_missing_prerequisite(db,monkeypatch):
     assert out['approval']=='approved_for_instagram'
     assert draft.status=='approved' and draft.publish_state=='unpublished'
     assert any('belum dapat diposting' in msg for msg in bot.sent)
+
+
+def test_live_photo_approval_missing_rights_remains_pending(db,monkeypatch):
+    _,draft=seed(db)
+    bot=configure(monkeypatch)
+    monkeypatch.setattr(web,'CONFIG',replace(web.CONFIG,photo_music_mode='off',live_publish=True))
+    result=web.telegram_webhook(callback(draft),db=db)
+    assert result['approval']=='photo_credit_required'
+    assert draft.status=='pending_approval' and draft.approved_version is None
+    assert any('kredit fotografer' in msg for msg in bot.sent)
+
+
+def test_live_photo_approval_reports_actual_blocker_not_draft_uuid(db,monkeypatch):
+    _,draft=seed(db)
+    draft.image_credit='NASA/Hubble Mission'
+    draft.photo_license='Public Domain'
+    db.commit()
+    bot=configure(monkeypatch)
+    monkeypatch.setattr(web,'CONFIG',replace(web.CONFIG,photo_music_mode='off',live_publish=True))
+    monkeypatch.setattr(web,'publish_job',lambda **kwargs:
+                        {'blocked':draft.id,'error':'Hak foto belum dikonfirmasi'})
+    result=web.telegram_webhook(callback(draft),db=db)
+    assert result['approval']=='approved_for_instagram'
+    assert any('Alasan: Hak foto belum dikonfirmasi' in msg for msg in bot.sent)
+    assert not any('Status: '+draft.id in msg for msg in bot.sent)
