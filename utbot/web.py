@@ -538,7 +538,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                             {'inline_keyboard':[
                                 [{'text':'✅ Yes, Decline All',
                                   'callback_data':f'nav:decline_confirm:{total}'}],
-                                [{'text':'↩️ No, Batal','callback_data':'nav:decline_cancel'}]]}))
+                                [{'text':'↩️ No, Batal','callback_data':'nav:decline_cancel'}]]})
             if bot:bot.answer(cb.get('id'),'Konfirmasi diperlukan')
             return {'ok':True,'confirm_decline_all':total}
         if action == 'decline_cancel':
