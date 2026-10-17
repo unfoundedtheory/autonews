@@ -337,8 +337,9 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
 
 def prepare_batch(db,limit=3,notifier=None):
     """Called by authenticated cron job. Notifies after each successfully COMMITTED draft."""
+    # Search a wider pool so bad AI/QC candidates do not monopolize every run.
     stories=db.execute(select(Story).where(Story.verification_status=='needs_fact_check')
-                .order_by(case((Story.topic.in_(['astronomy','space']),0),else_=1), Story.published_at.desc(),Story.created_at.desc()).limit(limit*5)).scalars().all()
+                .order_by(case((Story.topic.in_(['astronomy','space']),0),else_=1), Story.published_at.desc(),Story.created_at.desc()).limit(100)).scalars().all()
     outcome=[]
     failures=[]
     for st in stories:
