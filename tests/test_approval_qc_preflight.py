@@ -402,3 +402,40 @@ def test_repair_can_retry_after_bad_first_candidate(db,monkeypatch):
     assert len(calls)==2
     assert draft.version==2 and draft.caption==good
     assert draft.status=='pending_approval'
+
+
+def test_normalize_caption_format_removes_inline_hashtags_and_splits_lines():
+    from utbot.rewrite import normalize_caption_format
+    raw=('Pembuka misteri.\\nNama objek diungkap kemudian.\\n'
+         'Bukti utama disampaikan.\\nApa yang akan diperiksa berikutnya?\\n'
+         '#NASA #Sains #Astronomi')
+    result=normalize_caption_format(raw)
+    assert result.count('\\n\\n')==3
+    assert result.endswith('?')
+    assert '#NASA' not in result
+    assert '#Sains' not in result
+
+
+def test_repair_retries_with_specific_deterministic_feedback(db,monkeypatch):
+    story,draft=seed(db)
+    from utbot.approval_flow import auto_repair_rejected_caption
+    old=draft.caption
+    fixed=old.replace('Para peneliti memeriksa struktur sinar-X di angkasa.',
+                      'Di angkasa, teleskop merekam pola yang belum terjelaskan.')
+    calls=[]
+    def fake_rewrite(field,instruction,*args):
+        calls.append(instruction)
+        if len(calls)==1:
+            return 'Satu paragraf tanpa pertanyaan #NASA'
+        return fixed+'\\n#NASA #Astronomi'
+    monkeypatch.setattr('utbot.rewrite.rewrite',fake_rewrite)
+    monkeypatch.setattr('utbot.quality_control.review_style',passing_style)
+    result=auto_repair_rejected_caption(
+        db,draft,story,{'issues':['qc_curiosity_gap'],
+        'checks':failed_style()['checks']},actor='42',max_attempts=3)
+    assert result and result['passed']
+    assert len(calls)==2
+    assert 'caption_paragraph_count' in calls[1]
+    assert 'ending_not_question' in calls[1]
+    assert draft.version==2
+    assert '#NASA' not in draft.caption
