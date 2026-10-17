@@ -125,8 +125,7 @@ class TelegramClient:
 
 def preview_text(d,st):
     """Clean owner-facing preview; technical details stay under the Sumber button."""
-    return ('HIGHLIGHT\n'+d.highlight+'\n\n'
-            'CAPTION\n'+caption_text(d,allow_missing_credit=True))
+    return caption_text(d,allow_missing_credit=True)
 
 
 
