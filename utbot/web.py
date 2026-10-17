@@ -1134,6 +1134,8 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         if link:d.media_page_url=link.group(1)
                         # Review button still required, never self-certify permission.
                     elif sess.mode=='green':
+                        if not (d.source_image_url or d.source_image_path):
+                            raise ValueError('Foto sumber asli diperlukan untuk merender ulang highlight hijau.')
                         from .accent import manual_green_phrases
                         chosen=manual_green_phrases(d.highlight,txt)
                         revise(db,d,'highlight',d.highlight,uid)
