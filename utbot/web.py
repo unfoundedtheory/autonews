@@ -827,33 +827,19 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     send(approval_qc_message(report))
                     return {'ok':True,'approval':'qc_not_passed',
                             'issues':(report.get('issues') or [])[:8]}
-                if CONFIG.photo_music_mode == 'off' and (
-                    not (d.image_credit or '').strip() or
-                    not (d.photo_license or '').strip()):
-                    send('⚠️ Belum bisa Approve untuk posting otomatis: kredit fotografer '
-                         'dan lisensi foto wajib terisi dan diverifikasi. '
-                         'Tekan tombol di bawah untuk melengkapi data foto.')
-                    if bot:
-                        bot.message(chat_id,'🧾 Lengkapi kredit dan lisensi foto terlebih dahulu.',
-                                    {'inline_keyboard':[
-                                        [{'text':'🧾 Isi Kredit & Lisensi',
-                                          'callback_data':f'credit:{d.id}:{d.version}'}],
-                                        [{'text':'⬅️ Kembali ke Draf',
-                                          'callback_data':f'open:{d.id}:{d.version}'}]]})
-                    return {'ok':True,'approval':'photo_credit_required'}
                 approve(db,d,uid)
                 if CONFIG.photo_music_mode == 'off':
                     # Consent is version-bound: do not publish older manually approved
                     # music handoffs merely because deployment mode switches to off.
                     db.add(Audit(draft_id=d.id,event='photo_only_approved',
                                  actor=str(uid),detail={'version':d.version}))
-                    # Approve is the owner's final editorial/photo-rights review.
-                    # Do not infer rights from bare image URLs or missing metadata.
-                    if (d.image_credit or '').strip() and (d.photo_license or '').strip():
-                        d.rights_reviewed = True
-                        db.add(Audit(draft_id=d.id,event='photo_rights_reviewed',
-                                     actor=str(uid),detail={'version':d.version,
-                                                            'source':'telegram_final_approve'}))
+                    # Human approval is the final check of cover relevance and
+                    # permission to use the selected image; credit metadata is optional.
+                    # Never invent photographer names or photo licences.
+                    d.rights_reviewed = True
+                    db.add(Audit(draft_id=d.id,event='photo_reviewed_by_owner',
+                                 actor=str(uid),detail={'version':d.version,
+                                                        'source':'telegram_final_approve'}))
                     # Owner explicitly requested photo-only publication right after approval.
                     # Only the JUST-approved, version-bound draft may be published here.
                     d.scheduled_at = datetime.now(timezone.utc)
