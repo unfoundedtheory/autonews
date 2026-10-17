@@ -82,21 +82,10 @@ def approve(db, draft, actor, *, human_fact_checked=False):
         raise ValueError("Cover final belum tersedia. Pilih Buat Cover atau Ganti Foto dahulu.")
     if draft.image_url and not draft.image_url.startswith("https://"):
         raise ValueError("URL cover final wajib HTTPS.")
-    issues=lint(draft.highlight,draft.caption,draft.hashtags,tragedy=bool(draft.is_tragedy))
-    if issues: raise ValueError("Aturan editorial belum terpenuhi: "+", ".join(issues))
-    prior_qc=db.query(Audit).filter(Audit.draft_id==draft.id,Audit.event=='editorial_qc').order_by(Audit.id.desc()).first()
-    # Existing AI-produced drafts must pass the CURRENT Markdown + curiosity rubric.
-    # Pure manually imported drafts without automated QC are reviewed by their
-    # human owner as before; mocked writers in isolated unit tests are unchanged.
-    manual_hook=db.query(Audit).filter(
-        Audit.draft_id==draft.id,Audit.event=='manual_hook_submitted').first()
-    if (manual_hook or
-        (prior_qc and (prior_qc.detail or {}).get('style_review')!='skipped_for_mock_writer')):
-        from .quality_control import report_for_draft
-        report=report_for_draft(db,draft,story)
-        if not report['passed']:
-            raise ValueError("QC editorial belum lolos: "+", ".join(report['issues'][:4])+
-                             ". Tekan Hasil QC atau revisi highlight.")
+    # Owner has reviewed the Telegram preview. Editorial QC is performed
+    # during draft generation and remains available on the dedicated QC menu.
+    # Do not rerun or gate on stylistic/formatting QC at final Approve.
+    # Verified primary evidence, valid cover, and publication state still gate.
     if draft.status=="rejected" or draft.status=="published":
         raise ValueError("Draf ini tidak dapat disetujui.")
     draft.approved_version=draft.version

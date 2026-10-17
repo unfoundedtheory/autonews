@@ -16,7 +16,6 @@ from .editorial import approve,revise,lint,evidence_ready
 from .scheduler import schedule_approved,due,WIB
 from .instagram import InstagramPublisher,caption_text
 from .photo_music import manual_music_message,manual_music_caption,instagram_post_url
-from .approval_flow import preflight_approval, approval_qc_message
 from .meta_delivery import publish_facebook_once
 from .telegram import TelegramClient,keyboard,advanced_keyboard,send_preview,photo_keyboard,main_menu
 from .telegram_ui import pending_page,approved_page,stories_page,photo_candidate_message,PENDING_PAGE_SIZE
@@ -876,39 +875,12 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     return {'ok':True,'approval':'already_approved'}
                 if d.status!='pending_approval' or d.publish_state!='unpublished':
                     raise ValueError('Hanya draf pending yang belum dipublikasikan dapat disetujui.')
-                if bot:bot.answer(cb_id,'Memeriksa QC otomatis sebelum menjadwalkan')
-                # Repair missing immutable renders without changing 4:5 branding.
+                if bot:bot.answer(cb_id,'Menyetujui draft yang sudah Anda periksa')
+                # Do not re-run QC or auto-rewrite content after owner presses
+                # Approve. The preview is the text the owner consented to.
                 if not (d.image_url or d.image_local_path) and (
                         d.source_image_url or d.source_image_path):
                     render_draft(d)
-                report=preflight_approval(db,d,st)
-                if report is not None and not report['passed']:
-                    from .approval_flow import auto_repair_rejected_caption
-                    repaired=auto_repair_rejected_caption(
-                        db,d,st,report,actor=uid)
-                    if repaired is not None and repaired['passed']:
-                        if bot:send_preview(bot,chat_id,d,st)
-                        send('✨ Caption sudah diperbaiki otomatis dan lolos QC terbaru. '
-                             'Karena isi posting berubah, periksa preview versi '+str(d.version)+
-                             ' lalu tekan Approve sekali lagi untuk menjadwalkan atau memposting.')
-                        return {'ok':True,'approval':'auto_revised_needs_confirmation',
-                                'version':d.version}
-                    diagnostic=db.query(Audit).filter(
-                        Audit.draft_id==d.id,
-                        Audit.event=='approval_caption_repair_failed'
-                    ).order_by(Audit.id.desc()).first()
-                    if diagnostic and (diagnostic.detail or {}).get('version')==d.version:
-                        detail=diagnostic.detail or {}
-                        reason=detail.get('diagnostic') or detail.get('reason') or 'QC belum lolos'
-                        send('⚠️ Revisi otomatis belum lolos QC. '
-                             'Draft asli tetap aman dan tidak dipublikasikan. '
-                             'Masalah yang masih perlu diperbaiki: '+str(reason)[:220]+
-                             '. Pilih Revisi Caption atau tekan Approve untuk '
-                             'menjalankan percobaan revisi baru.')
-                    else:
-                        send(approval_qc_message(report))
-                    return {'ok':True,'approval':'qc_not_passed',
-                            'issues':(report.get('issues') or [])[:8]}
                 approve(db,d,uid)
                 if CONFIG.photo_music_mode == 'off':
                     # Consent is version-bound: do not publish older manually approved
@@ -957,7 +929,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 schedule_approved(db,daily_limit=CONFIG.daily_limit)
                 db.commit()
                 at=d.scheduled_at.astimezone(WIB).strftime('%d %b %Y %H:%M WIB') if d.scheduled_at else 'belum tersedia'
-                send('✅ Disetujui setelah QC untuk versi '+str(d.version)+'. Jadwal: '+at)
+                send('✅ Draft versi '+str(d.version)+' disetujui. Jadwal: '+at)
                 if CONFIG.photo_music_mode=='manual':
                     from .stock_flow import send_music_kit
                     try:

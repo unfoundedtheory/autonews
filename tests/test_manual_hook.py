@@ -155,7 +155,7 @@ def test_manual_validator_preserves_punctuation_and_checks_unverified_numbers():
     finally:db.close()
 
 
-def test_manual_hook_cannot_be_approved_without_fresh_qc(monkeypatch):
+def test_manual_hook_owner_approval_does_not_require_fresh_style_qc(monkeypatch):
     import pytest
     from utbot.editorial import approve
     db=seed_db()
@@ -165,7 +165,7 @@ def test_manual_hook_cannot_be_approved_without_fresh_qc(monkeypatch):
         web.telegram_webhook(telegram_callback(d,'manualhook'),db=db)
         web.telegram_webhook(telegram_text(CUSTOM),db=db)
         db.refresh(d)
-        # Even with otherwise complete image rights, old QC does not suffice.
+        # Final owner approval skips stylistic QC but retains evidence/cover gates.
         d.rights_reviewed=True
         d.image_url='https://example.org/final-v2.jpg'
         d.photo_license='CC BY 4.0'
@@ -175,8 +175,8 @@ def test_manual_hook_cannot_be_approved_without_fresh_qc(monkeypatch):
              'url':st.source_url,'evidence_checked':True},
             {'claim':'Mars orbit','quote':'Mars orbits the Sun.',
              'url':st.source_url,'evidence_checked':True}]
-        with pytest.raises(ValueError,match='QC editorial'):
-            approve(db,d,'42')
+        approve(db,d,'42')
+        assert d.status=='approved' and d.approved_version==d.version
     finally:db.close()
 
 

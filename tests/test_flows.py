@@ -45,7 +45,7 @@ def test_admin_one_click_approval_flow(db,monkeypatch):
     assert web.telegram_webhook(callback(d,'approve',user=999),db=db)['ignored']=='not_allowlisted'
     web.telegram_webhook(callback(d,'approve'),db=db)
     assert d.status=='approved' and d.approved_version==d.version and d.scheduled_at
-    assert any('Disetujui' in item[2] for item in bot.sent if item[0]=='message')
+    assert any('disetujui' in item[2].lower() for item in bot.sent if item[0]=='message')
 
 
 def test_instagram_container_waits_then_publishes_once(db,monkeypatch,tmp_path):
