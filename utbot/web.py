@@ -585,7 +585,10 @@ def telegram_webhook(payload:dict,db=Depends(session)):
             show_stories(page)
         elif action=='queue':
             rows=db.execute(select(Draft).where(
-                Draft.status=='approved',Draft.scheduled_at.is_not(None))
+                Draft.status=='approved',
+                Draft.approved_version==Draft.version,
+                Draft.publish_state.in_(['unpublished','awaiting_container']),
+                Draft.scheduled_at > datetime.now(timezone.utc))
                 .order_by(Draft.scheduled_at).limit(15)).scalars().all()
             def describe_scheduled(d):
                 at=d.scheduled_at
@@ -851,7 +854,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                      'Periksa apakah posting sudah terbit di Instagram sebelum menyetujui ulang.')
             elif action=='approve':
                 if d.status=='approved' and d.approved_version==d.version:
-                    send('✅ Berita ini sudah disetujui. Cek menu Jadwal Posting.')
+                    send('✅ Berita ini sudah disetujui. Cek menu Jadwal Posting.',True)
                     return {'ok':True,'approval':'already_approved'}
                 if d.status!='pending_approval' or d.publish_state!='unpublished':
                     raise ValueError('Hanya draf pending yang belum dipublikasikan dapat disetujui.')
@@ -908,6 +911,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                                        outcome.get('status') or 'Periksa kredit, hak foto, dan koneksi Meta.')
                                 send('⚠️ Instagram belum mengonfirmasi publikasi. Alasan: '+
                                      str(issue)[:260])
+                    send('🏠 Menu utama — pilih tindakan berikutnya.',True)
                     return {'ok':True,'approval':'approved_for_instagram'}
                 schedule_approved(db,daily_limit=CONFIG.daily_limit)
                 db.commit()
@@ -924,6 +928,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         send('⚠️ Approval dan jadwal tetap tersimpan, tetapi paket Draft Instagram '
                              'belum terkirim: '+type(kit_error).__name__+
                              '. Bot akan mencoba kembali saat pemeriksaan berkala.')
+                send('🏠 Menu utama — pilih tindakan berikutnya.',True)
             elif action=='reject':
                 if d.status=='published' or d.publish_state in {'publishing','published','uncertain','awaiting_container'}:
                     raise ValueError('Posting sudah terbit atau sedang diproses, tidak dapat ditolak.')
