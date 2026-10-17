@@ -373,10 +373,18 @@ def prepare_batch(db,limit=3,notifier=None):
             db.rollback()
             # AI/QC failure is not proof the candidate is invalid.
             # It stays eligible for rewriting on the next scheduled run.
+            # Persist safe diagnostics, not provider response bodies, keys or prompts.
+            import httpx
+            status_code=(exc.response.status_code
+                         if isinstance(exc,httpx.HTTPStatusError) else None)
+            reason=type(exc).__name__
+            detail={'error_type':reason}
+            if status_code is not None:
+                detail['http_status']=status_code
             db.add(Audit(draft_id=st.id,event='candidate_prepare_failed',
-                         actor='worker',detail={'error_type':type(exc).__name__}))
+                         actor='worker',detail=detail))
             db.commit()
             failures.append({'story_id':st.id,'status':'retry_pending',
-                             'reason':type(exc).__name__})
+                             'reason':reason,'http_status':status_code})
         if len(outcome)>=limit:break
     return outcome if outcome else failures[:1]
