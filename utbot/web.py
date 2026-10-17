@@ -615,6 +615,44 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 if bot:bot.message(chat_id,'⋯ Opsi lanjutan untuk draf ini:',advanced_keyboard(d))
             elif action=='actions':
                 if bot:bot.message(chat_id,'Pilih tindakan untuk draf:',keyboard(d))
+            elif action=='retryig':
+                # Explicit owner request to retry an already-approved photo.
+                # The persisted consent event prevents old manual-music drafts
+                # from being silently republished after switching modes.
+                if (CONFIG.photo_music_mode!='off' or not CONFIG.live_publish or
+                    d.status!='approved' or d.approved_version!=d.version or
+                    d.publish_state!='unpublished'):
+                    raise ValueError('Posting langsung hanya tersedia untuk draft foto '
+                                     'yang disetujui dan belum diproses.')
+                approvals=db.execute(select(Audit.detail).where(
+                    Audit.draft_id==d.id,Audit.event=='photo_only_approved')).scalars().all()
+                if not any((entry or {}).get('version')==d.version for entry in approvals):
+                    raise ValueError('Draft ini disetujui dalam mode lama. '
+                                     'Jangan posting otomatis tanpa approval foto baru.')
+                d.rights_reviewed=True
+                if not d.scheduled_at:
+                    d.scheduled_at=datetime.now(timezone.utc)
+                db.add(Audit(draft_id=d.id,event='photo_post_retry_requested',
+                             actor=str(uid),detail={'version':d.version}))
+                db.commit()
+                if bot:bot.answer(cb_id,'Mencoba publikasi foto')
+                send('📸 Memeriksa kembali publikasi foto yang sudah disetujui…')
+                try:
+                    outcome=publish_job(db=db,target_draft_id=d.id)
+                except HTTPException as err:
+                    send('⚠️ Belum berhasil: '+str(err.detail)[:250])
+                else:
+                    if outcome.get('published'):
+                        send('✅ Foto berhasil terbit di Instagram. Media ID: '+
+                             str(outcome.get('instagram_media_id')))
+                    elif outcome.get('waiting'):
+                        send('⏳ Instagram masih memproses foto. Cron akan melanjutkan.')
+                    else:
+                        issue=outcome.get('error') or outcome.get('note') or (
+                            'Tidak ada draft yang memenuhi syarat posting.'
+                            if outcome.get('due')==0 else outcome.get('status')) or 'Cek status koneksi Meta.'
+                        send('⚠️ Belum terbit. Alasan: '+str(issue)[:250])
+                return {'ok':True,'instagram_retry':True}
             elif action=='hookideas':
                 if d.status in ('published','rejected') or d.publish_state in ('publishing','published','uncertain'):
                     raise ValueError('Draf ini tidak boleh direvisi.')
