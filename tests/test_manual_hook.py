@@ -4,7 +4,7 @@ from sqlalchemy.orm import sessionmaker
 from utbot.models import Base,make_engine,Story,Draft,TelegramSession,Audit
 from utbot.research import fingerprint
 from utbot import web
-from utbot.telegram import keyboard,preview_text
+from utbot.telegram import keyboard, advanced_keyboard,preview_text
 from utbot.manual_hook import validate_typed_hook,accent_for_hook
 
 ORIGINAL='Fisikawan Temukan Sinyal Aneh Dalam Pencarian Partikel Dark Matter'
@@ -66,7 +66,7 @@ def test_manual_hook_button_and_preview_are_clean():
     db=seed_db()
     try:
         _,d=build_story(db)
-        actions=[b['callback_data'] for row in keyboard(d)['inline_keyboard'] for b in row]
+        actions=[b['callback_data'] for row in advanced_keyboard(d)['inline_keyboard'] for b in row]
         assert f'manualhook:{d.id}:{d.version}' in actions
         body=preview_text(d,db.get(Story,d.story_id))
         assert body.startswith('HIGHLIGHT\n')
@@ -206,7 +206,7 @@ def test_approved_unpublished_draft_can_redraw_with_new_font(monkeypatch):
         bot=configure(monkeypatch)
         d.source_image_url='https://example.org/science-photo.jpg'
         d.scheduled_at=None
-        buttons=[b['callback_data'] for row in keyboard(d)['inline_keyboard'] for b in row]
+        buttons=[b['callback_data'] for row in advanced_keyboard(d)['inline_keyboard'] for b in row]
         assert f'redesign:{d.id}:{d.version}' in buttons
         monkeypatch.setattr(web,'render_draft',
                             lambda draft:setattr(draft,'image_url',
