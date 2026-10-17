@@ -594,8 +594,22 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 at=d.scheduled_at
                 at=at.replace(tzinfo=timezone.utc) if at.tzinfo is None else at
                 return f'{at.astimezone(WIB):%d/%m %H:%M} - {d.highlight}'
-            send('📅 Jadwal WIB\n'+
-                 ('\n'.join(describe_scheduled(d) for d in rows) or 'Belum ada antrean'))
+            message='📅 Jadwal WIB\n'+(
+                '\n'.join(f'{i+1}. {describe_scheduled(d)}' for i,d in enumerate(rows))
+                or 'Belum ada antrean')
+            eligible=[]
+            if CONFIG.photo_music_mode=='off' and CONFIG.live_publish:
+                for i,d in enumerate(rows):
+                    if d.publish_state!='unpublished':
+                        continue
+                    consent=db.execute(select(Audit.detail).where(
+                        Audit.draft_id==d.id,Audit.event=='photo_only_approved'
+                    )).scalars().all()
+                    if any((entry or {}).get('version')==d.version for entry in consent):
+                        eligible.append([{'text':f'📸 Post Sekarang #{i+1}',
+                                          'callback_data':f'postnow:{d.id}:{d.version}'}])
+            if bot:bot.message(chat_id,message,
+                {'inline_keyboard':eligible} if eligible else None)
         if bot:bot.answer(cb.get('id'),'Diperbarui')
         return {'ok':True,'menu':action}
     if cb:
@@ -618,7 +632,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 if bot:bot.message(chat_id,'⋯ Opsi lanjutan untuk draf ini:',advanced_keyboard(d))
             elif action=='actions':
                 if bot:bot.message(chat_id,'Pilih tindakan untuk draf:',keyboard(d))
-            elif action=='retryig':
+            elif action in ('retryig','postnow'):
                 # Explicit owner request to retry an already-approved photo.
                 # The persisted consent event prevents old manual-music drafts
                 # from being silently republished after switching modes.
@@ -633,8 +647,9 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     raise ValueError('Draft ini disetujui dalam mode lama. '
                                      'Jangan posting otomatis tanpa approval foto baru.')
                 d.rights_reviewed=True
-                if not d.scheduled_at:
-                    d.scheduled_at=datetime.now(timezone.utc)
+                # An explicit Post Sekarang request overrides a future posting slot.
+                # The publisher still enforces approved version and unpublished state.
+                d.scheduled_at=datetime.now(timezone.utc)
                 db.add(Audit(draft_id=d.id,event='photo_post_retry_requested',
                              actor=str(uid),detail={'version':d.version}))
                 db.commit()
