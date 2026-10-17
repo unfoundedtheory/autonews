@@ -340,8 +340,15 @@ def prepare_batch(db,limit=3,notifier=None):
     # Search a wider pool so bad AI/QC candidates do not monopolize every run.
     stories=db.execute(select(Story).where(Story.verification_status=='needs_fact_check')
                 .order_by(case((Story.topic.in_(['astronomy','space']),0),else_=1), Story.published_at.desc(),Story.created_at.desc()).limit(100)).scalars().all()
+    from datetime import timedelta
+    cutoff=datetime.now(timezone.utc)-timedelta(hours=3)
+    tried=set(db.execute(select(Audit.draft_id).where(
+        Audit.event=='candidate_prepare_failed',Audit.created_at>=cutoff
+    )).scalars().all())
+    stories=[st for st in stories if st.id not in tried]
     outcome=[]
     failures=[]
+    attempted=0
     for st in stories:
         if not trusted_source(st.source_url):
             st.verification_status='needs_manual_fact_check'
@@ -352,6 +359,8 @@ def prepare_batch(db,limit=3,notifier=None):
             db.commit()
             continue
         if db.execute(select(Draft.id).where(Draft.story_id==st.id)).first():continue
+        if attempted>=max(4,limit*4):break
+        attempted+=1
         try:
             d=prepare_story(db,st)
             db.commit()
@@ -364,6 +373,9 @@ def prepare_batch(db,limit=3,notifier=None):
             db.rollback()
             # AI/QC failure is not proof the candidate is invalid.
             # It stays eligible for rewriting on the next scheduled run.
+            db.add(Audit(draft_id=st.id,event='candidate_prepare_failed',
+                         actor='worker',detail={'error_type':type(exc).__name__}))
+            db.commit()
             failures.append({'story_id':st.id,'status':'retry_pending',
                              'reason':type(exc).__name__})
         if len(outcome)>=limit:break
