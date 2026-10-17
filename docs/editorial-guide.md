@@ -68,6 +68,13 @@ Dirangkum dari koreksi, teori hook, dan diskusi selama proses pembuatan konten. 
 - Cantumkan angka, tanggal, nama jurnal, dan nama lembaga jika tersedia.
 - Jangan kaitkan dengan filsafat. Pembaca ingin data, bukan renungan.
 
+**Pemeriksaan AI wajib: 5W1H dan data-centric**
+- AI penulis dan reviewer wajib mengecek ulang caption final, termasuk setelah revisi. Gaya cerita yang sudah baik tetap dipertahankan; pemeriksaan ini tidak mengubah caption menjadi daftar atau enam subjudul.
+- Petakan secara internal **Who** (peneliti/institusi/subjek), **What** (temuan/peristiwa), **When** (waktu kejadian/pengamatan/publikasi), **Where** (lokasi/objek pengamatan), **Why** (penyebab atau alasan ilmiah), dan **How** (metode/proses atau cara data diperoleh). Cocokkan setiap unsur dengan kalimat caption dan bukti sumber primer.
+- Bedakan tanggal publikasi, waktu pengamatan, dan usia objek. Why/How yang belum diketahui harus dinyatakan sebagai keterbatasan, bukan ditebak. Unsur yang tidak tersedia atau tidak relevan dicatat beserta alasannya; jangan mengarang detail untuk melengkapi checklist.
+- **Data-centric** berarti klaim utama bertumpu pada hasil pengukuran, observasi, metode, atau hasil riset yang dapat ditelusuri. Jika sumber menyediakan angka yang relevan, sertakan angka inti beserta satuan, konteks pembanding, periode, dan batas kepastiannya sejauh tersedia. Jangan menambahkan angka hanya agar caption tampak ilmiah.
+- Reviewer wajib menunjukkan bagian caption yang mendukung penilaian 5W1H dan data-centric. Jika fakta penting yang tersedia di sumber belum masuk, atau angka/satuan/konteks tidak sesuai, minta revisi bagian itu tanpa menambah paragraf atau mengubah gaya caption yang sudah sesuai.
+
 **Panjang**
 - Caption harus ringkas. Target maksimal 4 sampai 5 paragraf. Keluhan "terlalu panjang" berulang kali muncul, jadi pangkas detail sekunder lebih dulu.
 - Jika memakai paragraf satu kalimat untuk pivot, tetap jaga total isi agar singkat.
@@ -189,6 +196,13 @@ Dirangkum dari koreksi, teori hook, dan diskusi selama proses pembuatan konten. 
 3. Arsip ilmiah/Wikimedia Commons yang terbukti menggambarkan subjek yang sama, dengan sumber, tanggal, kredit, dan izin penggunaan yang jelas.
 4. Jika tidak ada kandidat yang benar-benar relevan, **tahan draf dan minta penggantian foto manual**. Jangan mengisi cover dengan gambar generik yang sekadar tampak ilmiah.
 
+**Komposisi objek dan gradient bawah (koreksi pemilik 17 Oktober 2026)**
+- Pada cover final, **pusat visual objek utama harus sedikit di atas titik tengah kanvas**. Untuk kanvas 1080 × 1350, gunakan sekitar y=580–620 px sebagai panduan awal (tengah kanvas y=675), lalu sesuaikan crop dengan bentuk objek. Ini panduan komposisi, bukan koordinat kaku untuk semua foto.
+- Atur crop/fokus berdasarkan lokasi objek sebenarnya; parameter crop sumber saja tidak membuktikan bahwa objek sudah berada di posisi yang benar. Jangan memotong bagian ilmiah penting, meregangkan foto, atau menutup objek utama dengan logo/teks. Bila tidak muat, pilih gambar lain.
+- **Batas bawah gambar tidak boleh terlihat** sebagai garis, potongan persegi, atau transisi mendadak. Gunakan gradient hitam halus yang makin pekat ke bawah dan mencapai hitam penuh di baris pixel terakhir (y=1349); foto tetap memenuhi kanvas, tanpa bidang kosong atau letterbox.
+- Periksa hasil render penuh dan thumbnail: objek utama sedikit di atas center, bagian atas foto tetap jelas, dan foto menyatu ke hitam di bawah. Gradient berada di bawah logo serta teks putih/hijau sehingga tidak meredupkannya.
+- Posisi logo tetap pada kotak (402, 900, 678, 948); penyesuaian fokus foto tidak boleh menggeser logo atau area headline yang sudah dikunci.
+
 **Resolusi sumber (bukan resolusi cover final)**
 - **Diutamakan**: sisi terpendek foto sumber ≥ 1080 px.
 - **Diterima**: sisi terpendek ≥ 720 px jika objek tetap jelas setelah crop.
@@ -198,6 +212,15 @@ Dirangkum dari koreksi, teori hook, dan diskusi selama proses pembuatan konten. 
 
 **Kecocokan visual dan hak penggunaan**
 - Cocokkan gambar dengan isi berita dan sumber primer, bukan sekadar kemiripan kata dalam judul/metadata.
+
+**Pemeriksaan AI wajib: foto versus isi news**
+- Sebelum foto dipilih sebagai cover, AI pemeriksa visual wajib membandingkan **gambar sumber yang benar-benar dilihat**, isi berita/caption final, dan keterangan gambar dari sumber primer. Ulangi pemeriksaan bila foto atau isi berita berubah, lalu periksa cover setelah crop agar subjek yang relevan tetap terlihat.
+- Periksa identitas objek/subjek, peristiwa/fenomena, lokasi dan waktu bila relevan, instrumen/misi, serta jenis visual (foto observasi, komposit/warna semu, arsip, simulasi, atau ilustrasi). Kesamaan topik umum seperti antariksa atau galaksi tidak cukup.
+- Catat hasil internal **sesuai / tidak sesuai / belum dapat dipastikan**, alasan spesifik, dan bukti identitas dari sumber. Jangan mengklaim telah melihat pixel gambar bila AI hanya menerima URL, nama file, judul, atau metadata.
+- Jika akses gambar atau kemampuan vision tidak tersedia, tandai **belum dapat dipastikan** dan minta tinjauan visual editor; pemeriksaan metadata hanya penyaringan awal, bukan kelulusan visual. Status meragukan atau mismatch harus memicu pencarian ulang/penggantian foto sebelum publikasi.
+- Jangan menyajikan ilustrasi, simulasi, atau foto arsip sebagai dokumentasi langsung kejadian. Pemeriksaan relevansi AI tetap terpisah dari validasi hak penggunaan/kredit dan persetujuan editor.
+
+**Larangan dan tindak lanjut**
 - Jangan gunakan halaman sensus, dokumen/tabel acak, screenshot tidak terkait, stock generik, visual galaksi lain, atau foto arsip yang tidak menggambarkan penemuan yang dibahas. Dokumen hanya layak jika **dokumen itu sendiri** memang subjek beritanya.
 - Untuk berita radioastronomi tentang tumbukan gugus galaksi, utamakan citra radio, komposit observasi, atau gugus galaksi yang **terverifikasi sebagai objek yang dibahas**; jangan substitusi dengan galaksi sembarang.
 - Foto asli, citra warna semu, dan komposit ilmiah harus diberi konteks yang akurat; ilustrasi tidak boleh disajikan sebagai bukti pengamatan.
@@ -241,6 +264,8 @@ Dirangkum dari koreksi, teori hook, dan diskusi selama proses pembuatan konten. 
 - [ ] Kalimat pivot berdiri sendiri, ada kata kontras di titik balik
 - [ ] Ada hook di setiap paragraf
 - [ ] 5W1H terpenuhi dengan nama, angka, tanggal, dan sumber
+- [ ] AI memetakan 5W1H ke isi caption dan bukti primer; unsur belum diketahui/tidak relevan dijelaskan tanpa mengarang
+- [ ] Data-centric: klaim inti, angka/satuan yang tersedia, konteks, metode, serta batas kepastian sesuai sumber primer
 - [ ] Tidak ada framing filsafat dan tidak ada em dash
 - [ ] Total caption ringkas, maksimal 4 sampai 5 paragraf
 - [ ] Paragraf terakhir berupa open loop question
@@ -251,6 +276,7 @@ Dirangkum dari koreksi, teori hook, dan diskusi selama proses pembuatan konten. 
 - [ ] Prioritas foto adalah **relevansi objek/peristiwa ilmiah**, ketepatan identitas foto, dan kualitas visual; foto tidak relevan harus diganti sebelum approval
 - [ ] Untuk berita tragedi: tidak mengeksploitasi korban, penutup empatik
 - [ ] Foto menunjukkan subjek/peristiwa yang sama dengan berita; bukan dokumen atau gambar generik tak relevan
+- [ ] Pemeriksaan foto versus caption final mencatat hasil, alasan dan bukti; metadata saja tidak disebut sebagai pemeriksaan visual AI
 - [ ] Identitas foto, citra/komposit, sumber primer, kredit, hak penggunaan, dan crop sudah diperiksa
 - [ ] Jika foto sumber berukuran 600–719 px pada sisi terpendek, pengecualian mutu telah ditinjau; final tetap 1080 × 1350
 - [ ] Foto tidak relevan atau rusak setelah crop/upscale: QC visual gagal dan draf ditahan, bukan dipublikasikan

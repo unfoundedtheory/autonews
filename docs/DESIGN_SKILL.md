@@ -34,6 +34,8 @@ This guide implements the user's four supplied design modules as **production ac
 
 For every candidate, check: photo source and subject identity; licensing/credit; original resolution; safe crop; whether the title's claim matches verified research; 4:5 dimensions; balanced line count; legibility; text margins; brand badge/logo; green emphasis frequency. Present low-resolution preview plus source and credit in Telegram. The editor can request a different image, focus point, highlight, or caption. A revision invalidates any previous approval. Publish ONLY the final preview accepted for that approved content version.
 
+AI visual review must compare the actual source image with the final news/caption and the primary source's image description, following §9 of `docs/editorial-guide.md`. Record matched, mismatched, or uncertain with a specific reason and identity evidence; inspect the cropped cover again. A URL, filename, keyword or metadata match alone is not a pixel-level AI review. If image access or vision is unavailable, record uncertainty and require editor visual review. Replace mismatched images and resolve uncertain identity before publication. Repeat when the image or news changes; never present archives, composites, simulations or illustrations as direct documentary evidence of a different event.
+
 ## 6. UI/UX Principles Used on the Operator Interfaces
 
 Apply the shared four-module user skill: LIFT visual focus, 4-point grid, Gestalt proximity and common region, Hick's and Miller's laws to reduce approval menu choices, Fitts's Law for approval buttons, Doherty threshold for immediate acknowledgement, and differentiated default/hover/active/disabled states. Telegram buttons should be minimal: Approve, Revise, Replace Photo, Reject. Reveal extra controls only when needed, to lower cognitive load.
@@ -174,3 +176,11 @@ panjang headline atau ruang kosong di bawahnya.
   minta revisi headline di Telegram; jangan menggeser elemen identitas.
 - Foto referensi pemilik dipakai sebagai **panduan koordinat saja**,
   bukan sebagai sumber berita atau aset publikasi.
+
+
+## 18. Koreksi komposisi foto — objek di atas center dan dasar hitam (17 Oktober 2026)
+
+- Pusat visual objek utama pada **hasil crop akhir** harus sedikit di atas center kanvas. Panduan awal untuk 1080×1350: sekitar y=580–620 px, dibanding titik tengah y=675; sesuaikan dengan bentuk dan kelengkapan objek, bukan angka kaku untuk semua foto. Jangan menyamakan parameter crop sumber dengan posisi objek pada hasil akhir.
+- Lindungi bagian ilmiah penting dari crop dan tumpang tindih logo/headline; pilih foto lain bila komposisi tidak dapat dicapai tanpa merusak subjek. Tidak boleh stretch, letterbox, padding, atau bidang kosong.
+- Batas bawah foto **tidak terlihat**: gradient hitam halus menutup foto secara progresif sampai hitam penuh pada baris pixel terakhir y=1349, tanpa garis potong/transisi mendadak. Bagian atas dan subjek utama tetap jelas. Gradient di bawah logo dan headline, bukan di atas teks.
+- QA wajib memeriksa cover penuh serta thumbnail, termasuk input landscape/portrait/square. Aturan ini mengatur foto; logo tetap di (402,900)–(678,948), headline mulai y=981, dan margin aman 56px tetap berlaku.
