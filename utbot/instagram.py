@@ -53,11 +53,8 @@ def photo_credit_line(draft, *, allow_missing=False):
             'unknown','unknown author','n/a','tidak diketahui','belum diisi',
             'kredit foto: perlu diisi oleh editor'}:
         if allow_missing:
-            # For the human Instagram music handoff, cite the *actual source
-            # page* if known, never invent an author or claim usage rights.
-            source=(getattr(draft,'media_page_url',None) or '').strip()
-            if source.startswith('https://') and len(source)<=500:
-                return 'Sumber gambar: '+source
+            # Preview may omit an unknown credit, but must never expose a
+            # source URL as a substitute for the actual photographer.
             return ''
         raise ValueError('Kredit foto asli wajib diisi sebelum publikasi Instagram.')
 
@@ -87,7 +84,7 @@ def caption_text(draft, *, allow_missing_credit=False):
     # A separate metadata-derived credit is authoritative so photo swaps cannot
     # accidentally retain the previous photographer in an editable caption.
     body='\n'.join(line for line in body.split('\n')
-                   if not re.match(r'^\s*(?:Photo\s+by|Foto|Kredit\s+foto)\s*:',line,re.I)).strip()
+                   if not re.match(r'^\s*(?:Photo\s+by|Foto|Kredit\s+foto|Sumber\s+gambar)\s*:',line,re.I)).strip()
     parts=[value for value in (
         body,photo_credit_line(draft,allow_missing=allow_missing_credit),
         ' '.join(draft.hashtags)) if value]
