@@ -65,6 +65,8 @@ def auto_approve_ready(db,limit=15):
         except (ValueError,RuntimeError):
             blocked.append({'draft_id':d.id,'reason':'approval_safety_gate'})
             continue
+        # Mark reviewed only after strict public-domain/CC0 photo policy passes.
+        d.rights_reviewed=True
         db.add(Audit(draft_id=d.id,event='photo_only_approved',
                      actor='system:full_auto',detail={'version':d.version,
                      'mode':'full_auto','automatically_generated':True}))
