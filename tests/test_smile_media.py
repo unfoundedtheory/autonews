@@ -48,7 +48,7 @@ def test_retry_cover_button_requires_editor_selection(monkeypatch):
     from utbot import web
     from dataclasses import replace
     from utbot.research import fingerprint
-    from utbot.telegram import keyboard
+    from utbot.telegram import advanced_keyboard
     db=sessionmaker(bind=(eng:=make_engine('sqlite://')),expire_on_commit=False)()
     Base.metadata.create_all(eng)
     st=Story(fingerprint=fingerprint('https://www.esa.int/News/Smile'),
@@ -60,7 +60,7 @@ def test_retry_cover_button_requires_editor_selection(monkeypatch):
              hashtags=['#ESA','#Sains','#Space','#Bumi','#UnfoundedTheory'])
     db.add(dr);db.commit()
     assert any(x['callback_data'].startswith('retrycover:')
-               for line in keyboard(dr)['inline_keyboard'] for x in line)
+               for line in advanced_keyboard(dr)['inline_keyboard'] for x in line)
     class Bot:
         def __init__(self):self.messages=[]
         def answer(self,*args):pass
