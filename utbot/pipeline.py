@@ -378,14 +378,22 @@ def prepare_batch(db,limit=3,notifier=None):
             status_code=(exc.response.status_code
                          if isinstance(exc,httpx.HTTPStatusError) else None)
             reason=type(exc).__name__
-            detail={'error_type':reason}
+            # Store only controlled classification, never raw provider replies or secrets.
+            message=str(exc).lower()
+            stage=('ai_rate_limited' if status_code==429 else
+                   'primary_source' if any(k in message for k in ('sumber primer','artikel sumber','halaman bukan','konten sumber')) else
+                   'evidence_validation' if any(k in message for k in ('kutipan','evidence','klaim tidak didukung')) else
+                   'style_qc' if any(k in message for k in ('qc gaya','editorial qc','rubrik')) else
+                   'caption_format' if any(k in message for k in ('panduan','caption','highlight','penulisan gagal')) else
+                   'provider_http' if status_code else 'other_validation')
+            detail={'error_type':reason,'stage':stage}
             if status_code is not None:
                 detail['http_status']=status_code
             db.add(Audit(draft_id=st.id,event='candidate_prepare_failed',
                          actor='worker',detail=detail))
             db.commit()
             failures.append({'story_id':st.id,'status':'retry_pending',
-                             'reason':reason,'http_status':status_code})
+                             'reason':reason,'http_status':status_code,'stage':stage})
             # Rate limit is provider-wide: stop this batch instead of
             # exhausting the remaining candidate queue with more 429s.
             if status_code == 429:
