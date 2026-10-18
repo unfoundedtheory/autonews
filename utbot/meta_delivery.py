@@ -4,7 +4,9 @@ All attempts are durably recorded *before* posting. An uncertain Graph API
 outcome must NEVER be reissued automatically. Native IG→FB sharing may already
 be enabled; this option stays disabled until the owner explicitly opts in.
 """
-from .models import Audit
+from .models import Audit, MetaConnection
+from .instagram_credentials import resolve_instagram_credentials
+from sqlalchemy import select
 from .config import CONFIG
 from .meta import MetaGraph
 from .instagram import caption_text
@@ -13,7 +15,25 @@ def publish_facebook_once(db,draft,*,actor="worker",poster=None,config=None):
     config=config or CONFIG
     if not (config.facebook_crosspost and config.live_publish):
         return {'facebook':'disabled'}
-    if not config.facebook_page_id or not config.facebook_page_token:
+    # OAuth already stores a Page token encrypted at rest. Prefer the owner-
+    # authorized Page rather than requiring a second independent token setup.
+    page_id, page_token = config.facebook_page_id, config.facebook_page_token
+    if not (page_id and page_token):
+        rows=db.execute(select(MetaConnection)).scalars().all()
+        matches=[row for row in rows if row.page_name.strip().casefold()=='unfounded theory']
+        if len(matches)!=1:
+            return {'facebook':'not_configured'}
+        import os
+        from cryptography.fernet import Fernet, InvalidToken
+        key=os.getenv('META_TOKEN_ENCRYPTION_KEY','')
+        if not key:
+            return {'facebook':'not_configured'}
+        try:
+            page_token=Fernet(key.encode()).decrypt(matches[0].encrypted_page_token.encode()).decode()
+        except (InvalidToken,ValueError,TypeError):
+            return {'facebook':'not_configured'}
+        page_id=matches[0].page_id
+    if not page_id or not page_token:
         return {'facebook':'not_configured'}
     # Serialize concurrent Page posts for the same draft in PostgreSQL. Once
     # facebook_publish_started is committed, no worker may retry blindly.
@@ -35,14 +55,14 @@ def publish_facebook_once(db,draft,*,actor="worker",poster=None,config=None):
 
     # The POST may succeed even if the HTTP response is lost. Reserve first.
     db.add(Audit(draft_id=draft.id,event='facebook_publish_started',actor=str(actor),
-                 detail={'version':draft.version,'page_id':config.facebook_page_id}))
+                 detail={'version':draft.version,'page_id':page_id}))
     db.commit()
     try:
-        adapter=poster or MetaGraph(config.facebook_page_token,config.facebook_graph_version)
-        result=adapter.publish_page_photo(config.facebook_page_id,draft.image_url,
+        adapter=poster or MetaGraph(page_token,config.facebook_graph_version)
+        result=adapter.publish_page_photo(page_id,draft.image_url,
                                           caption_text(draft,allow_missing_credit=True))
         db.add(Audit(draft_id=draft.id,event='facebook_published',actor=str(actor),
-                     detail={'page_id':config.facebook_page_id,
+                     detail={'page_id':page_id,
                              'photo_id':result['photo_id'],'post_id':result['id']}))
         db.commit()
         return {'facebook':'published','facebook_post_id':result['id']}
