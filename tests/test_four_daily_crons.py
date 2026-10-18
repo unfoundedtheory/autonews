@@ -10,3 +10,14 @@ def test_four_daily_news_preparation_crons():
     assert crons['/api/cron/prepare/morning']=='0 2 * * *'  # 09:00 WIB
     assert crons['/api/cron/prepare/afternoon']=='0 8 * * *'  # 15:00 WIB
     assert crons['/api/cron/prepare/evening']=='0 14 * * *'  # 21:00 WIB
+
+
+def test_three_publication_crons_separate_from_four_creation_crons():
+    config=json.loads((Path(__file__).resolve().parents[1]/'vercel.json').read_text())
+    crons={entry['path']:entry['schedule'] for entry in config['crons']}
+    assert len([p for p in crons if p.startswith('/api/cron/prepare')]) == 4
+    assert {p:v for p,v in crons.items() if p.startswith('/api/cron/tick/')} == {
+        '/api/cron/tick/morning': '0 23 * * *',
+        '/api/cron/tick/noon': '0 5 * * *',
+        '/api/cron/tick/evening': '0 11 * * *',
+    }

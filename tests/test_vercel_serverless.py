@@ -18,7 +18,6 @@ def test_cron_schedules_wib():
       ('/api/cron/tick/morning','0 23 * * *'),
       ('/api/cron/tick/noon','0 5 * * *'),
       ('/api/cron/tick/evening','0 11 * * *'),
-      ('/api/cron/tick/night','0 15 * * *'),
       ('/api/cron/maintenance','0 21 * * *')]
 
 def test_cron_secret_validation(monkeypatch):
@@ -50,5 +49,4 @@ def test_mounted_routes():
     with TestClient(app) as client:
         assert client.get('/api/health').status_code==200
         assert client.get('/api/cron/tick/morning').status_code==403
-        assert client.get('/api/cron/tick/night').status_code==403
         assert client.post('/api/telegram/webhook',json={}).status_code==403

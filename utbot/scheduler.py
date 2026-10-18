@@ -4,14 +4,14 @@ from sqlalchemy import select,text
 from .models import Draft,Audit
 
 WIB=ZoneInfo("Asia/Jakarta")
-SLOTS=(6,12,18,22)
+SLOTS=(6,12,18)
 
-def schedule_approved(db, now=None, daily_limit=4, horizon_days=90):
-    """Rebuild *future* queue only. Slots are available at 06/12/18/22 WIB, daily max 4.
+def schedule_approved(db, now=None, daily_limit=3, horizon_days=90):
+    """Rebuild *future* queue only. Slots are available at 06/12/18 WIB, daily max 3.
 
     Use a database transaction/advisory lock around this operation in production.
     """
-    if not 1<=daily_limit<=4: raise ValueError("limit must be between 1 and 4")
+    if not 1<=daily_limit<=3: raise ValueError("limit must be between 1 and 3")
     # Serialize queue rebuild across simultaneous worker and Telegram approval.
     if db.bind.dialect.name == 'postgresql':
         db.execute(text('SELECT pg_advisory_xact_lock(917540134)'))

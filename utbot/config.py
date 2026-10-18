@@ -26,7 +26,7 @@ class Config:
     facebook_graph_version: str = os.getenv('FACEBOOK_GRAPH_VERSION','v24.0')
     facebook_crosspost: bool = os.getenv('FACEBOOK_CROSSPOST','false').lower() == 'true'
     live_publish: bool = os.getenv('ENABLE_LIVE_PUBLISH','false').lower() == 'true'
-    daily_limit: int = 4  # Owner-set production target: exactly four available slots per WIB day.
+    daily_limit: int = 3  # Owner policy: at most three publications per WIB day.
     # Editorial stock: up to three drafts per run, four times daily on Vercel.
     draft_stock_target: int = int(os.getenv('DRAFT_STOCK_TARGET','14'))
     prepare_batch_limit: int = int(os.getenv('PREPARE_BATCH_LIMIT','3'))

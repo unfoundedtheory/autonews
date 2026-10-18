@@ -1,7 +1,7 @@
 ## Vercel serverless deployment (v0.8 staging)
 
 - Vercel serves the root `app.py` entrypoint, which mounts the newsroom under `/api/*`; no always-on worker.
-- `vercel.json` defines **seven once-daily cron jobs** in UTC: discovery 01:00 WIB, draft preparation 03:00 and 15:00 WIB, maintenance 04:00 WIB, and publishing checks 06:00, 12:00 and 18:00 WIB. Hobby permits multiple daily jobs (each expression may run only once per day), with execution potentially delayed up to 59 minutes. Precise posting times require an always-on worker or more precise scheduling.
+- `vercel.json` defines **nine once-daily cron jobs** in UTC: discovery 01:00 WIB, draft preparation 03:00, 09:00, 15:00 and 21:00 WIB, maintenance 04:00 WIB, and publishing checks 06:00, 12:00 and 18:00 WIB. Hobby permits multiple daily jobs (each expression may run only once per day), with execution potentially delayed up to 59 minutes. Precise posting times require an always-on worker or more precise scheduling.
 - Use persistent Postgres `DATABASE_URL`; Vercel rejects SQLite in scheduled jobs.
 - Configure `CRON_SECRET`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_ADMIN_USER_IDS`, `TELEGRAM_CHAT_ID`, provider API keys and Instagram Professional API secrets as Vercel environment variables, never in Git.
 - For Vercel, images render in `/tmp`, then immediately upload to immutable Supabase Storage object paths. Sources may be fetched again when an editor revises a headline.
@@ -98,7 +98,7 @@ Referensi gateway: [Gemini](https://ai.google.dev/gemini-api/docs), [DeepSeek](h
 | `utbot/media.py` | Wikimedia Commons + metadata lisensi → download aman → upload JPEG final ke Supabase Storage |
 | `utbot/renderer.py` | Desain deterministik 1080×1350: gradien hitam, logo, putih dan neon `#8FFF00` |
 | `utbot/telegram.py` | Preview, tombol approve/tolak, lihat sumber, perintah revisi, pilih foto |
-| `utbot/scheduler.py` | WIB 06.00 / 12.00 / 18.00; default maksimum 2 posting harian; sisanya besok |
+| `utbot/scheduler.py` | WIB 06.00 / 12.00 / 18.00; default maksimum 3 posting harian; sisanya besok |
 | `utbot/instagram.py` | Instagram Graph API: buat container → status → publish |
 | `utbot/web.py` | API webhook, cron job dan status |
 
@@ -135,9 +135,9 @@ Setiap edit mengubah versi draf, membatalkan approval terdahulu, membuang jadwal
 
 ## Jadwal dan antrean
 
-Parameter `DAILY_PUBLISH_LIMIT=2` mengikuti batas dua berita per hari, meskipun ada tiga kesempatan jam 06.00, 12.00, 18.00 WIB. Jika dua slot awal terisi, jam 18.00 kosong. Jika persetujuan datang terlambat, slot 18.00 menjadi cadangan. Jika ada lima berita yang disetujui, antreannya 2 hari pertama, 2 hari kedua, 1 hari ketiga. Tidak ada posting sebelum waktunya; berita kedaluwarsa ditahan.
+Pembuatan berita diperiksa empat kali per hari sekitar 03.00, 09.00, 15.00, dan 21.00 WIB. Publikasi berbeda: maksimum tiga kali pada 06.00, 12.00, dan 18.00 WIB, hanya untuk draft yang layak dan disetujui. Lima draft disetujui dijadwalkan 3 hari pertama dan 2 hari berikutnya. Kegagalan AI/QC atau stok kosong dapat mengurangi jumlah aktual yang dibuat atau terbit.
 
-Untuk tiga posting per hari, ubah batas ke `3` setelah konfirmasi redaksi.
+Kebijakan redaksi: empat pemeriksaan pembuatan berita dan maksimum tiga publikasi per hari.
 
 ## Keterbatasan penting
 
@@ -209,7 +209,7 @@ Preview sementara yang memakai foto dari posting referensi **hanya untuk uji vis
 **Mode produksi aman:** `PHOTO_MUSIC_MODE=manual`. Tidak ada parameter resmi yang dapat menambahkan lagu native Instagram ke JPEG feed melalui API Graph yang dipakai proyek ini; jika musik diwajibkan, backend **tidak akan menerbitkan gambar tanpa musik diam-diam**.
 
 1. AutoNews mencari cerita lama/baru, melakukan pemeriksaan editorial awal, menyiapkan foto cover 1080×1350 dan caption, mengirim preview ke Telegram.
-2. Admin memeriksa sumber, identitas foto, hak penggunaan, dan QC lalu klik **Approve**. Slot diatur 06/12/18 WIB (batas default 2 per hari).
+2. Admin memeriksa sumber, identitas foto, hak penggunaan, dan QC lalu klik **Approve**. Slot diatur 06/12/18 WIB (maksimum 3 per hari).
 3. Ketika slot jatuh tempo, cron mengirim **paket posting Instagram dengan musik** ke Telegram: URL cover HTTPS, caption final siap salin, rekomendasi jenis soundtrack sesuai topik. Tidak ada request `media_publish` pada mode ini.
 4. Admin membuka aplikasi Instagram, memilih **Feed Post** dan menambahkan musik dari katalog yang tersedia pada akunnya (periksa izin audio), memublikasikan, kemudian klik **🎵 Konfirmasi Post Instagram** dan mengirim permalink `https://www.instagram.com/p/.../`. Ini **konfirmasi manual editor**, bukan pembuktian status live melalui Graph API.
 5. Bot mencatat posting sebagai completed dan tidak menerbitkan ulang. Callback batal membatalkan handoff dan approval untuk revisi. Setelah konfirmasi, **opsional** `FACEBOOK_CROSSPOST=true` dan `ENABLE_LIVE_PUBLISH=true` memakai Facebook Page Graph API untuk satu posting foto Page terpisah; guard audit durabel mencegah retry buta saat status tidak pasti.
