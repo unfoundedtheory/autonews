@@ -64,11 +64,11 @@ def test_backlog_max_two_per_day_with_three_slots(db):
 def test_evening_fallback_slot(db):
     ds=factory(db,2)
     for d in ds:approve(db,d,"42")
-    # 14:00 WIB: only 18:00 remains today
+    # 14:00 WIB: both 18:00 and 22:00 remain today
     now=datetime(2026,10,10,7,0,tzinfo=timezone.utc)
     schedule_approved(db,now=now,daily_limit=2)
     assert ds[0].scheduled_at.astimezone(WIB).hour==18
-    assert ds[1].scheduled_at.astimezone(WIB).day==11
+    assert ds[1].scheduled_at.astimezone(WIB).hour==22
 
 def test_editorial_rules():
     issues=lint("NASA BERITA KAPITAL", "Pendek tanpa bagian lain.",["#A"])
