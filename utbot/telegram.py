@@ -170,10 +170,13 @@ def preview_text(d,st):
 
 
 
-def send_preview(bot,chat_id,d,st):
+def send_preview(bot,chat_id,d,st,manual_post=False):
     # Preview and caption are separately sent to avoid Telegram 1024-character photo caption limit.
     if d.image_local_path and Path(d.image_local_path).is_file():
         bot.file_photo(chat_id,d.image_local_path,' ')
     elif d.image_url and d.image_url.startswith('https://'):
         bot.photo(chat_id,d.image_url,' ')
-    bot.message(chat_id,preview_text(d,st),keyboard(d))
+    bot.message(chat_id,preview_text(d,st), (
+        {'inline_keyboard': [[{'text':'🔎 Sumber & QC', 'callback_data':f'more:{d.id}:{d.version}'}],
+                            [{'text':'✅ Sudah Saya Posting', 'callback_data':f'manualdone:{d.id}:{d.version}'}]]}
+        if manual_post else keyboard(d)))

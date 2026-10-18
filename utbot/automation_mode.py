@@ -13,6 +13,7 @@ SETTING_ID='system:editorial_automation'
 EVENT='automation_mode_changed'
 APPROVAL='approval'
 FULL_AUTO='full_auto'
+MANUAL_POST='manual_post'
 
 
 def current_mode(db):
@@ -20,12 +21,12 @@ def current_mode(db):
         Audit.draft_id==SETTING_ID,Audit.event==EVENT
     ).order_by(Audit.id.desc()).limit(1)).scalar_one_or_none()
     value=(row.detail or {}).get('mode') if row else APPROVAL
-    return (value if value in (APPROVAL,FULL_AUTO) else APPROVAL,
+    return (value if value in (APPROVAL,FULL_AUTO,MANUAL_POST) else APPROVAL,
             row.created_at if row else None)
 
 
 def set_mode(db,mode,actor):
-    if mode not in (APPROVAL,FULL_AUTO):
+    if mode not in (APPROVAL,FULL_AUTO,MANUAL_POST):
         raise ValueError('Mode otomasi tidak valid.')
     db.add(Audit(draft_id=SETTING_ID,event=EVENT,actor=str(actor),
                  detail={'mode':mode}))
@@ -75,3 +76,29 @@ def auto_approve_ready(db,limit=15):
         approved.append(d.id)
     db.commit()
     return {'mode':mode,'approved':approved,'blocked':blocked}
+
+
+def manual_post_ready(db, draft):
+    """A durable per-version marker: no approval or API publication is implied."""
+    rows=db.execute(select(Audit.detail).where(
+        Audit.draft_id==draft.id, Audit.event=='manual_post_ready'
+    )).scalars().all()
+    return any((row or {}).get('version')==draft.version for row in rows)
+
+
+def deliver_manual_post_preview(db, draft, bot, chat_id):
+    """Hand the editor a ready-to-copy kit, never publish or approve it.
+
+    The marker is saved only after successful Telegram delivery so a failed
+    send remains recoverable at the next preparation run.
+    """
+    if manual_post_ready(db,draft):
+        return False
+    if not bot or not chat_id:
+        raise ValueError('Telegram tujuan post manual belum dikonfigurasi.')
+    from .telegram import send_preview
+    send_preview(bot,chat_id,draft,db.get(Story,draft.story_id),manual_post=True)
+    db.add(Audit(draft_id=draft.id,event='manual_post_ready',actor='worker',
+                 detail={'version':draft.version,'mode':MANUAL_POST}))
+    db.commit()
+    return True
