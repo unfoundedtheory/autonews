@@ -54,3 +54,32 @@ def test_stale_success_is_visibly_flagged(monkeypatch):
 def test_reference_neon_is_exact_and_white_remains_opaque():
     assert renderer.GREEN=='#8FFF00'
     assert renderer.WHITE=='#FFFFFF'
+
+
+def test_manual_mode_does_not_require_approval_or_publish(monkeypatch):
+    from utbot.automation_mode import set_mode,current_mode,MANUAL_POST,manual_post_ready,deliver_manual_post_preview
+    from utbot.models import Story,Draft
+    engine=make_engine('sqlite://')
+    Base.metadata.create_all(engine)
+    with sessionmaker(bind=engine,expire_on_commit=False)() as db:
+        set_mode(db,MANUAL_POST,'42')
+        assert current_mode(db)[0]==MANUAL_POST
+        story=Story(fingerprint='z'*64,title='NASA discovery',
+                    source_url='https://science.nasa.gov/universe/',source_name='NASA')
+        db.add(story);db.flush()
+        draft=Draft(story_id=story.id,highlight='Scientific study uncovers new data',
+                    caption='Data from a verified study.',hashtags=['#Science'],
+                    image_url='https://example.org/cover.jpg')
+        db.add(draft);db.commit()
+        calls=[]
+        import utbot.telegram as telegram
+        monkeypatch.setattr(telegram,'send_preview',
+                            lambda bot,chat,d,story,manual_post=False:
+                            calls.append(manual_post))
+        assert deliver_manual_post_preview(db,draft,object(),'chat') is True
+        assert deliver_manual_post_preview(db,draft,object(),'chat') is False
+        assert calls==[True]
+        assert manual_post_ready(db,draft)
+        assert draft.status=='pending_approval'
+        assert draft.approved_version is None
+        assert draft.scheduled_at is None
