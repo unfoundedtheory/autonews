@@ -162,7 +162,10 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
                 data,checked=writer(story,article)
         except ValueError as exc:
             failures.append({'attempt':attempt,'issues':list(exc.issue_codes) if isinstance(exc,DraftFormatError) else [str(exc)[:160]]})
-            if attempt==5:raise ValueError('Penulisan gagal setelah 5 percobaan: '+str(exc)[:180]) from exc
+            if attempt==5:
+                if isinstance(exc,DraftFormatError):
+                    raise DraftFormatError(exc.issue_codes) from exc
+                raise ValueError('Penulisan gagal setelah 5 percobaan: '+str(exc)[:180]) from exc
             continue
         qc=assess(data['highlight'],data['caption'],data['hashtags'],checked,
                   tragedy=bool(data.get('tragedy')),check_cover=False)
@@ -393,13 +396,15 @@ def prepare_batch(db,limit=3,notifier=None):
             detail={'error_type':reason,'stage':stage}
             if isinstance(exc,DraftFormatError):
                 detail['lint_codes']=list(exc.issue_codes)[:10]
+                detail['stage']='caption_format' if any('caption' in code or 'ending' in code or 'hashtag' in code for code in exc.issue_codes) else 'highlight_format'
             if status_code is not None:
                 detail['http_status']=status_code
             db.add(Audit(draft_id=st.id,event='candidate_prepare_failed',
                          actor='worker',detail=detail))
             db.commit()
             failures.append({'story_id':st.id,'status':'retry_pending',
-                             'reason':reason,'http_status':status_code,'stage':stage})
+                             'reason':reason,'http_status':status_code,'stage':detail['stage'],
+                             'lint_codes':detail.get('lint_codes',[])})
             # Rate limit is provider-wide: stop this batch instead of
             # exhausting the remaining candidate queue with more 429s.
             if status_code == 429:
