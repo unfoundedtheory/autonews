@@ -34,10 +34,6 @@
       "schedule": "0 11 * * *"
     },
     {
-      "path": "/api/cron/tick/night",
-      "schedule": "0 15 * * *"
-    },
-    {
       "path": "/api/cron/maintenance",
       "schedule": "0 21 * * *"
     }
