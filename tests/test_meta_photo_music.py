@@ -279,3 +279,30 @@ def test_manual_ig_permalink_confirmed_via_telegram_without_api(monkeypatch):
         assert any('editor' not in x[1].lower() for x in sent)
     finally:
         db.close()
+
+
+def test_facebook_uses_encrypted_oauth_page_connection(monkeypatch):
+    from cryptography.fernet import Fernet
+    from utbot.models import MetaConnection
+    db=make_db()
+    try:
+        _,d=approved_draft(db)
+        d.status='published';d.publish_state='published'
+        encryption_key=Fernet.generate_key()
+        monkeypatch.setenv('META_TOKEN_ENCRYPTION_KEY',encryption_key.decode())
+        db.add(MetaConnection(page_id='123',instagram_id='456',
+                              page_name='Unfounded Theory',
+                              encrypted_page_token=Fernet(encryption_key).encrypt(b'oauth-page-token').decode()))
+        db.commit()
+        settings=replace(CONFIG,live_publish=True,facebook_crosspost=True,
+                         facebook_page_id='',facebook_page_token='')
+        calls=[]
+        fake=SimpleNamespace(publish_page_photo=lambda page,image,caption:
+             (calls.append((page,image,caption)) or {'id':'123_444','photo_id':'444'}))
+        output=publish_facebook_once(db,d,poster=fake,config=settings)
+        assert output['facebook']=='published'
+        assert calls[0][0]=='123'
+        assert publish_facebook_once(db,d,poster=fake,config=settings)['facebook']=='already_attempted'
+        assert len(calls)==1
+    finally:
+        db.close()
