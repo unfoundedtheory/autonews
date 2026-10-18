@@ -285,7 +285,11 @@ def generate_news_now(db, bot, chat_id):
 
     def notify(d):
         if bot:
-            send_preview(bot,chat_id,d,db.get(Story,d.story_id))
+            from .automation_mode import current_mode, MANUAL_POST, deliver_manual_post_preview
+            if current_mode(db)[0] == MANUAL_POST:
+                deliver_manual_post_preview(db,d,bot,chat_id)
+            else:
+                send_preview(bot,chat_id,d,db.get(Story,d.story_id))
 
     def prepared(rows):
         return next((r for r in rows if r.get('status')=='prepared'),None)
@@ -294,7 +298,7 @@ def generate_news_now(db, bot, chat_id):
         if done.get('notify_error'):
             return '⚠️ Draf dibuat, tetapi preview Telegram gagal: '+str(done['notify_error'])[:300]
         if done.get('has_photo'):
-            return '✅ Satu draf dan cover dibuat. Preview dikirim untuk approval; belum diposting.'
+            return '✅ Satu draf dan cover dibuat. Paket dikirim ke Telegram; belum diposting.'
         return ('⚠️ Draf dibuat, tetapi belum memiliki cover. '+
                 str(done.get('photo_error') or 'Pilih foto dari menu Telegram.')[:400])
 
@@ -334,8 +338,10 @@ def generate_news_now(db, bot, chat_id):
                 label+=f' (HTTP {status})'
             if label not in reasons:
                 reasons.append(label)
+        stages=[str(row.get('stage')) for row in failures_pending if row.get('stage')]
+        stage_note=(' Tahap: '+', '.join(dict.fromkeys(stages[:3]))+'.') if stages else ''
         return ('⚠️ Kandidat berita ditemukan, tetapi pembuatan draft GAGAL '
-                'pada percobaan ini ('+', '.join(reasons[:4])+'). '
+                'pada percobaan ini ('+', '.join(reasons[:4])+').' + stage_note + ' '
                 'Belum ada AI yang bekerja di latar belakang. Kandidat akan '
                 'dicoba lagi pada jadwal otomatis berikutnya. '
                 'Periksa konfigurasi provider AI/API dan log jika berulang.')
