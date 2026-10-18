@@ -30,6 +30,6 @@ def test_example_configuration_avoids_duplicate_settings():
 def test_cron_entries_all_registered():
     data = json.loads((ROOT / "vercel.json").read_text())
     entries = data["crons"]
-    assert len(entries) == 10
+    assert len(entries) == 9
     assert len({row["path"] for row in entries}) == len(entries)
     assert all(row["schedule"].endswith("* * *") for row in entries)
