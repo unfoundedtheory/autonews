@@ -5,7 +5,6 @@ outcome must NEVER be reissued automatically. Native IG→FB sharing may already
 be enabled; this option stays disabled until the owner explicitly opts in.
 """
 from .models import Audit, MetaConnection
-from .instagram_credentials import resolve_instagram_credentials
 from sqlalchemy import select
 from .config import CONFIG
 from .meta import MetaGraph
