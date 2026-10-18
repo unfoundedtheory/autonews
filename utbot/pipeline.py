@@ -19,6 +19,7 @@ from .config import CONFIG
 from .media import find_photos,intake_image,render_draft,find_article_photo
 from .ai_provider import generate_json
 from .caption_format import normalize_generated_caption, DraftFormatError
+from .caption_format import normalize_generated_caption, DraftFormatError
 from .photo_relevance import photo_subject_match,search_queries
 
 EXTRACT_MAX=16000
@@ -394,6 +395,12 @@ def prepare_batch(db,limit=3,notifier=None):
                    'caption_format' if any(k in message for k in ('panduan','caption','highlight','penulisan gagal')) else
                    'provider_http' if status_code else 'other_validation')
             detail={'error_type':reason,'stage':stage}
+            # Preserve deterministic editorial failure codes without storing
+            # source text or provider response bodies.
+            origin=exc.__cause__ if isinstance(exc,ValueError) else None
+            issue_codes=getattr(exc,'issue_codes',None) or getattr(origin,'issue_codes',None)
+            if issue_codes:
+                detail['issue_codes']=list(issue_codes)[:12]
             if isinstance(exc,DraftFormatError):
                 detail['lint_codes']=list(exc.issue_codes)[:10]
                 detail['stage']='caption_format' if any('caption' in code or 'ending' in code or 'hashtag' in code for code in exc.issue_codes) else 'highlight_format'
