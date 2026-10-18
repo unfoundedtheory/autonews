@@ -36,6 +36,8 @@ def deliver_pending_previews(db, bot, chat_id, limit=12):
     """
     if not bot or not chat_id:
         return {'sent': [], 'failed': [], 'blocked': 'Telegram destination not configured'}
+    from .automation_mode import current_mode, MANUAL_POST, deliver_manual_post_preview, manual_post_ready
+    manual = current_mode(db)[0] == MANUAL_POST
     candidates=db.execute(select(Draft).where(
         Draft.status=='pending_approval', Draft.publish_state=='unpublished'
     ).order_by(Draft.created_at.desc(),Draft.id.desc()).limit(limit)).scalars().all()
@@ -44,10 +46,15 @@ def deliver_pending_previews(db, bot, chat_id, limit=12):
         prior=db.execute(select(Audit.detail).where(
             Audit.draft_id==draft.id, Audit.event=='telegram_preview_delivered'
         )).scalars().all()
-        if any((record or {}).get('version')==draft.version for record in prior):
+        if manual_post_ready(db,draft):
+            continue
+        if any((record or {}).get('version')==draft.version for record in prior) and not manual:
             continue
         try:
-            send_preview(bot,chat_id,draft,db.get(Story,draft.story_id))
+            if manual:
+                deliver_manual_post_preview(db,draft,bot,chat_id)
+            else:
+                send_preview(bot,chat_id,draft,db.get(Story,draft.story_id))
             db.add(Audit(draft_id=draft.id,event='telegram_preview_delivered',
                          actor='worker',detail={'version':draft.version}))
             db.commit()
