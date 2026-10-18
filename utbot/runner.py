@@ -38,6 +38,8 @@ def deliver_pending_previews(db, bot, chat_id, limit=12):
         return {'sent': [], 'failed': [], 'blocked': 'Telegram destination not configured'}
     from .automation_mode import current_mode, MANUAL_POST, deliver_manual_post_preview, manual_post_ready
     manual = current_mode(db)[0] == MANUAL_POST
+    from .automation_mode import current_mode, MANUAL_POST, deliver_manual_post_preview
+    mode,activated_at=current_mode(db)
     candidates=db.execute(select(Draft).where(
         Draft.status=='pending_approval', Draft.publish_state=='unpublished'
     ).order_by(Draft.created_at.desc(),Draft.id.desc()).limit(limit)).scalars().all()
@@ -51,6 +53,11 @@ def deliver_pending_previews(db, bot, chat_id, limit=12):
         if any((record or {}).get('version')==draft.version for record in prior) and not manual:
             continue
         try:
+            if manual:
+                deliver_manual_post_preview(db,draft,bot,chat_id)
+            else:
+                manual = (mode==MANUAL_POST and activated_at is not None and
+                      draft.created_at>=activated_at)
             if manual:
                 deliver_manual_post_preview(db,draft,bot,chat_id)
             else:
@@ -98,6 +105,9 @@ def do_prepare():
 
 def do_reschedule():
     with Session() as db:
+        from .automation_mode import current_mode, MANUAL_POST
+        if current_mode(db)[0]==MANUAL_POST:
+            return []
         from .stock_flow import auto_approve_overdue
         auto_approve_overdue(db)
         from .automation_mode import auto_approve_ready
