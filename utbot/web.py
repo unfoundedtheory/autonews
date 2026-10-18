@@ -99,8 +99,8 @@ def cron_prepare_evening():
 
 @app.get('/cron/tick/{slot}', dependencies=[Depends(cron_auth)])
 def cron_tick(slot: str):
-    """Publish only pre-approved eligible drafts around 06/12/18 WIB."""
-    if slot not in ('morning','noon','evening'):
+    """Publish only pre-approved eligible drafts around 06/12/18/22 WIB."""
+    if slot not in ('morning','noon','evening','night'):
         raise HTTPException(404,'Invalid slot')
     from .runner import do_reschedule, do_publish
     # Publish overdue-approved items before rebuilding future slots; Hobby cron

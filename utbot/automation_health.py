@@ -13,8 +13,8 @@ from .scheduler import WIB
 log = logging.getLogger(__name__)
 SYSTEM_DRAFT_ID = 'system-automation'
 HEARTBEAT_EVENT = 'automation_heartbeat'
-JOBS = ('discover','prepare','prepare_afternoon','tick_morning',
-        'tick_noon','tick_evening','maintenance')
+JOBS = ('discover','prepare','prepare_afternoon','prepare_morning','prepare_evening','tick_morning',
+        'tick_noon','tick_evening','tick_night','maintenance')
 
 def record_heartbeat(job, outcome, error_type=None):
     if job not in JOBS or outcome not in ('success','failed'):
@@ -64,9 +64,12 @@ def automation_status(db, *, now=None):
         'discover':'Cari berita',
         'prepare':'Siapkan draf pagi',
         'prepare_afternoon':'Siapkan draf sore',
+        'prepare_morning':'Siapkan draf 09.00 WIB',
+        'prepare_evening':'Siapkan draf 21.00 WIB',
         'tick_morning':'Slot 06.00 WIB',
         'tick_noon':'Slot 12.00 WIB',
         'tick_evening':'Slot 18.00 WIB',
+        'tick_night':'Slot 22.00 WIB',
         'maintenance':'Pemeliharaan',
     }
     lines=['🤖 AUTOMATION (30 hari terakhir)']

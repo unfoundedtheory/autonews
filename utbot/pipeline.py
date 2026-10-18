@@ -386,5 +386,9 @@ def prepare_batch(db,limit=3,notifier=None):
             db.commit()
             failures.append({'story_id':st.id,'status':'retry_pending',
                              'reason':reason,'http_status':status_code})
+            # Rate limit is provider-wide: stop this batch instead of
+            # exhausting the remaining candidate queue with more 429s.
+            if status_code == 429:
+                break
         if len(outcome)>=limit:break
     return outcome if outcome else failures[:1]
