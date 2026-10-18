@@ -57,6 +57,8 @@ The owner selected Instagram **4:5 feed photo with native Instagram music**, NOT
 
 Facebook Page auto-post is a distinct optional API action; link an actual Page with permissions and test read-only `GET /api/internal/meta/connection` before setting `FACEBOOK_CROSSPOST=true`. Check whether Meta Business Suite/Instagram already shares to Facebook so there is exactly ONE posting method. There is NO automatic transfer of the native Instagram track to a Facebook Page photo through the Graph API. On ambiguous Facebook POST results, audit records `facebook_uncertain` and never retries.
 
+After a confirmed API Instagram publication, AutoNews also calls the optional Facebook Page delivery adapter, just as it does after manual Instagram confirmation. This requires `FACEBOOK_CROSSPOST=true`, `FACEBOOK_PAGE_ID`, `FACEBOOK_PAGE_ACCESS_TOKEN` with Page publishing permissions, and live publishing enabled. It publishes the same final image and caption as a separate Page photo; it does not control the Instagram app's sharing toggle or publish to a personal Facebook profile. The response and Telegram alert report Facebook separately (`published`, `disabled`, `not_configured`, `blocked`, or an error/uncertain outcome). Facebook failures never roll back confirmed Instagram success. Existing Instagram posts are not backfilled by this change.
+
 
 ## Single-click approval QC recovery (2026-10-14)
 

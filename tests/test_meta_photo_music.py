@@ -194,6 +194,65 @@ def test_facebook_failure_requires_reconciliation():
         db.close()
 
 
+@pytest.mark.parametrize('facebook_outcome', ['published', 'disabled', 'not_configured', 'uncertain', 'exception'])
+def test_api_instagram_success_delivers_facebook_separately(monkeypatch, facebook_outcome):
+    db=make_db()
+    try:
+        _,d=approved_draft(db)
+        db.add(Audit(draft_id=d.id,event='photo_only_approved',actor='42',
+                     detail={'version':d.version}))
+        db.commit()
+        settings=replace(CONFIG,photo_music_mode='off',live_publish=True,
+                         ig_user_id='456',ig_token='test-token',
+                         facebook_crosspost=True)
+        monkeypatch.setattr(web,'CONFIG',settings)
+        monkeypatch.setattr(web,'_bot',lambda:None)
+        ig_calls=[]
+        class FakeInstagram:
+            def create_container(self,*args):return 'container-1'
+            def container_status(self,*args):return 'FINISHED'
+            def publish(self,*args):
+                ig_calls.append(args)
+                return 'ig-media-1'
+        monkeypatch.setattr(web,'InstagramPublisher',lambda *a:FakeInstagram())
+        fb_calls=[]
+        def facebook(session,draft,**kwargs):
+            assert draft.status==draft.publish_state=='published'
+            assert draft.ig_media_id=='ig-media-1'
+            assert kwargs['config'] is settings
+            fb_calls.append(draft.id)
+            if facebook_outcome=='exception':raise RuntimeError('Facebook unavailable')
+            return {'facebook':facebook_outcome}
+        monkeypatch.setattr(web,'publish_facebook_once',facebook)
+        out=web.publish_job(db=db)
+        assert out['instagram_media_id']=='ig-media-1'
+        assert out['facebook']==('error' if facebook_outcome=='exception' else facebook_outcome)
+        assert db.get(Draft,d.id).publish_state=='published'
+        assert fb_calls==[d.id] and len(ig_calls)==1
+        assert web.publish_job(db=db)=={'due':0}
+        assert len(fb_calls)==len(ig_calls)==1
+    finally:
+        db.close()
+
+
+def test_facebook_caption_allows_unknown_credit_without_inventing_one():
+    db=make_db()
+    try:
+        _,d=approved_draft(db)
+        d.status='published';d.publish_state='published';d.image_credit=None
+        db.commit()
+        settings=replace(CONFIG,live_publish=True,facebook_crosspost=True,
+                         facebook_page_id='123',facebook_page_token='secret')
+        sent=[]
+        fake=SimpleNamespace(publish_page_photo=lambda page,image,caption:
+            (sent.append(caption) or {'id':'123_789','photo_id':'789'}))
+        out=publish_facebook_once(db,d,poster=fake,config=settings)
+        assert out['facebook']=='published'
+        assert d.caption in sent[0] and 'Photo by :' not in sent[0]
+    finally:
+        db.close()
+
+
 def test_manual_ig_permalink_confirmed_via_telegram_without_api(monkeypatch):
     db=make_db()
     try:
