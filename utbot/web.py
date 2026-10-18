@@ -527,7 +527,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         log.warning('Could not refresh legacy Telegram keyboard')
             send('ℹ️ Menu percobaan sudah diganti. Gunakan menu operasional berikut.', True)
             return {'ok':True, 'deprecated_menu':action}
-        if action in ('mode:approval','mode:full_auto'):
+        if action in ('mode:approval','mode:full_auto','mode:manual_post'):
             from .automation_mode import current_mode,set_mode
             target=action.partition(':')[2]
             current,_=current_mode(db)
@@ -535,6 +535,10 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 send('✅ Mode ini sudah aktif.')
                 if bot:bot.answer(cb.get('id'),'Mode tidak berubah')
                 return {'ok':True,'automation_mode':current}
+            if target=='manual_post':
+                set_mode(db,'manual_post',uid)
+                send('✅ POST MANUAL aktif. Semua berita BARU yang selesai dibuat dikirim tanpa Approve. Tidak ada publikasi otomatis Instagram/Facebook.')
+                return {'ok':True,'automation_mode':'manual_post'}
             if target=='full_auto':
                 if not (CONFIG.live_publish and CONFIG.photo_music_mode=='off'):
                     send('⚠️ Full Otomatis membutuhkan Instagram live publish aktif '
@@ -569,7 +573,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
             return {'ok':True,'automation_mode':'full_auto'}
         if action == 'generate_now':
             if bot:bot.answer(cb.get('id'),'Menyiapkan berita')
-            send('📰 Menyiapkan satu berita dari sumber resmi untuk approval…')
+            send('📰 Menyiapkan berita dari sumber resmi…')
             try:
                 response = generate_news_now(db,bot,chat_id)
             except (ValueError,RuntimeError,httpx.HTTPError,OSError) as exc:
@@ -645,7 +649,8 @@ def telegram_webhook(payload:dict,db=Depends(session)):
             groups=db.execute(select(Draft.status,func.count(Draft.id)).group_by(Draft.status)).all()
             from .automation_mode import current_mode
             mode,_=current_mode(db)
-            status_text=('🟢 FULL OTOMATIS: berita baru yang lolos QC dan izin foto '
+            status_text=('🔵 POST MANUAL: berita dibuat otomatis dan dikirim tanpa Approve; Anda menerbitkannya sendiri.'
+                         if mode=='manual_post' else '🟢 FULL OTOMATIS: berita baru yang lolos QC dan izin foto '
                          'langsung masuk jadwal posting tanpa Approve.'
                          if mode=='full_auto' else
                          '🟡 DENGAN APPROVAL: draft menunggu Approve dari Anda.')
@@ -657,6 +662,8 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     with_home_button({'inline_keyboard':[
                         [{'text':('✅ ' if mode=='full_auto' else '')+'🤖 Full Otomatis',
                           'callback_data':'nav:mode:full_auto'}],
+                        [{'text':('✅ ' if mode=='manual_post' else '')+'📤 Post Manual',
+                          'callback_data':'nav:mode:manual_post'}],
                         [{'text':('✅ ' if mode=='approval' else '')+'👤 Dengan Approval',
                           'callback_data':'nav:mode:approval'}]]}))
         elif action=='pending':
@@ -709,7 +716,18 @@ def telegram_webhook(payload:dict,db=Depends(session)):
         st=db.get(Story,d.story_id)
         try:
             if action=='open':
-                if bot:send_preview(bot,chat_id,d,st)
+                from .automation_mode import manual_post_ready
+                if bot:send_preview(bot,chat_id,d,st,manual_post=manual_post_ready(db,d))
+            elif action=='manualdone':
+                from .automation_mode import manual_post_ready
+                if not manual_post_ready(db,d) or d.publish_state!='unpublished':
+                    raise ValueError('Berita ini bukan paket post manual aktif.')
+                prior=db.get(TelegramSession,str(uid))
+                if prior:db.delete(prior);db.flush()
+                db.add(TelegramSession(user_id=str(uid),draft_id=d.id,mode='manual_post_link',version=d.version))
+                db.commit()
+                send('Kirim tautan posting Instagram https://www.instagram.com/p/... setelah Anda menerbitkannya.')
+                return {'ok':True,'manual_post':'awaiting_link'}
             elif action=='more':
                 if bot:bot.message(chat_id,'⋯ Opsi lanjutan untuk draf ini:',with_home_button(advanced_keyboard(d)))
             elif action=='actions':
@@ -1113,6 +1131,17 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         if bot:send_preview(bot,chat_id,d,st)
                         send('Foto diterima. Balas dua baris seperti ini:\nKredit: NASA/Chandra\nLisensi: Public domain\nTambahkan URL sumber jika ada. /cancel untuk batal.')
                         return {'ok':True,'awaiting':'photo_credit'}
+                    if sess.mode=='manual_post_link':
+                        from .automation_mode import manual_post_ready
+                        if not manual_post_ready(db,d) or d.publish_state!='unpublished':
+                            raise ValueError('Konfirmasi manual tidak berlaku untuk berita ini.')
+                        link=instagram_post_url(txt)
+                        d.status='published';d.publish_state='published';d.scheduled_at=None
+                        db.add(Audit(draft_id=d.id,event='manual_post_confirmed',actor=str(uid),
+                                     detail={'version':d.version,'post_url':link}))
+                        db.delete(sess);db.commit()
+                        send('✅ Post manual dicatat: '+link+' (tanpa posting API oleh bot).')
+                        return {'ok':True,'manual_post':'confirmed'}
                     if sess.mode=='music_post_link':
                         from .stock_flow import music_kit_sent, is_auto_approved
                         if (d.status!='approved' or is_auto_approved(db,d) or
@@ -1305,6 +1334,9 @@ def format_editorial_qc(draft, report):
 
 @app.post('/jobs/publish',dependencies=[Depends(worker_auth)])
 def publish_job(db=Depends(session), target_draft_id=None):
+    from .automation_mode import current_mode, MANUAL_POST
+    if current_mode(db)[0]==MANUAL_POST:
+        return {'manual_post':'owner_only','note':'Auto-publish disabled by owner mode'}
     manual_mode=CONFIG.photo_music_mode=='manual'
     if manual_mode:
         reminder=_manual_photo_music_handoff(db)
