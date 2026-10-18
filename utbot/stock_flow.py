@@ -21,7 +21,14 @@ def is_auto_approved(db, draft):
     return any((d or {}).get('version') == draft.version for d in events)
 
 def stock_to_prepare(db, config=CONFIG):
-    """Never discard unsent drafts; only top up to a bounded editorial inventory."""
+    """Respect editorial stock, except owner-operated manual-post mode.
+
+    Manual output is not an approval backlog: don't stop creating new news
+    after fourteen ready-to-post items accumulate.
+    """
+    from .automation_mode import current_mode, MANUAL_POST
+    if current_mode(db)[0] == MANUAL_POST:
+        return max(1, min(int(config.prepare_batch_limit), 5))
     active = db.execute(select(func.count(Draft.id)).where(
         Draft.status.in_(['pending_approval', 'approved']),
         Draft.publish_state.in_(['unpublished', 'manual_music_pending', 'awaiting_container'])
