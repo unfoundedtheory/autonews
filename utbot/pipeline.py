@@ -18,6 +18,7 @@ from .hook_editor import cover_fit_alternative
 from .config import CONFIG
 from .media import find_photos,intake_image,render_draft,find_article_photo
 from .ai_provider import generate_json
+from .caption_format import normalize_generated_caption, DraftFormatError
 from .photo_relevance import photo_subject_match,search_queries
 
 EXTRACT_MAX=16000
@@ -117,10 +118,13 @@ def author_from_source(story,source_text,llm=None,revision_feedback=None):
     if not isinstance(data,dict):
         raise ValueError('Respons penulis AI tidak valid: wajib JSON object.')
     verified=check_evidence(data,story.source_url,source_text)
-    hashtags=repair_hashtags(data.get('hashtags'),data.get('caption',''),story.topic)
+    caption,footer_tags,format_repairs=normalize_generated_caption(data.get('caption'))
+    data['caption']=caption
+    data['format_repairs']=format_repairs
+    hashtags=repair_hashtags(data.get('hashtags') or footer_tags,caption,story.topic)
     data['hashtags']=hashtags
     highlight=(data.get('highlight') or '').strip()
-    caption=(data.get('caption') or '').strip()
+    caption=(caption or '').strip()
     issues=lint(highlight,caption,hashtags,tragedy=bool(data.get('tragedy')))
     if any(marker in highlight.casefold() for marker in ('malam ini','hari ini','🚨')):
         expiry_text=data.get('expires_at_wib')
@@ -130,7 +134,7 @@ def author_from_source(story,source_text,llm=None,revision_feedback=None):
         if expiry.tzinfo is None or expiry.utcoffset().total_seconds()!=7*3600:
             raise ValueError('expires_at_wib harus +07:00 WIB.')
         if expiry<=datetime.now(timezone.utc):raise ValueError('Berita sensitif waktu sudah kedaluwarsa.')
-    if issues:raise ValueError('Hasil penulisan melanggar panduan: '+', '.join(issues))
+    if issues:raise DraftFormatError(issues)
     return data,verified
 
 def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
@@ -157,8 +161,11 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
             else:
                 data,checked=writer(story,article)
         except ValueError as exc:
-            failures.append({'attempt':attempt,'issues':[str(exc)[:160]]})
-            if attempt==5:raise ValueError('Penulisan gagal setelah 5 percobaan: '+str(exc)[:180]) from exc
+            failures.append({'attempt':attempt,'issues':list(exc.issue_codes) if isinstance(exc,DraftFormatError) else [str(exc)[:160]]})
+            if attempt==5:
+                if isinstance(exc,DraftFormatError):
+                    raise DraftFormatError(exc.issue_codes) from exc
+                raise ValueError('Penulisan gagal setelah 5 percobaan: '+str(exc)[:180]) from exc
             continue
         qc=assess(data['highlight'],data['caption'],data['hashtags'],checked,
                   tragedy=bool(data.get('tragedy')),check_cover=False)
@@ -387,13 +394,17 @@ def prepare_batch(db,limit=3,notifier=None):
                    'caption_format' if any(k in message for k in ('panduan','caption','highlight','penulisan gagal')) else
                    'provider_http' if status_code else 'other_validation')
             detail={'error_type':reason,'stage':stage}
+            if isinstance(exc,DraftFormatError):
+                detail['lint_codes']=list(exc.issue_codes)[:10]
+                detail['stage']='caption_format' if any('caption' in code or 'ending' in code or 'hashtag' in code for code in exc.issue_codes) else 'highlight_format'
             if status_code is not None:
                 detail['http_status']=status_code
             db.add(Audit(draft_id=st.id,event='candidate_prepare_failed',
                          actor='worker',detail=detail))
             db.commit()
             failures.append({'story_id':st.id,'status':'retry_pending',
-                             'reason':reason,'http_status':status_code,'stage':stage})
+                             'reason':reason,'http_status':status_code,'stage':detail['stage'],
+                             'lint_codes':detail.get('lint_codes',[])})
             # Rate limit is provider-wide: stop this batch instead of
             # exhausting the remaining candidate queue with more 429s.
             if status_code == 429:
