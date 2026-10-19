@@ -219,3 +219,28 @@ Preview sementara yang memakai foto dari posting referensi **hanya untuk uji vis
 **Mode terpisah tanpa musik:** `PHOTO_MUSIC_MODE=off` memungkinkan publishing JPEG Instagram Graph API lama setelah `ENABLE_LIVE_PUBLISH=true` dan uji resmi berhasil. Ini *bukan* mode yang dipilih untuk Unfounded Theory.
 
 **Go-live**: credentials Instagram/Facebook belum dikonfigurasi di Production (audit 14 Oktober 2026). Preview/unit test bukan tes izin API secara live. Jangan mengaktifkan `FACEBOOK_CROSSPOST` maupun API publication sampai 1 posting uji terverifikasi dan pemilik memastikan sharing native tidak menggandakan post. Vercel Hobby Cron bisa terlambat dari slot terjadwal.
+
+
+## Content Studio (website admin)
+
+Buka **https://unfoundedtheory.vercel.app/** untuk planner/editor pada route `/api/planner`. 
+Fitur: daftar draft privat, kalender editorial bulanan dengan drag-and-drop, edit headline/caption,
+pengaturan rencana tanggal/jam (WIB), serta drag gambar untuk mengubah titik fokus
+crop cover 1080×1350. Untuk gambar final, renderer akan menggunakan sumber foto
+asli, margin 56px, logo tetap, dan versi gambar baru yang immutable.
+Di Telegram tersedia **Perbesar Font (Ringkas Hook)**: AI mengusulkan hook berbasis
+evidence resmi untuk mendapatkan ukuran font lebih besar; perubahan tetap diperiksa QC.
+
+**Sebelum login:** tambahkan environment secret `PLANNER_PASSWORD` pada project
+Vercel `autonews` (Production) dengan password acak yang kuat (minimal 16 karakter).
+Redeploy Production setelah menyimpan environment. Password tidak dikirim ke GitHub.
+Sesi editor memakai cookie HttpOnly, Secure, SameSite=Strict dengan masa berlaku 7 hari,
+ditandatangani server. Jangan gunakan `WORKER_SECRET`, `CRON_SECRET`, atau token Meta
+sebagai password editor.
+
+**Catatan pemisahan:** rencana posting di Content Studio disimpan sebagai
+`audit.event=content_plan_changed`, bukan `draft.scheduled_at`. Rencana manual
+tidak memicu job Instagram/Meta. Ini menjaga keputusan pemilik: pembuatan berita
+empat kali per hari, target publikasi manual tiga kali per hari.
+Gambar sumber tetap perlu diverifikasi identitas dan hak cipta; editor foto
+mengubah crop/fokus saja, tidak mengubah objek ilmiah.
