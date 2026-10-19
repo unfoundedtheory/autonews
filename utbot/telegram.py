@@ -40,6 +40,7 @@ def manual_post_keyboard(draft):
         [{'text':'🟢 Ganti Highlight Hijau','callback_data':f'green:{ref}:{v}'}],
         [{'text':'🖼 Ganti Foto','callback_data':f'photo:{ref}:{v}'},
          {'text':'🎨 Render Ulang Cover','callback_data':f'redesign:{ref}:{v}'}],
+        [{'text':'🔠 Perbesar Font (Ringkas Hook)','callback_data':f'boostfont:{ref}:{v}'}],
     ]
     if not draft.image_url and not draft.image_local_path:
         rows.append([{'text':'🔎 Cari Ulang Cover','callback_data':f'retrycover:{ref}:{v}'}])
