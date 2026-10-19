@@ -175,3 +175,23 @@ def check_draft_qc(draft_id: str):
         db.commit()
         return {'passed':report.get('passed'),'issues':report.get('issues',[]),
                 'version':draft.version,'status':report.get('status')}
+
+@router.post('/drafts/{draft_id}/render',dependencies=[Depends(_permit)])
+def rerender_final_cover(draft_id: str):
+    """Regenerate genuine League Spartan cover with true badge and accents."""
+    from .editorial import revise
+    from .media import render_draft
+    with Session() as db:
+        d=db.get(Draft,draft_id)
+        if not d or d.status in ('published','rejected') or d.publish_state!='unpublished':
+            raise HTTPException(409,'Cover tidak dapat diubah pada status berita ini.')
+        if not (d.source_image_url or d.source_image_path):
+            raise HTTPException(422,'Sumber foto asli belum tersedia.')
+        try:
+            revise(db,d,'highlight',d.highlight,'web_content_studio')
+            render_draft(d)
+            db.commit()
+        except (ValueError,OSError,RuntimeError) as exc:
+            db.rollback()
+            raise HTTPException(422,'Render cover gagal: '+str(exc)[:160]) from exc
+        return {'ok':True,'image_url':d.image_url,'version':d.version}
