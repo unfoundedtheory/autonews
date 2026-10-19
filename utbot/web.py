@@ -38,6 +38,8 @@ async def lifespan(app):
 app=FastAPI(title='Unfounded Theory Automation',version='0.7.0',lifespan=lifespan)
 from .meta_oauth import router as meta_oauth_router
 app.include_router(meta_oauth_router)
+from .planner import router as planner_router
+app.include_router(planner_router)
 
 def session():
     if __import__('os').environ.get('VERCEL') and CONFIG.database_url.startswith('sqlite'):
