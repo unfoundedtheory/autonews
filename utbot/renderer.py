@@ -193,7 +193,7 @@ def _headline_layout(draw, highlight, font_path=None, max_width=WIDTH-2*MARGIN):
                 continue
             # The best candidate within each line count is the biggest font.
             candidates[count]=(font,lines,pitch,widths,block_height)
-        if len(candidates)==min(4,len(words)):
+        if len(candidates)==min(4,max(1,len(words)-1)):
             break
     if not candidates:
         raise ValueError('Headline tidak muat dengan margin aman 56px; persingkat melalui Telegram.')
