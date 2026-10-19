@@ -41,10 +41,7 @@
   "functions": {
     "app.py": {
       "maxDuration": 300,
-      "includeFiles": [
-        "docs/editorial-guide.md",
-        "utbot/planner.html"
-      ]
+      "includeFiles": "{docs/editorial-guide.md,utbot/planner.html}"
     }
   }
 }
