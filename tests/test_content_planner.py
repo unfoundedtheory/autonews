@@ -28,8 +28,8 @@ def test_planner_private_calendar_and_manual_focus(monkeypatch):
     client=TestClient(app,base_url='https://localhost')
     assert client.get('/api/planner/drafts').status_code==401
     assert client.post('/api/planner/login',json={'password':'wrong'}).status_code==401
-    assert client.post('/planner/login',json={'password':'demo-strong-editor-password'}).status_code==200
-    results=client.get('/planner/drafts').json()['drafts']
+    assert client.post('/api/planner/login',json={'password':'demo-strong-editor-password'}).status_code==200
+    results=client.get('/api/planner/drafts').json()['drafts']
     assert len(results)==1
     assert results[0]['id']==id
     assert client.patch('/api/planner/drafts/'+id,json={'planned_at':'2026-10-20T12:00:00+07:00'}).status_code==200
@@ -39,7 +39,7 @@ def test_planner_private_calendar_and_manual_focus(monkeypatch):
         assert d.status=='pending_approval'
         assert db.query(Audit).filter_by(event='content_plan_changed').count()==1
     assert client.post('/api/planner/logout').status_code==200
-    assert client.get('/planner/drafts').status_code==401
+    assert client.get('/api/planner/drafts').status_code==401
 
 
 def test_website_root_is_content_studio():
