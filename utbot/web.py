@@ -1450,7 +1450,7 @@ def format_editorial_qc(draft, report):
 @app.post('/jobs/publish',dependencies=[Depends(worker_auth)])
 def publish_job(db=Depends(session), target_draft_id=None):
     from .automation_mode import current_mode, MANUAL_POST
-    from .planner_scheduling import planner_photo_only
+    from .planner_scheduling import explicitly_auto_photo
     # An explicitly scheduled, version-consented photo-only website post can
     # use Graph API even when other Telegram drafts require native music.
     # Nothing is automatically converted from the old music-required queue.
@@ -1462,7 +1462,7 @@ def publish_job(db=Depends(session), target_draft_id=None):
     ).order_by(Draft.scheduled_at).limit(30)
     if target_draft_id:candidate_query=candidate_query.where(Draft.id==target_draft_id)
     explicit_due=next((d for d in db.execute(candidate_query).scalars().all()
-                       if planner_photo_only(db,d)),None)
+                       if explicitly_auto_photo(db,d)),None)
     mode=current_mode(db)[0]
     if mode==MANUAL_POST and explicit_due is None:
         return {'manual_post':'owner_only','note':'Only owner-scheduled web posts may publish automatically'}
