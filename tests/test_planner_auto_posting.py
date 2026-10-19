@@ -116,3 +116,26 @@ def test_content_studio_uses_actual_cover_not_html_overlay():
     assert 'id="coverText"' not in html
     assert html.index('<section class="editor">') < html.index('class="calendar-bar"')
     assert 'Jadwalkan Otomatis' in html
+
+
+def test_full_auto_generates_real_schedule_without_owner_data_entry(monkeypatch):
+    """New rights-safe content after activation is scheduled and shown on calendar."""
+    from utbot import automation_mode
+    monkeypatch.setattr(automation_mode,'CONFIG',
+                        replace(automation_mode.CONFIG,live_publish=True,photo_music_mode='manual'))
+    monkeypatch.setattr(automation_mode,'photo_auto_safe',lambda d: True)
+    monkeypatch.setattr('utbot.quality_control.report_for_draft',
+                        lambda db,d,st:{'passed':True,'style_review':'passed'})
+    engine=make_engine('sqlite://')
+    Base.metadata.create_all(engine)
+    with sessionmaker(bind=engine,expire_on_commit=False)() as db:
+        automation_mode.set_mode(db,automation_mode.FULL_AUTO,'owner')
+        d=newsroom(db)
+        result=automation_mode.auto_approve_ready(db)
+        assert d.id in result['approved'],result
+        assert d.status=='approved'
+        assert schedule.explicitly_auto_photo(db,d)
+        queue=schedule_approved(db,daily_limit=3)
+        assert d.scheduled_at is not None
+        assert queue[0][0]==d.id
+        assert d.scheduled_at.astimezone(WIB).hour in (6,12,18)
