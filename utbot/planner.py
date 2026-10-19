@@ -37,6 +37,13 @@ class Login(BaseModel):
     password: str
 
 
+class PhotoRights(BaseModel):
+    credit: str = Field(min_length=3,max_length=160)
+    license_name: str = Field(min_length=2,max_length=120)
+    license_url: str = Field(min_length=12,max_length=500)
+    confirmed: bool = False
+
+
 class Edit(BaseModel):
     highlight: str | None=None
     caption: str | None=None
@@ -86,6 +93,7 @@ def drafts():
                            'status':d.status,'publish_state':d.publish_state,
                            'image_url':d.image_url,'source_image_url':d.source_image_url,
                            'photo_credit':d.image_credit,'photo_license':d.photo_license,
+                           'image_license_url':d.image_license_url,'media_page_url':d.media_page_url,
                            'rights_reviewed':d.rights_reviewed,
                            'scheduled_at':d.scheduled_at.isoformat() if d.scheduled_at else None,
                            'auto_scheduled':pinned_planner_schedule(db,d),
@@ -195,3 +203,36 @@ def rerender_final_cover(draft_id: str):
             db.rollback()
             raise HTTPException(422,'Render cover gagal: '+str(exc)[:160]) from exc
         return {'ok':True,'image_url':d.image_url,'version':d.version}
+
+@router.post('/drafts/{draft_id}/rights',dependencies=[Depends(_permit)])
+def confirm_image_rights(draft_id: str, payload: PhotoRights):
+    """Explicit owner's photo-rights confirmation; never inferred from NASA/ESA."""
+    from urllib.parse import urlparse
+    from .instagram import photo_credit_line
+    with Session() as db:
+        d=db.get(Draft,draft_id)
+        if not d or d.status in ('published','rejected') or d.publish_state!='unpublished':
+            raise HTTPException(409,'Status berita tidak mengizinkan perubahan hak foto.')
+        if not payload.confirmed:
+            raise HTTPException(422,'Konfirmasi pemeriksaan lisensi foto diperlukan.')
+        link=urlparse(payload.license_url)
+        if link.scheme!='https' or not link.hostname or link.username or link.password:
+            raise HTTPException(422,'URL bukti lisensi harus HTTPS yang valid.')
+        if not (d.source_image_url or d.source_image_path):
+            raise HTTPException(422,'Foto sumber belum tersedia.')
+        old=(d.image_credit,d.photo_license,d.image_license_url,d.rights_reviewed)
+        d.image_credit=payload.credit.strip()
+        d.photo_license=payload.license_name.strip()
+        d.image_license_url=payload.license_url.strip()
+        d.rights_reviewed=True
+        try:photo_credit_line(d)
+        except ValueError as exc:
+            db.rollback()
+            raise HTTPException(422,str(exc)) from exc
+        db.add(Audit(draft_id=d.id,event='photo_rights_owner_confirmed',
+                     actor='web_content_studio',
+                     detail={'version':d.version,'evidence_url':d.image_license_url,
+                             'license_name':d.photo_license,
+                             'previous_rights_reviewed':old[3]}))
+        db.commit()
+        return {'ok':True,'rights_reviewed':True}
