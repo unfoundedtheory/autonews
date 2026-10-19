@@ -47,3 +47,14 @@ def test_approved_unpublished_has_photo_recovery_not_music_actions(monkeypatch):
     assert 'retryig' in options
     assert 'musicdone' not in options
     assert 'musickit' not in options
+
+
+def test_manual_post_preview_keeps_full_edit_controls_without_approval():
+    from utbot.telegram import manual_post_keyboard
+    draft=fake_draft(status='pending_approval',publish_state='unpublished')
+    labels=actions(manual_post_keyboard(draft))
+    assert {'highlight','caption','green','photo','redesign','more','manualdone'} <= set(labels)
+    assert 'approve' not in labels and 'reject' not in labels
+    assert 'postnow' not in labels and 'retryig' not in labels
+    draft.image_url=None
+    assert 'retrycover' in actions(manual_post_keyboard(draft))

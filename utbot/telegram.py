@@ -26,6 +26,32 @@ def keyboard(draft):
     return {'inline_keyboard':rows}
 
 
+def manual_post_keyboard(draft):
+    """Full editing controls for owner-posted news, without approval or API publish."""
+    ref=draft.id; v=draft.version
+    if draft.publish_state!='unpublished' or draft.status in ('published','rejected'):
+        return {'inline_keyboard': [
+            [{'text':'🔎 Sumber & QC','callback_data':f'more:{ref}:{v}'}],
+            home_button()['inline_keyboard'][0],
+        ]}
+    rows=[
+        [{'text':'✏️ Revisi Hook','callback_data':f'highlight:{ref}:{v}'},
+         {'text':'📝 Revisi Caption','callback_data':f'caption:{ref}:{v}'}],
+        [{'text':'🟢 Ganti Highlight Hijau','callback_data':f'green:{ref}:{v}'}],
+        [{'text':'🖼 Ganti Foto','callback_data':f'photo:{ref}:{v}'},
+         {'text':'🎨 Render Ulang Cover','callback_data':f'redesign:{ref}:{v}'}],
+    ]
+    if not draft.image_url and not draft.image_local_path:
+        rows.append([{'text':'🔎 Cari Ulang Cover','callback_data':f'retrycover:{ref}:{v}'}])
+    rows.extend([
+        [{'text':'⋯ Edit Lainnya','callback_data':f'more:{ref}:{v}'},
+         {'text':'🔎 Sumber & QC','callback_data':f'more:{ref}:{v}'}],
+        [{'text':'✅ Sudah Saya Posting','callback_data':f'manualdone:{ref}:{v}'}],
+        home_button()['inline_keyboard'][0],
+    ])
+    return {'inline_keyboard':rows}
+
+
 def advanced_keyboard(draft):
     """Less common actions, opened only when the editor asks for them."""
     ref=draft.id; v=draft.version
@@ -176,7 +202,4 @@ def send_preview(bot,chat_id,d,st,manual_post=False):
         bot.file_photo(chat_id,d.image_local_path,' ')
     elif d.image_url and d.image_url.startswith('https://'):
         bot.photo(chat_id,d.image_url,' ')
-    bot.message(chat_id,preview_text(d,st), (
-        {'inline_keyboard': [[{'text':'🔎 Sumber & QC', 'callback_data':f'more:{d.id}:{d.version}'}],
-                            [{'text':'✅ Sudah Saya Posting', 'callback_data':f'manualdone:{d.id}:{d.version}'}]]}
-        if manual_post else keyboard(d)))
+    bot.message(chat_id,preview_text(d,st),manual_post_keyboard(d) if manual_post else keyboard(d))

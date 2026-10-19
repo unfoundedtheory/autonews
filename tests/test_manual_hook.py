@@ -219,7 +219,7 @@ def test_approved_unpublished_draft_can_redraw_with_new_font(monkeypatch):
         assert d.approved_version is None
         assert d.approved_by is None
         assert d.image_url=='https://example.org/cover-new-font.jpg'
-        assert any('Approval dan jadwal sebelumnya dibatalkan' in text
+        assert any('Periksa preview hasil revisi' in text
                    for text,_ in bot.messages)
     finally:
         db.close()
