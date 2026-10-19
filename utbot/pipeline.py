@@ -191,9 +191,9 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
     original_fits=cover_fits(original_highlight,CONFIG.font_path)
     original_font_px=(headline_font_size(original_highlight,CONFIG.font_path)
                       if original_fits else 0)
-    # The old gate allowed 48px letters as long as they technically fit four
-    # lines. For live AI-written stories, first try an evidence-bounded shorter
-    # headline when the actual glyph font is below the editorial threshold.
+    # Space-first flexible line count replaces the old forced four-line rule.
+    # For live AI-written stories, seek an evidence-bounded shorter headline
+    # when the actual glyph font remains below the readability threshold.
     needs_shorter_hook=bool(reviewer and original_fits and
                             original_font_px < MIN_EDITORIAL_FONT_PX)
     readability_warning=False
@@ -228,7 +228,7 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
                 # fact-checked headline; preserve it and flag low readability.
                 readability_warning=True
             else:
-                cover_issue=('Highlight belum muat empat baris. Gunakan Perbaiki Cover '
+                cover_issue=('Highlight belum muat dalam area cover. Gunakan Perbaiki Cover '
                              'Otomatis atau edit Highlight. '+str(exc)[:160])
     if original_fits and headline_font_size(data['highlight'],CONFIG.font_path)<MIN_EDITORIAL_FONT_PX:
         readability_warning=True
@@ -238,7 +238,7 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
             accent_words=data.get('accent_words') or [],is_tragedy=bool(data.get('tragedy')),
             expires_at=datetime.fromisoformat(data['expires_at_wib']).astimezone(timezone.utc) if data.get('expires_at_wib') else None)
     db.add(d);db.flush()
-    qc_issues=['cover_four_line_overflow'] if cover_issue else []
+    qc_issues=['cover_layout_overflow'] if cover_issue else []
     if readability_warning:
         qc_issues.append('cover_font_too_small_shorten_highlight')
     # An AI model's shallow "passed":true must never become a green audit.

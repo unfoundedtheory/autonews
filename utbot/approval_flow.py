@@ -14,7 +14,7 @@ from .quality_control import (
 ISSUE_LABELS = {
     'insufficient_primary_quotes': 'Kutipan pendukung dari sumber primer belum cukup (minimal 2).',
     'independent_style_qc_unavailable': 'Pemeriksaan AI belum tersedia/berhasil; coba ulang lewat Hasil QC.',
-    'cover_four_line_overflow': 'Judul tidak muat dalam desain cover empat baris.',
+    'cover_layout_overflow': 'Judul tidak muat dalam ruang cover dengan margin aman 56px.',
     'caption_paragraph_count': 'Caption harus terdiri dari 4–5 paragraf.',
     'ending_not_question': 'Caption perlu ditutup dengan pertanyaan yang relevan.',
     'qc_curiosity_gap': 'Hook belum menyisakan rasa penasaran yang jelas.',

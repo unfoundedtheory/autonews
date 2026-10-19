@@ -15,7 +15,7 @@ Gunakan contoh hook yang disetujui dari Markdown sebagai petunjuk GAYA, tetapi j
 Pilih tiga sudut berbeda: (1) kejutan/kontras terverifikasi, (2) pertanyaan atau misteri ilmiah yang JAWABANNYA tidak ada di headline, (3) pengalaman pembaca yang faktual dan dekat dengan kehidupan manusia.
 Kata "Mengapa" tidak otomatis menghasilkan curiosity gap. Contoh headline BAD: "Mengapa Satu Tahun Penuh di Planet Merah Berlangsung Selama Hampir Dua Kali Lipat Waktu Bumi" karena inti fakta sudah dibocorkan, framing tidak personal dan terlalu akademis. Arah lebih kuat: "Kalau Kamu Tinggal di Mars Kapan Ulang Tahunmu Akan Datang Lagi" (jangan ubah klaim sains atau mengarang angka).
 Jangan membingungkan hari Mars dan tahun Mars; klaim "satu hari di Mars menjadi 48 jam" tidak benar. Sesuaikan semua angka dan satuannya dengan sumber primer.
-Jangan mengarang angka/tanggal/risiko/bencana, jangan menyamakan rencana atau pengujian dengan penemuan. Tanpa em dash. Harus dapat muat tepat 4 baris pada cover Instagram 1080x1350.
+Jangan mengarang angka/tanggal/risiko/bencana, jangan menyamakan rencana atau pengujian dengan penemuan. Tanpa em dash. Utamakan pemanfaatan area headline cover 1080x1350 (margin aman 56px). Jumlah baris fleksibel 2–5; jangan memaksa 4 baris jika font menjadi kecil.
 Gunakan 🚨 dan kata penanda waktu hanya untuk informasi time-sensitive yang sumbernya mendukung.
 Hasil HANYA JSON: {"options":["hook 1","hook 2","hook 3"]}.
 """
@@ -52,8 +52,8 @@ def alternatives(draft, story, *, llm=None):
     return options
 
 COVER_FIT_SYSTEM = HOOK_SYSTEM + """
-Perbaiki highlight agar benar-benar muat dalam tepat empat baris cover 1080x1350.
-Pilih kalimat sesingkat yang diperlukan agar muat empat baris, tetapi jangan sampai terlalu pendek, datar, menghilangkan rasa penasaran atau mengubah fakta.
+Utamakan judul visual sebesar mungkin yang mengisi lebar dan tinggi area cover 1080x1350.
+Gunakan 2 sampai 5 baris secara fleksibel; jangan mengejar 4 baris. Ringkas bila perlu tanpa menghilangkan informasi penting, rasa penasaran, atau mengubah fakta.
 Tawarkan hingga enam opsi pada array JSON 'options' tanpa membuat fakta baru.
 """
 
@@ -85,4 +85,4 @@ def cover_fit_alternative(draft,story,*,llm=None):
     if valid:
         # Largest true glyph size beats "first valid", which could still look tiny.
         return max(valid,key=lambda hook:headline_font_size(hook,CONFIG.font_path))
-    raise ValueError('Tidak ada highlight valid yang muat empat baris. Gunakan revisi manual.')
+    raise ValueError('Tidak ada highlight valid yang memanfaatkan ruang cover dengan aman. Gunakan revisi manual.')

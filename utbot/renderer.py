@@ -17,7 +17,7 @@ WHITE = "#FFFFFF"
 SIDE_MARGIN = 56
 BOTTOM_MARGIN = 56
 MARGIN = SIDE_MARGIN              # backward-compatible horizontal safe area
-LAYOUT_STYLE = "fixed_reference_logo_responsive_headline_v09"
+LAYOUT_STYLE = "fixed_reference_logo_space_first_flexible_headline_v10"
 # Owner's 1080×1350 reference: logo is locked at (402,900)-(678,948).
 # Headline ALWAYS begins beneath it, at y=981. Only font size and
 # inter-line pitch may adapt to the available space. Safe edge gap: 56px.
@@ -108,8 +108,8 @@ def _headline_tokens(highlight):
     return re.findall(r"""['\"“‘][^'\"”’]+['\"”’][,;.!?]?|\S+""", highlight.upper())
 
 
-def _balanced_wrap(draw, words, font, max_width, max_lines=5, exact_lines=None):
-    """Dynamic programming for 3–5 coherent lines, measured with actual tracking."""
+def _balanced_wrap(draw, words, font, max_width, max_lines=5, exact_lines=None, min_lines=3):
+    """Dynamic programming for coherent lines with measured kerning and tracking."""
     words = line_tokens(words)
     n = len(words)
     if not n:
@@ -137,7 +137,7 @@ def _balanced_wrap(draw, words, font, max_width, max_lines=5, exact_lines=None):
             if choices:
                 states[(end, count)] = min(choices, key=lambda v:v[0])
     candidates = [(score+count*.10, path) for (end,count),(score,path) in states.items()
-                  if end == n and 3 <= count <= max_lines
+                  if end == n and min_lines <= count <= max_lines
                   and (exact_lines is None or count == exact_lines)]
     if not candidates:
         return []
@@ -160,27 +160,61 @@ def _reference_line_pitch(font):
 
 
 def _headline_layout(draw, highlight, font_path=None, max_width=WIDTH-2*MARGIN):
-    """Use four lines with the largest readable font below the fixed logo.
+    """Fill the available cover area; NEVER force four lines.
 
-    Font size and pitch adapt; neither the logo nor headline anchor moves.
+    Find the largest feasible font separately for 2–5-line layouts, then
+    compare real occupied width AND vertical coverage. One-word or very short
+    last lines are discouraged by the same DP wrapper. The fixed owner logo,
+    headline start, 56px margins and natural line pitch never move.
     """
     words=_headline_tokens(highlight)
-    # Large/simple hooks can expand; longer ones shrink until four lines fit.
-    # If even 48 px cannot fit, send it back to Telegram for copy editing.
-    for size in range(132,47,-2):
+    if not words:
+        raise ValueError('Headline kosong.')
+    candidates={}
+    for size in range(144,47,-2):
         font=_font(size,font_path)
-        lines=_balanced_wrap(draw,words,font,max_width,max_lines=4,exact_lines=4)
         pitch=_reference_line_pitch(font)
-        if (len(lines)==4
-            and HEADLINE_TOP+3*pitch+_ink_height(font)<=HEADLINE_BOTTOM
-            and all(_line_width(draw,line,font)<=max_width for line in lines)
-            and (len(lines[-1].split())>1 or len(words)<4)):
-            return font,lines,pitch
-    raise ValueError('Highlight belum muat tepat empat baris dengan margin kiri/kanan/bawah 56px; persingkat melalui Telegram')
+        cap=_ink_height(font)
+        for count in range(2,6):
+            if count in candidates or len(words)<count:
+                continue
+            block_height=(count-1)*pitch+cap
+            if HEADLINE_TOP+block_height>HEADLINE_BOTTOM:
+                continue
+            lines=_balanced_wrap(draw,words,font,max_width,
+                                 max_lines=count,exact_lines=count,
+                                 min_lines=2)
+            if len(lines)!=count:
+                continue
+            widths=[_line_width(draw,line,font) for line in lines]
+            if any(w>max_width for w in widths):
+                continue
+            if len(words)>3 and len(lines[-1].split())==1:
+                continue
+            # The best candidate within each line count is the biggest font.
+            candidates[count]=(font,lines,pitch,widths,block_height)
+        if len(candidates)==min(4,max(1,len(words)-1)):
+            break
+    if not candidates:
+        raise ValueError('Headline tidak muat dengan margin aman 56px; persingkat melalui Telegram.')
+
+    def space_coverage(item):
+        font,lines,pitch,widths,height=item
+        # The owner prioritizes a cover-filling title over an arbitrary line
+        # count. Keep visibly large letters, well-filled rows and a title
+        # block extending toward the fixed lower safety edge.
+        edge=max(widths)/max_width
+        average=sum(widths)/(len(lines)*max_width)
+        vertical=height/(HEADLINE_BOTTOM-HEADLINE_TOP)
+        relative_font=font.size/144
+        return (.42*edge + .24*average + .22*vertical +
+                .12*relative_font)
+    best=max(candidates.values(),key=space_coverage)
+    return best[0],best[1],best[2]
 
 
 def headline_font_size(highlight: str, font_path: str | None = None):
-    """Actual pixel font size after BOTH four-line vertical and width constraints.
+    """Actual pixel font size after flexible line-count width/height fitting.
 
     A headline can technically fit yet look tiny if the copy is verbose.
     The newsroom should suggest a shorter evidence-checked hook in that case.
@@ -192,7 +226,7 @@ def headline_font_size(highlight: str, font_path: str | None = None):
 
 @lru_cache(maxsize=256)
 def require_cover_fit(highlight: str, font_path: str | None = None):
-    """Use the exact same four-line geometry as render, without downloading photos."""
+    """Use identical flexible cover geometry as render, without downloading photos."""
     if not highlight or len(highlight.strip()) > 245:
         raise ValueError("Highlight kosong atau terlalu panjang")
     draw = ImageDraw.Draw(Image.new("RGB", (1, 1)))
@@ -323,7 +357,7 @@ def render(input_image, highlight, outpath, accent_words=None, logo_path=None,
     draw = ImageDraw.Draw(img)
 
     # Lock the logo at reference y=900–948 and start text at y=981.
-    # Auto-fit font inside 56px side and bottom safe margins. Font size remains adaptive.
+    # Let 2–5 lines compete by space coverage; keep 56px safety margins.
     font, lines, pitch = _headline_layout(draw, highlight, font_path)
     if _ink_height(font) + HEADLINE_TOP + (len(lines)-1)*pitch > HEADLINE_BOTTOM:
         raise ValueError('Headline overflow: requires editorial revision')

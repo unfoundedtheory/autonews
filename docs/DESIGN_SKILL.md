@@ -184,3 +184,13 @@ panjang headline atau ruang kosong di bawahnya.
 - Lindungi bagian ilmiah penting dari crop dan tumpang tindih logo/headline; pilih foto lain bila komposisi tidak dapat dicapai tanpa merusak subjek. Tidak boleh stretch, letterbox, padding, atau bidang kosong.
 - Batas bawah foto **tidak terlihat**: gradient hitam halus menutup foto secara progresif sampai hitam penuh pada baris pixel terakhir y=1349, tanpa garis potong/transisi mendadak. Bagian atas dan subjek utama tetap jelas. Gradient di bawah logo dan headline, bukan di atas teks.
 - QA wajib memeriksa cover penuh serta thumbnail, termasuk input landscape/portrait/square. Aturan ini mengatur foto; logo tetap di (402,900)–(678,948), headline mulai y=981, dan margin aman 56px tetap berlaku.
+
+
+## 19. Koreksi prioritas pemilik (19 Oktober 2026) — memenuhi ruang sebelum jumlah baris
+
+**Mengungguli semua aturan "tepat empat baris" terdahulu.** Headline tidak wajib empat baris. Gunakan 2–5 baris sesuai hasil pengukuran glyph sebenarnya; prioritas: pemanfaatan lebar maksimum hingga margin aman, blok vertikal yang penuh, keseimbangan panjang baris, dan font besar yang mudah dibaca. Jangan mengecilkan font semata-mata untuk memaksa empat baris.
+
+- Logo tetap mutlak pada (402,900)–(678,948), tinta baris pertama mulai y=981, margin kiri/kanan/bawah tetap 56px; warna dan font tetap.
+- Bandingkan kandidat layout 2/3/4/5 baris dan pilih berdasarkan *space-coverage*, bukan jumlah baris.
+- Jangan memotong kata, men-stretch teks, mengurangi margin, atau merusak keakuratan sains; jangan tinggalkan satu kata pada baris terakhir.
+- QC, preflight, editor website dan render Telegram harus memakai aturan baru yang sama. Aturan empat baris di bagian historis sebelumnya tidak berlaku bila bertentangan.
