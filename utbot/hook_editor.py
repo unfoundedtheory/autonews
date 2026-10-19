@@ -71,6 +71,8 @@ def cover_fit_alternative(draft,story,*,llm=None):
     reference=' '.join([story.title,draft.caption,draft.highlight]+[
         str(e.get('claim') or '')+' '+str(e.get('quote') or '') for e in story.evidence])
     numbers=set(re.findall(r'\d+(?:[.,]\d+)?',reference))
+    valid=[]
+    from .renderer import headline_font_size
     for raw in choices[:8]:
         if not isinstance(raw,str):continue
         candidate=raw.strip().rstrip('.')
@@ -79,5 +81,8 @@ def cover_fit_alternative(draft,story,*,llm=None):
         if not cover_fits(candidate,CONFIG.font_path):continue
         if assess(candidate,draft.caption,draft.hashtags,story.evidence,
                   tragedy=bool(draft.is_tragedy),check_cover=False)['passed']:
-            return candidate
+            valid.append(candidate)
+    if valid:
+        # Largest true glyph size beats "first valid", which could still look tiny.
+        return max(valid,key=lambda hook:headline_font_size(hook,CONFIG.font_path))
     raise ValueError('Tidak ada highlight valid yang muat empat baris. Gunakan revisi manual.')
