@@ -13,7 +13,7 @@ from sqlalchemy import select,case
 from .models import Story,Draft,Audit
 from .editorial import trusted_source,lint,editorial_instructions,editorial_guide_sha256
 from .quality_control import assess,review_style,QC_RUBRIC_VERSION
-from .renderer import cover_fits
+from .renderer import cover_fits, headline_font_size, MIN_EDITORIAL_FONT_PX
 from .hook_editor import cover_fit_alternative
 from .config import CONFIG
 from .media import find_photos,intake_image,render_draft,find_article_photo
@@ -188,25 +188,50 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
     data['highlight']=data['highlight'].rstrip().rstrip('.')
     original_highlight=data['highlight']
     cover_issue=None
-    if not cover_fits(data['highlight'],CONFIG.font_path):
+    original_fits=cover_fits(original_highlight,CONFIG.font_path)
+    original_font_px=(headline_font_size(original_highlight,CONFIG.font_path)
+                      if original_fits else 0)
+    # The old gate allowed 48px letters as long as they technically fit four
+    # lines. For live AI-written stories, first try an evidence-bounded shorter
+    # headline when the actual glyph font is below the editorial threshold.
+    needs_shorter_hook=bool(reviewer and original_fits and
+                            original_font_px < MIN_EDITORIAL_FONT_PX)
+    readability_warning=False
+    if not original_fits or needs_shorter_hook:
         preview=SimpleNamespace(highlight=data['highlight'],caption=data['caption'],
                                 hashtags=data['hashtags'],is_tragedy=bool(data.get('tragedy')))
         evidence_story=SimpleNamespace(title=story.title,evidence=checked)
         try:
-            data['highlight']=cover_fit_alternative(preview,evidence_story)
-            data['accent_words']=[]
-            # The cover revision changes the FINAL text: independently repeat QC.
-            final_qc=assess(data['highlight'],data['caption'],data['hashtags'],checked,
-                            tragedy=bool(data.get('tragedy')),check_cover=False)
-            if reviewer and final_qc['passed']:
-                final_style=reviewer(data['highlight'],data['caption'],checked,
-                                    tragedy=bool(data.get('tragedy')))
-                final_qc['issues']+=final_style['issues']
-                final_qc['passed']=final_style['passed']
-            if not final_qc['passed']:
-                cover_issue='Revisi cover tidak lolos QC final: '+', '.join(final_qc['issues'])[:180]
+            candidate=cover_fit_alternative(preview,evidence_story)
+            better=(not original_fits or
+                    headline_font_size(candidate,CONFIG.font_path)>original_font_px)
+            if better:
+                # Every substantive headline edit must pass deterministic and
+                # INDEPENDENT semantic QC. Never boost typography by inventing facts.
+                final_qc=assess(candidate,data['caption'],data['hashtags'],checked,
+                                tragedy=bool(data.get('tragedy')),check_cover=False)
+                if reviewer and final_qc['passed']:
+                    final_style=reviewer(candidate,data['caption'],checked,
+                                        tragedy=bool(data.get('tragedy')))
+                    final_qc['issues']+=final_style['issues']
+                    final_qc['passed']=final_style['passed']
+                if final_qc['passed']:
+                    data['highlight']=candidate
+                    data['accent_words']=[]
+                elif not original_fits:
+                    cover_issue='Revisi cover tidak lolos QC final: '+', '.join(final_qc['issues'])[:180]
+            if not better and original_fits:
+                readability_warning=True
         except (ValueError,RuntimeError,httpx.HTTPError) as exc:
-            cover_issue='Highlight belum muat empat baris. Gunakan Perbaiki Cover Otomatis atau edit Highlight. '+str(exc)[:160]
+            if original_fits:
+                # A provider's quota/429 must not invalidate an already
+                # fact-checked headline; preserve it and flag low readability.
+                readability_warning=True
+            else:
+                cover_issue=('Highlight belum muat empat baris. Gunakan Perbaiki Cover '
+                             'Otomatis atau edit Highlight. '+str(exc)[:160])
+    if original_fits and headline_font_size(data['highlight'],CONFIG.font_path)<MIN_EDITORIAL_FONT_PX:
+        readability_warning=True
     story.evidence=checked
     story.verification_status='verified'  # quotes matched primary text; not independent adjudication
     d=Draft(story_id=story.id,highlight=data['highlight'],caption=data['caption'],hashtags=data['hashtags'],
@@ -214,6 +239,8 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
             expires_at=datetime.fromisoformat(data['expires_at_wib']).astimezone(timezone.utc) if data.get('expires_at_wib') else None)
     db.add(d);db.flush()
     qc_issues=['cover_four_line_overflow'] if cover_issue else []
+    if readability_warning:
+        qc_issues.append('cover_font_too_small_shorten_highlight')
     # An AI model's shallow "passed":true must never become a green audit.
     current_style=None
     if reviewer:
