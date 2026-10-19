@@ -67,7 +67,7 @@ def advanced_keyboard(draft):
         ])
         rows.append([{'text':'🎨 Render Ulang Cover','callback_data':f'redesign:{ref}:{v}'}])
     if draft.status=='pending_approval' and not draft.image_url and not draft.image_local_path:
-        if 'empat baris' in (draft.last_error or '').lower():
+        if any(word in (draft.last_error or '').lower() for word in ('empat baris','area cover','margin aman')):
             rows.append([{'text':'✨ Perbaiki Cover','callback_data':f'autofit:{ref}:{v}'}])
         rows.append([{'text':'🖼 Buat Cover dari Sumber','callback_data':f'retrycover:{ref}:{v}'}])
     if editable and (draft.source_image_url or draft.image_url) and (
