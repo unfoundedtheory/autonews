@@ -81,7 +81,9 @@ def drafts():
     with Session() as db:
         records=db.execute(select(Draft,Story).join(Story,Draft.story_id==Story.id)
                            .order_by(Draft.created_at.desc()).limit(180)).all()
-        from .planner_scheduling import pinned_planner_schedule
+        from .planner_scheduling import pinned_planner_schedule, explicitly_auto_photo
+        from .automation_mode import current_mode
+        active_mode=current_mode(db)[0]
         output=[]
         for d,st in records:
             audit=db.execute(select(Audit.detail).where(Audit.draft_id==d.id,
@@ -96,13 +98,15 @@ def drafts():
                            'image_license_url':d.image_license_url,'media_page_url':d.media_page_url,
                            'rights_reviewed':d.rights_reviewed,
                            'scheduled_at':d.scheduled_at.isoformat() if d.scheduled_at else None,
-                           'auto_scheduled':pinned_planner_schedule(db,d),
+                           'auto_scheduled':explicitly_auto_photo(db,d),
+                           'web_managed':pinned_planner_schedule(db,d),
                            'created_at':d.created_at.isoformat(),
                            'planned_at':d.scheduled_at.isoformat() if pinned_planner_schedule(db,d) else None,
                            'focus':(focus or {}).get('focus',[0.5,0.43])})
         from .config import CONFIG
         return {'drafts':output,'timezone':'Asia/Jakarta',
-                'auto_publish_enabled':CONFIG.live_publish}
+                'auto_publish_enabled':CONFIG.live_publish,
+                'mode':active_mode}
 
 
 @router.patch('/drafts/{draft_id}',dependencies=[Depends(_permit)])
@@ -213,6 +217,8 @@ def confirm_image_rights(draft_id: str, payload: PhotoRights):
         d=db.get(Draft,draft_id)
         if not d or d.status in ('published','rejected') or d.publish_state!='unpublished':
             raise HTTPException(409,'Status berita tidak mengizinkan perubahan hak foto.')
+        if d.scheduled_at and d.status=='approved':
+            raise HTTPException(409,'Batalkan jadwal sebelum mengganti metadata hak foto.')
         if not payload.confirmed:
             raise HTTPException(422,'Konfirmasi pemeriksaan lisensi foto diperlukan.')
         link=urlparse(payload.license_url)
