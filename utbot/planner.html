@@ -19,7 +19,7 @@ label{font-size:12px;color:var(--muted);font-weight:600}input,textarea{backgroun
 <section><div class="calendar-bar"><h2 style="margin:0">Kalender Konten</h2><div class="row"><button id="prev" aria-label="Bulan sebelumnya">◀</button><strong id="monthLabel"></strong><button id="next" aria-label="Bulan berikutnya">▶</button></div></div><div class="row" style="margin-bottom:10px"><span class="hint">Seret draft ke tanggal • slot 06.00, 12.00, 18.00 WIB • posting otomatis setelah QC</span></div><div id="calendar" class="calendar"></div><div class="row" style="margin-top:12px"><small class="hint">Pembuatan rutin 03, 09, 15, 21 WIB · Posting otomatis 06, 12, 18 WIB</small></div></section>
 </main></div>
 <script>
-const api='/api/planner';let items=[],selected=null,currentMonth=new Date();let focus=[.5,.43],drag=null;
+const api='/api/planner';let items=[],selected=null,currentMonth=new Date();let focus=[.5,.43],drag=null,cropping=false;
 const $=id=>document.getElementById(id);
 async function request(path,options={}){const response=await fetch(api+path,{credentials:'same-origin',headers:{'Content-Type':'application/json'},...options});let data={};try{data=await response.json()}catch{}if(!response.ok)throw Error(data.detail||'Permintaan gagal ('+response.status+')');return data}
 function status(t){$('status').textContent=t;setTimeout(()=>{if($('status').textContent===t)$('status').textContent=''},5500)}
@@ -31,15 +31,55 @@ function active(d){return d.status!=='rejected'&&d.status!=='published'&&d.publi
 function renderList(){const filter=$('search').value.toLowerCase();$('items').innerHTML='';for(const d of items){if(!(d.highlight+' '+d.title).toLowerCase().includes(filter))continue;let node=document.createElement('div');node.className='item';node.draggable=active(d);node.setAttribute('aria-selected',d.id===selected?.id?'true':'false');node.innerHTML='<strong>'+escapeHTML(d.highlight)+'</strong><div class="meta">'+escapeHTML(d.status)+' · '+(d.planned_at?'Rencana '+formatDay(d.planned_at):'Belum dijadwalkan')+'</div>';node.onclick=()=>choose(d.id);node.ondragstart=e=>e.dataTransfer.setData('text/plain',d.id);$('items').appendChild(node)}if(!$('items').children.length)$('items').innerHTML='<div class="empty">Tidak ada draft.</div>'}
 function mondayIndex(date){return (date.getDay()+6)%7}
 function renderCalendar(){const first=new Date(currentMonth.getFullYear(),currentMonth.getMonth(),1), last=new Date(currentMonth.getFullYear(),currentMonth.getMonth()+1,0);$('monthLabel').textContent=first.toLocaleDateString('id-ID',{month:'long',year:'numeric'});const days=['Sen','Sel','Rab','Kam','Jum','Sab','Min'];$('calendar').replaceChildren();for(const name of days){let d=document.createElement('div');d.className='day-label';d.textContent=name;$('calendar').append(d)}for(let i=0;i<mondayIndex(first);i++){$('calendar').appendChild(document.createElement('div'))}for(let day=1;day<=last.getDate();day++){let cell=document.createElement('div');let iso=[first.getFullYear(),String(first.getMonth()+1).padStart(2,'0'),String(day).padStart(2,'0')].join('-');cell.className='day';if(iso===dateKey(new Date()))cell.classList.add('today');const label=document.createElement('span');label.className='day-label';label.textContent=String(day);cell.append(label);for(const draft of items.filter(x=>formatDay(x.planned_at)===iso)){let chip=document.createElement('div');chip.className='chip';chip.draggable=active(draft);chip.textContent=draft.highlight;chip.onclick=()=>choose(draft.id);chip.ondragstart=e=>e.dataTransfer.setData('text/plain',draft.id);cell.append(chip)}cell.ondragover=e=>{e.preventDefault();cell.classList.add('dragover')};cell.ondragleave=()=>cell.classList.remove('dragover');cell.ondrop=async e=>{e.preventDefault();cell.classList.remove('dragover');const id=e.dataTransfer.getData('text/plain'),d=items.find(x=>x.id===id);if(d&&active(d)){try{await request('/drafts/'+id,{method:'PATCH',body:JSON.stringify({planned_at:iso+'T12:00:00+07:00'})});await load();choose(id);status('Rencana posting diperbarui')}catch(err){status(err.message)}}};$('calendar').append(cell)}}
-function cropUpdate(){let x=($('cover').querySelector('img'));x.style.objectPosition=(focus[0]*100)+'% '+(focus[1]*100)+'%';$('focusLabel').textContent=Math.round(focus[0]*100)+'% / '+Math.round(focus[1]*100)+'%'}
-function choose(id){selected=items.find(x=>x.id===id);if(!selected)return;$('noSelection').classList.add('hide');$('controls').classList.remove('hide');$('title').value=selected.highlight;$('caption').value=selected.caption;$('sourcePhoto').src=selected.source_image_url||selected.image_url||'';focus=[...(selected.focus||[.5,.43])];cropUpdate();$('coverText').textContent=selected.highlight;$('when').value=selected.planned_at?new Date(new Date(selected.planned_at).getTime()+7*3600000).toISOString().slice(0,16):'';$('sourceLink').href=selected.source_url;let can=active(selected);for(let id of ['save','runQC','title','caption','when','clearDate','focusReset'])$(id).disabled=!can;renderList()}
+function cropUpdate(){
+  $('sourcePhoto').style.objectPosition=(focus[0]*100)+'% '+(focus[1]*100)+'%';
+  $('focusLabel').textContent=Math.round(focus[0]*100)+'% / '+Math.round(focus[1]*100)+'%';
+}
+function coverMode(){
+  const actual=selected && selected.image_url;
+  $('finalCover').classList.toggle('hide',cropping||!actual);
+  $('sourcePhoto').classList.toggle('hide',!cropping);
+  $('cropLabel').classList.toggle('hide',!cropping);
+  $('cropMode').textContent=cropping?'Lihat Cover Final':'Atur Posisi Foto';
+  if(!cropping && !actual){
+    $('cover').style.background='#101827';
+    $('focusLabel').textContent='Cover final belum tersedia — gunakan Render Ulang Cover';
+  }
+}
+function wibInput(value){
+  if(!value)return '';
+  const fmt=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
+  return fmt.format(new Date(value)).replace(' ','T');
+}
+function choose(id){
+  selected=items.find(x=>x.id===id);
+  if(!selected)return;
+  $('noSelection').classList.add('hide');$('controls').classList.remove('hide');
+  $('title').value=selected.highlight;$('caption').value=selected.caption;
+  $('finalCover').src=selected.image_url||'';
+  $('sourcePhoto').src=selected.source_image_url||'';
+  focus=[...(selected.focus||[.5,.43])];cropping=false;
+  cropUpdate();coverMode();
+  $('when').value=wibInput(selected.scheduled_at);
+  $('sourceLink').href=selected.source_url;
+  const can=active(selected);
+  for(const key of ['save','runQC','title','caption','when','clearDate','cropMode','focusReset','rerender','schedule'])$(key).disabled=!can;
+  $('clearDate').disabled=!selected.auto_scheduled;
+  if(!selected.source_image_url){
+    $('cropMode').disabled=true;
+    $('focusReset').disabled=true;
+  }
+  renderList();
+}
 async function load(){const data=await request('/drafts');items=data.drafts||[];renderList();renderCalendar()}
 $('signIn').onclick=async()=>{try{await request('/login',{method:'POST',body:JSON.stringify({password:$('pwd').value})});$('pwd').value='';$('login').classList.add('hide');$('studio').classList.remove('hide');await load()}catch(err){$('loginMessage').textContent=err.message}};$('pwd').onkeydown=e=>{if(e.key==='Enter')$('signIn').click()};
 $('signOut').onclick=async()=>{await request('/logout',{method:'POST'});location.reload()};$('reload').onclick=()=>load().catch(e=>status(e.message));$('search').oninput=renderList;$('prev').onclick=()=>{currentMonth.setMonth(currentMonth.getMonth()-1);renderCalendar()};$('next').onclick=()=>{currentMonth.setMonth(currentMonth.getMonth()+1);renderCalendar()};
-$('cover').onpointerdown=e=>{if(!selected||!active(selected))return;drag={x:e.clientX,y:e.clientY,focus:[...focus]};$('cover').setPointerCapture(e.pointerId)};
+$('cropMode').onclick=()=>{if(!selected||!selected.source_image_url)return;cropping=!cropping;coverMode()};
+$('cover').onpointerdown=e=>{if(!cropping||!selected||!active(selected))return;drag={x:e.clientX,y:e.clientY,focus:[...focus]};$('cover').setPointerCapture(e.pointerId)};
 $('cover').onpointermove=e=>{if(!drag)return;const bounds=$('cover').getBoundingClientRect();focus=[Math.max(0,Math.min(1,drag.focus[0]-(e.clientX-drag.x)/bounds.width)),Math.max(0,Math.min(1,drag.focus[1]-(e.clientY-drag.y)/bounds.height))];cropUpdate()};
-$('cover').onpointerup=()=>drag=null;$('cover').onpointercancel=()=>drag=null;$('focusReset').onclick=()=>{focus=[.5,.43];cropUpdate()};
-$('title').oninput=()=>$('coverText').textContent=$('title').value;
+$('cover').onpointerup=()=>drag=null;$('cover').onpointercancel=()=>drag=null;
+$('focusReset').onclick=()=>{focus=[.5,.43];cropping=true;cropUpdate();coverMode()};
+$('title').oninput=()=>status('Judul berubah. Simpan untuk melihat hasil asli renderer.');
 function localIso(value){return value?value+':00+07:00':null}
 $('save').onclick=async()=>{if(!selected)return;try{let payload={};if($('title').value!==selected.highlight)payload.highlight=$('title').value;if($('caption').value!==selected.caption)payload.caption=$('caption').value;if(JSON.stringify(focus)!==JSON.stringify(selected.focus))Object.assign(payload,{focus_x:focus[0],focus_y:focus[1]});if(localIso($('when').value)!==selected.planned_at){payload.planned_at=localIso($('when').value)}if(Object.keys(payload).length===0)return status('Tidak ada perubahan');await request('/drafts/'+selected.id,{method:'PATCH',body:JSON.stringify(payload)});let id=selected.id;await load();choose(id);status('Perubahan berhasil disimpan')}catch(err){status(err.message)}};
 $('runQC').onclick=async()=>{if(!selected)return;try{status('Memeriksa naskah, harap tunggu…');const result=await request('/drafts/'+selected.id+'/qc',{method:'POST'});status(result.passed?'QC lulus untuk versi '+result.version:'QC belum lulus: '+(result.issues||[]).slice(0,4).join(', '))}catch(e){status('QC gagal: '+e.message)}};
