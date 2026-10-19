@@ -723,7 +723,10 @@ def telegram_webhook(payload:dict,db=Depends(session)):
         from .automation_mode import manual_post_ready
         def preview_current():
             if bot:
-                send_preview(bot,chat_id,d,st,manual_post=manual_post_ready(db,d))
+                if manual_post_ready(db,d):
+                    send_preview(bot,chat_id,d,st,manual_post=True)
+                else:
+                    send_preview(bot,chat_id,d,st)
         try:
             if action=='open':
                 from .automation_mode import manual_post_ready
@@ -1140,7 +1143,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         sess.mode='photo_credit'
                         sess.version=d.version
                         db.commit()
-                        preview_current()
+                        if bot:send_preview(bot,chat_id,d,st)
                         send('Foto diterima. Balas dua baris seperti ini:\nKredit: NASA/Chandra\nLisensi: Public domain\nTambahkan URL sumber jika ada. /cancel untuk batal.')
                         return {'ok':True,'awaiting':'photo_credit'}
                     if sess.mode=='manual_post_link':
@@ -1241,7 +1244,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                             return {'ok':True,'photo_options':len(opts)}
                     manual=(sess.mode=='manual_hook')
                     db.delete(sess);db.commit()
-                    preview_current()
+                    if bot:send_preview(bot,chat_id,d,st)
                     if manual:
                         send('✅ Hook tulisan Anda tersimpan tanpa perubahan oleh AI. '
                              'Approval dan QC versi lama dibatalkan. '
