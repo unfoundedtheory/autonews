@@ -15,7 +15,12 @@ label{font-size:12px;color:var(--muted);font-weight:600}input,textarea{backgroun
 <header><div><h1>Unfounded Theory · Content Studio</h1><small>Kalender publikasi otomatis, editor cover, dan naskah · WIB</small></div><div class="row"><span id="status" class="status"></span><button id="reload">Muat Ulang</button><button id="signOut">Keluar</button></div></header>
 <main class="app">
 <section><h2>Draft Konten</h2><p class="hint">Pilih draft untuk diedit. Seret ke kalender untuk mengantrekan publikasi Instagram secara otomatis setelah lolos QC.</p><div class="row"><input id="search" placeholder="Cari headline atau sumber" aria-label="Cari berita"></div><div id="items" class="stack" style="margin-top:12px;max-height:70vh;overflow:auto"></div></section>
-<section class="editor"><h2>Editor Cover & Naskah</h2><div id="noSelection" class="empty">Pilih sebuah draft untuk mulai.</div><div id="controls" class="hide editor-inner"><div class="stack"><div id="cover"><img id="finalCover" alt="Hasil cover final asli dari renderer"><img id="sourcePhoto" class="hide" alt="Foto sumber untuk mengatur crop"><span id="cropLabel" class="hide">MODE ATUR CROP — preview final setelah disimpan</span></div><p class="hint">Cover final menampilkan hasil renderer asli, termasuk logo resmi, font League Spartan, dan highlight hijau. Pilih Atur Posisi Foto untuk menggeser crop sumber.</p><div class="row"><button id="cropMode">Atur Posisi Foto</button><button id="focusReset">Reset Fokus</button><button id="rerender">Render Ulang Cover</button><span id="focusLabel" class="hint"></span></div><a id="sourceLink" target="_blank" rel="noopener noreferrer">Buka sumber resmi ↗</a></div><div class="stack"><div class="fieldset"><label for="title">Headline</label><textarea id="title" rows="3"></textarea></div><div class="fieldset"><label for="caption">Caption</label><textarea id="caption" rows="7"></textarea></div><div class="fieldset"><label for="when">Jadwal posting otomatis (WIB: 06.00, 12.00, 18.00)</label><input type="datetime-local" id="when"></div><div class="row"><button class="primary" id="save">Simpan Perubahan</button><button id="runQC">Periksa QC</button><button id="schedule">Jadwalkan Otomatis</button><button id="clearDate">Batalkan Jadwal</button></div><p class="hint">Jadwal otomatis mengirim foto 4:5 ke Instagram tanpa musik lewat API pada slot terpilih setelah lolos QC, hak foto dan verifikasi sumber. Foto dengan musik Instagram tetap memerlukan cara lain. Revisi naskah membatalkan jadwal sebelumnya.</p></div></div></section>
+<section class="editor"><h2>Editor Cover & Naskah</h2><div id="noSelection" class="empty">Pilih sebuah draft untuk mulai.</div><div id="controls" class="hide editor-inner"><div class="stack"><div id="cover"><img id="finalCover" alt="Hasil cover final asli dari renderer"><img id="sourcePhoto" class="hide" alt="Foto sumber untuk mengatur crop"><span id="cropLabel" class="hide">MODE ATUR CROP — preview final setelah disimpan</span></div><p class="hint">Cover final menampilkan hasil renderer asli, termasuk logo resmi, font League Spartan, dan highlight hijau. Pilih Atur Posisi Foto untuk menggeser crop sumber.</p><div class="row"><button id="cropMode">Atur Posisi Foto</button><button id="focusReset">Reset Fokus</button><button id="rerender">Render Ulang Cover</button><span id="focusLabel" class="hint"></span></div><a id="sourceLink" target="_blank" rel="noopener noreferrer">Buka sumber resmi ↗</a></div><div class="stack"><div class="fieldset"><label for="title">Headline</label><textarea id="title" rows="3"></textarea></div><div class="fieldset"><label for="caption">Caption</label><textarea id="caption" rows="7"></textarea></div><div class="fieldset"><label for="credit">Kredit fotografer / pemegang hak</label><input id="credit" placeholder="Nama fotografer asli"></div>
+<div class="fieldset"><label for="license">Lisensi foto</label><input id="license" placeholder="Public domain / CC BY / lisensi resmi"></div>
+<div class="fieldset"><label for="licenseUrl">URL bukti lisensi foto</label><input id="licenseUrl" placeholder="https://..."></div>
+<label class="row"><input id="rightsCheck" type="checkbox" style="width:auto">Saya sudah memeriksa kepemilikan, atribusi, dan izin publikasi foto ini.</label>
+<div class="row"><button id="saveRights">Simpan & Verifikasi Hak Foto</button><span id="rightsStatus" class="hint"></span></div>
+<div class="fieldset"><label for="when">Jadwal posting otomatis (WIB: 06.00, 12.00, 18.00)</label><input type="datetime-local" id="when"></div><div class="row"><button class="primary" id="save">Simpan Perubahan</button><button id="runQC">Periksa QC</button><button id="schedule">Jadwalkan Otomatis</button><button id="clearDate">Batalkan Jadwal</button></div><p class="hint">Jadwal otomatis mengirim foto 4:5 ke Instagram tanpa musik lewat API pada slot terpilih setelah lolos QC, hak foto dan verifikasi sumber. Foto dengan musik Instagram tetap memerlukan cara lain. Revisi naskah membatalkan jadwal sebelumnya.</p></div></div></section>
 <section><div class="calendar-bar"><h2 style="margin:0">Kalender Konten</h2><div class="row"><button id="prev" aria-label="Bulan sebelumnya">◀</button><strong id="monthLabel"></strong><button id="next" aria-label="Bulan berikutnya">▶</button></div></div><div class="row" style="margin-bottom:10px"><span class="hint">Seret draft ke tanggal • slot 06.00, 12.00, 18.00 WIB • posting otomatis setelah QC</span></div><div id="calendar" class="calendar"></div><div class="row" style="margin-top:12px"><small class="hint">Pembuatan rutin 03, 09, 15, 21 WIB · Posting otomatis 06, 12, 18 WIB</small></div></section>
 </main></div>
 <script>
@@ -78,8 +83,13 @@ function choose(id){
   cropUpdate();coverMode();
   $('when').value=wibInput(selected.scheduled_at);
   $('sourceLink').href=selected.source_url;
+  $('credit').value=selected.photo_credit||'';
+  $('license').value=selected.photo_license||'';
+  $('licenseUrl').value=selected.image_license_url||selected.media_page_url||'';
+  $('rightsCheck').checked=false;
+  $('rightsStatus').textContent=selected.rights_reviewed?'✓ Hak foto pernah diverifikasi':'Belum diverifikasi';
   const can=active(selected);
-  for(const key of ['save','runQC','title','caption','when','clearDate','cropMode','focusReset','rerender','schedule'])$(key).disabled=!can;
+  for(const key of ['save','runQC','title','caption','when','clearDate','cropMode','focusReset','rerender','schedule','credit','license','licenseUrl','rightsCheck','saveRights'])$(key).disabled=!can;
   $('clearDate').disabled=!selected.auto_scheduled;
   if(!selected.source_image_url){
     $('cropMode').disabled=true;
@@ -128,6 +138,17 @@ $('rerender').onclick=async()=>{
    const id=selected.id;await load();choose(id);
    status('Cover asli diperbarui: logo resmi dan highlight hijau mengikuti renderer.');
  }catch(err){status('Render gagal: '+err.message)}
+};
+$('saveRights').onclick=async()=>{
+ if(!selected)return;
+ try{
+  const payload={credit:$('credit').value.trim(),
+    license_name:$('license').value.trim(),
+    license_url:$('licenseUrl').value.trim(),confirmed:$('rightsCheck').checked};
+  await request('/drafts/'+selected.id+'/rights',{method:'POST',body:JSON.stringify(payload)});
+  const id=selected.id;await load();choose(id);
+  status('Hak foto dikonfirmasi oleh editor. Jalankan QC, lalu jadwalkan.');
+ }catch(err){status('Hak foto belum dapat dikonfirmasi: '+err.message)}
 };
 $('runQC').onclick=async()=>{if(!selected)return;try{status('Memeriksa naskah, harap tunggu…');const result=await request('/drafts/'+selected.id+'/qc',{method:'POST'});status(result.passed?'QC lulus untuk versi '+result.version:'QC belum lulus: '+(result.issues||[]).slice(0,4).join(', '))}catch(e){status('QC gagal: '+e.message)}};
 $('clearDate').onclick=async()=>{if(!selected||!selected.auto_scheduled)return;try{await request('/drafts/'+selected.id,{method:'PATCH',body:JSON.stringify({planned_at:null})});const id=selected.id;await load();choose(id);status('Jadwal otomatis dibatalkan.')}catch(err){status('Gagal membatalkan: '+err.message)}};
