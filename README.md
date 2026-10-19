@@ -244,3 +244,31 @@ tidak memicu job Instagram/Meta. Ini menjaga keputusan pemilik: pembuatan berita
 empat kali per hari, target publikasi manual tiga kali per hari.
 Gambar sumber tetap perlu diverifikasi identitas dan hak cipta; editor foto
 mengubah crop/fokus saja, tidak mengubah objek ilmiah.
+
+
+## Content Studio — real automatic scheduling and true cover preview (October 2026)
+
+- The Content Studio shows **the actual Supabase-hosted final 1080×1350 JPEG**, not
+  a synthetic HTML/CSS logo or headline. For legacy mismatches, use **Render Ulang Cover**
+  to create a new immutable version with the correct brand badge, fonts and green accents.
+- Desktop columns: **Drafts / Cover Editor / Calendar**, with calendar on the right.
+  Cover crop is edited in a separate source-image mode; saving re-renders the real cover.
+- The calendar reads **Draft.scheduled_at** (the same database field read by the
+  Instagram publishing worker) rather than only logging an editorial intention.
+- In **Full Auto** mode, *new* source-verified drafts with passed current-version
+  independent editorial QC and verified photo rights can be auto-approved and
+  placed in the existing three WIB posting slots (06:00, 12:00, 18:00).
+  The four daily news-preparation jobs are unchanged.
+- Drag/drop or **Jadwalkan Otomatis** can manually move a ready draft to an
+  available posting slot. A per-version Content Studio consent records
+  photo-only API publication; it does not override native-music manual approvals.
+  A persistent slot reservation keeps scheduled posts from being moved by cron.
+- **Instagram Graph API photo-only publishing does not add native Instagram
+  music.** Older music handoffs remain manual and are never retroactively
+  converted. Facebook posting depends on a separately enabled Page API route;
+  do not enable that alongside native Instagram-to-Facebook sharing.
+- Unverified source claims, incomplete photo credit/license or stale/failed QC
+  prevent automatic publication. The editor can verify explicit image rights in
+  Content Studio, rerun QC and then reschedule the safe version.
+- Switching to Full Auto affects **only drafts created after activation**;
+  it is not a backfill of rejected, old manually approved, or posted items.

@@ -1,4 +1,4 @@
-"""Authenticated newsroom planner: read calendar, edit copy, crop focus, plan manual posts."""
+"""Authenticated newsroom planner: accurate covers and automatic Instagram scheduling."""
 from datetime import datetime, timezone
 from hashlib import sha256
 from hmac import compare_digest, new as hmac_new
@@ -35,6 +35,13 @@ def _permit(request: Request):
 
 class Login(BaseModel):
     password: str
+
+
+class PhotoRights(BaseModel):
+    credit: str = Field(min_length=3,max_length=160)
+    license_name: str = Field(min_length=2,max_length=120)
+    license_url: str = Field(min_length=12,max_length=500)
+    confirmed: bool = False
 
 
 class Edit(BaseModel):
@@ -74,6 +81,9 @@ def drafts():
     with Session() as db:
         records=db.execute(select(Draft,Story).join(Story,Draft.story_id==Story.id)
                            .order_by(Draft.created_at.desc()).limit(180)).all()
+        from .planner_scheduling import pinned_planner_schedule, explicitly_auto_photo
+        from .automation_mode import current_mode
+        active_mode=current_mode(db)[0]
         output=[]
         for d,st in records:
             audit=db.execute(select(Audit.detail).where(Audit.draft_id==d.id,
@@ -84,9 +94,19 @@ def drafts():
                            'source_url':st.source_url,'highlight':d.highlight,'caption':d.caption,
                            'status':d.status,'publish_state':d.publish_state,
                            'image_url':d.image_url,'source_image_url':d.source_image_url,
-                           'created_at':d.created_at.isoformat(),'planned_at':(audit or {}).get('planned_at'),
+                           'photo_credit':d.image_credit,'photo_license':d.photo_license,
+                           'image_license_url':d.image_license_url,'media_page_url':d.media_page_url,
+                           'rights_reviewed':d.rights_reviewed,
+                           'scheduled_at':d.scheduled_at.isoformat() if d.scheduled_at else None,
+                           'auto_scheduled':explicitly_auto_photo(db,d),
+                           'web_managed':pinned_planner_schedule(db,d),
+                           'created_at':d.created_at.isoformat(),
+                           'planned_at':d.scheduled_at.isoformat() if pinned_planner_schedule(db,d) else None,
                            'focus':(focus or {}).get('focus',[0.5,0.43])})
-        return {'drafts':output,'timezone':'Asia/Jakarta','mode':'manual_post'}
+        from .config import CONFIG
+        return {'drafts':output,'timezone':'Asia/Jakarta',
+                'auto_publish_enabled':CONFIG.live_publish,
+                'mode':active_mode}
 
 
 @router.patch('/drafts/{draft_id}',dependencies=[Depends(_permit)])
@@ -100,13 +120,8 @@ def edit(draft_id: str, payload: Edit):
         if d.status in ('published','rejected') or d.publish_state!='unpublished':
             raise HTTPException(409,'Draf yang sudah dipublikasikan/ditolak tidak dapat direvisi.')
         changes=payload.model_fields_set
-        if 'planned_at' in changes:
-            if payload.planned_at is not None and payload.planned_at.tzinfo is None:
-                raise HTTPException(422,'Waktu rencana harus menyertakan zona waktu.')
-            # Manual planning never feeds the automatic Meta publishing queue.
-            db.add(Audit(draft_id=d.id,event='content_plan_changed',actor='web_editor',
-                         detail={'planned_at':payload.planned_at.astimezone(timezone.utc).isoformat()
-                                 if payload.planned_at else None,'manual_only':True}))
+        if 'planned_at' in changes and ({'highlight','caption','focus_x','focus_y'} & changes):
+            raise HTTPException(422,'Simpan revisi, jalankan QC, kemudian pilih jadwal otomatis.')
         if 'highlight' in changes:
             if not payload.highlight or len(payload.highlight)>245:
                 raise HTTPException(422,'Headline harus berisi maksimal 245 karakter.')
@@ -132,8 +147,19 @@ def edit(draft_id: str, payload: Edit):
             except (ValueError,OSError,RuntimeError) as exc:
                 db.rollback()
                 raise HTTPException(422,'Cover gagal dirender: '+str(exc)[:160]) from exc
+        if 'planned_at' in changes:
+            from .planner_scheduling import schedule_web_post,unschedule_web_post
+            try:
+                if payload.planned_at is not None:
+                    schedule_web_post(db,d,payload.planned_at)
+                else:
+                    unschedule_web_post(db,d)
+            except ValueError as exc:
+                db.rollback()
+                raise HTTPException(422,str(exc)) from exc
         db.commit()
-        return {'ok':True,'id':d.id,'version':d.version,'image_url':d.image_url}
+        return {'ok':True,'id':d.id,'version':d.version,'image_url':d.image_url,
+                'scheduled_at':d.scheduled_at.isoformat() if d.scheduled_at else None}
 
 
 @router.get('/layout/{draft_id}',dependencies=[Depends(_permit)])
@@ -161,3 +187,58 @@ def check_draft_qc(draft_id: str):
         db.commit()
         return {'passed':report.get('passed'),'issues':report.get('issues',[]),
                 'version':draft.version,'status':report.get('status')}
+
+@router.post('/drafts/{draft_id}/render',dependencies=[Depends(_permit)])
+def rerender_final_cover(draft_id: str):
+    """Regenerate genuine League Spartan cover with true badge and accents."""
+    from .editorial import revise
+    from .media import render_draft
+    with Session() as db:
+        d=db.get(Draft,draft_id)
+        if not d or d.status in ('published','rejected') or d.publish_state!='unpublished':
+            raise HTTPException(409,'Cover tidak dapat diubah pada status berita ini.')
+        if not (d.source_image_url or d.source_image_path):
+            raise HTTPException(422,'Sumber foto asli belum tersedia.')
+        try:
+            revise(db,d,'highlight',d.highlight,'web_content_studio')
+            render_draft(d)
+            db.commit()
+        except (ValueError,OSError,RuntimeError) as exc:
+            db.rollback()
+            raise HTTPException(422,'Render cover gagal: '+str(exc)[:160]) from exc
+        return {'ok':True,'image_url':d.image_url,'version':d.version}
+
+@router.post('/drafts/{draft_id}/rights',dependencies=[Depends(_permit)])
+def confirm_image_rights(draft_id: str, payload: PhotoRights):
+    """Explicit owner's photo-rights confirmation; never inferred from NASA/ESA."""
+    from urllib.parse import urlparse
+    from .instagram import photo_credit_line
+    with Session() as db:
+        d=db.get(Draft,draft_id)
+        if not d or d.status in ('published','rejected') or d.publish_state!='unpublished':
+            raise HTTPException(409,'Status berita tidak mengizinkan perubahan hak foto.')
+        if d.scheduled_at and d.status=='approved':
+            raise HTTPException(409,'Batalkan jadwal sebelum mengganti metadata hak foto.')
+        if not payload.confirmed:
+            raise HTTPException(422,'Konfirmasi pemeriksaan lisensi foto diperlukan.')
+        link=urlparse(payload.license_url)
+        if link.scheme!='https' or not link.hostname or link.username or link.password:
+            raise HTTPException(422,'URL bukti lisensi harus HTTPS yang valid.')
+        if not (d.source_image_url or d.source_image_path):
+            raise HTTPException(422,'Foto sumber belum tersedia.')
+        old=(d.image_credit,d.photo_license,d.image_license_url,d.rights_reviewed)
+        d.image_credit=payload.credit.strip()
+        d.photo_license=payload.license_name.strip()
+        d.image_license_url=payload.license_url.strip()
+        d.rights_reviewed=True
+        try:photo_credit_line(d)
+        except ValueError as exc:
+            db.rollback()
+            raise HTTPException(422,str(exc)) from exc
+        db.add(Audit(draft_id=d.id,event='photo_rights_owner_confirmed',
+                     actor='web_content_studio',
+                     detail={'version':d.version,'evidence_url':d.image_license_url,
+                             'license_name':d.photo_license,
+                             'previous_rights_reviewed':old[3]}))
+        db.commit()
+        return {'ok':True,'rights_reviewed':True}

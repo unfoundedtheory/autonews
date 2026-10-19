@@ -1450,14 +1450,28 @@ def format_editorial_qc(draft, report):
 @app.post('/jobs/publish',dependencies=[Depends(worker_auth)])
 def publish_job(db=Depends(session), target_draft_id=None):
     from .automation_mode import current_mode, MANUAL_POST
-    if current_mode(db)[0]==MANUAL_POST:
-        return {'manual_post':'owner_only','note':'Auto-publish disabled by owner mode'}
-    manual_mode=CONFIG.photo_music_mode=='manual'
+    from .planner_scheduling import explicitly_auto_photo
+    # An explicitly scheduled, version-consented photo-only website post can
+    # use Graph API even when other Telegram drafts require native music.
+    # Nothing is automatically converted from the old music-required queue.
+    candidate_query=select(Draft).where(
+        Draft.status=='approved',Draft.approved_version==Draft.version,
+        Draft.publish_state.in_(['unpublished','awaiting_container']),
+        Draft.scheduled_at.is_not(None),
+        Draft.scheduled_at<=datetime.now(timezone.utc)
+    ).order_by(Draft.scheduled_at).limit(30)
+    if target_draft_id:candidate_query=candidate_query.where(Draft.id==target_draft_id)
+    explicit_due=next((d for d in db.execute(candidate_query).scalars().all()
+                       if explicitly_auto_photo(db,d)),None)
+    mode=current_mode(db)[0]
+    if mode==MANUAL_POST and explicit_due is None:
+        return {'manual_post':'owner_only','note':'Only owner-scheduled web posts may publish automatically'}
+    manual_mode=CONFIG.photo_music_mode=='manual' and explicit_due is None
     if manual_mode:
         reminder=_manual_photo_music_handoff(db)
         if reminder.get('manual_music')!='none_due':
             return reminder
-    elif CONFIG.photo_music_mode!='off':
+    elif CONFIG.photo_music_mode not in ('off','manual'):
         return {'blocked':'Invalid PHOTO_MUSIC_MODE'}
     if not CONFIG.live_publish:
         if manual_mode:return {'manual_music':'none_due', 'live_publish':False}
@@ -1493,7 +1507,7 @@ def publish_job(db=Depends(session), target_draft_id=None):
         from .stock_flow import is_auto_approved
         d=next((row for row in rows if is_auto_approved(db,row)),None)
     else:
-        d=rows[0] if rows else None
+        d=explicit_due if explicit_due in rows else (rows[0] if rows else None)
     if not d:return {'due':0}
     if d.expires_at:
         expires=d.expires_at.replace(tzinfo=timezone.utc) if d.expires_at.tzinfo is None else d.expires_at

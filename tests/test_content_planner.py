@@ -1,4 +1,4 @@
-"""The planner is private, versioned and cannot schedule Meta publication."""
+"""The planner stays private; only verified owner-selected slots can auto-post."""
 from dataclasses import replace
 from datetime import datetime, timezone
 from sqlalchemy.orm import sessionmaker
@@ -34,12 +34,12 @@ def test_planner_private_calendar_and_manual_focus(monkeypatch):
     results=client.get('/api/planner/drafts').json()['drafts']
     assert len(results)==1
     assert results[0]['id']==id
-    assert client.patch('/api/planner/drafts/'+id,json={'planned_at':'2026-10-20T12:00:00+07:00'}).status_code==200
+    assert client.patch('/api/planner/drafts/'+id,json={'planned_at':'2026-12-20T12:00:00+07:00'}).status_code==422
     with Session() as db:
         d=db.get(Draft,id)
-        assert d.scheduled_at is None, 'Planner must not invoke automatic Meta publishing'
+        assert d.scheduled_at is None, 'Unverified content must never enter publishing queue'
         assert d.status=='pending_approval'
-        assert db.query(Audit).filter_by(event='content_plan_changed').count()==1
+        assert db.query(Audit).filter_by(event='content_plan_changed').count()==0
     assert client.post('/api/planner/logout').status_code==200
     assert client.get('/api/planner/drafts').status_code==401
 
