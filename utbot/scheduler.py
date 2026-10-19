@@ -18,6 +18,9 @@ def schedule_approved(db, now=None, daily_limit=3, horizon_days=90):
     now=(now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     local=now.astimezone(WIB)
     ds=db.execute(select(Draft).where(Draft.status=="approved", Draft.approved_version==Draft.version, Draft.publish_state=="unpublished").order_by(Draft.approved_at,Draft.created_at,Draft.id)).scalars().all()
+    # Never override explicit owner-selected website slots during routine queue rebuild.
+    from .planner_scheduling import pinned_planner_schedule
+    pinned={d.id for d in ds if pinned_planner_schedule(db,d)}
     occupied={} # daily quota, including already published/uncertain posts
     used_slots=set() # at most ONE post in a given slot
     locked=db.execute(select(Draft).where(Draft.scheduled_at.is_not(None), Draft.publish_state.in_(["published","publishing","uncertain","awaiting_container","manual_music_pending"]))).scalars().all()
@@ -27,7 +30,13 @@ def schedule_approved(db, now=None, daily_limit=3, horizon_days=90):
         occupied[day]=occupied.get(day,0)+1
         used_slots.add(slot)
     for d in ds:
-        d.scheduled_at=None
+        if d.id in pinned and d.scheduled_at is not None:
+            pinned_slot=d.scheduled_at
+            local_day=pinned_slot.astimezone(WIB).date()
+            occupied[local_day]=occupied.get(local_day,0)+1
+            used_slots.add(pinned_slot)
+        else:
+            d.scheduled_at=None
     candidates=[]
     for offset in range(horizon_days):
         day=local.date()+timedelta(days=offset)
@@ -36,6 +45,7 @@ def schedule_approved(db, now=None, daily_limit=3, horizon_days=90):
             if slot>now:
                 candidates.append((day,slot))
     for d in ds:
+        if d.id in pinned:continue
         for day,slot in candidates:
             if occupied.get(day,0)>=daily_limit or slot in used_slots: continue
             if d.expires_at:
