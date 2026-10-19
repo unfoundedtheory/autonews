@@ -40,7 +40,7 @@ def auto_approve_ready(db,limit=15):
     if mode!=FULL_AUTO or not activated_at:
         return {'mode':mode,'approved':[],'blocked':[]}
     from .quality_control import report_for_draft
-    if not CONFIG.live_publish or CONFIG.photo_music_mode!='off':
+    if not CONFIG.live_publish or CONFIG.photo_music_mode not in ('off','manual'):
         return {'mode':mode,'approved':[],'blocked':['Instagram photo-only publishing is not enabled']}
     q=select(Draft).where(Draft.status=='pending_approval',
         Draft.publish_state=='unpublished',
@@ -70,7 +70,8 @@ def auto_approve_ready(db,limit=15):
         d.rights_reviewed=True
         db.add(Audit(draft_id=d.id,event='photo_only_approved',
                      actor='system:full_auto',detail={'version':d.version,
-                     'mode':'full_auto','automatically_generated':True}))
+                     'mode':'full_auto','source':'full_auto',
+                     'automatically_generated':True}))
         db.add(Audit(draft_id=d.id,event='full_auto_approved',
                      actor='system:full_auto',detail={'version':d.version}))
         approved.append(d.id)
