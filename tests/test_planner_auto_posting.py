@@ -139,3 +139,15 @@ def test_full_auto_generates_real_schedule_without_owner_data_entry(monkeypatch)
         assert d.scheduled_at is not None
         assert queue[0][0]==d.id
         assert d.scheduled_at.astimezone(WIB).hour in (6,12,18)
+
+
+def test_embedded_standalone_planner_javascript_parses():
+    """No bundler: catch client-side syntax errors before every deployment."""
+    import shutil, subprocess
+    from pathlib import Path
+    html=(Path(__file__).resolve().parents[1]/'utbot'/'planner.html').read_text()
+    if shutil.which('node') is None:
+        pytest.skip('Node JS is not available in this test environment')
+    js=html.split('<script>',1)[1].split('</script>',1)[0]
+    result=subprocess.run(['node','--check'],input=js,text=True,capture_output=True)
+    assert result.returncode==0,result.stderr
