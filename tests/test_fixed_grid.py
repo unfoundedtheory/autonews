@@ -119,3 +119,33 @@ def test_owner_long_pleiades_hook_reports_undersized_type():
     short_px=headline_font_size(short_title)
     assert long_px < short_px, (long_px,short_px)
     assert short_px >= MIN_EDITORIAL_FONT_PX, (long_px,short_px)
+
+
+def test_space_first_layout_can_choose_non_four_line_headline():
+    """The owner's new policy: fill the canvas; four lines are not mandatory."""
+    draw=ImageDraw.Draw(Image.new('RGB',(WIDTH,1350)))
+    font,lines,pitch=_headline_layout(draw,'NASA MEMOTRET GUGUS BINTANG TERANG')
+    assert 2 <= len(lines) <= 5
+    assert len(lines) != 4, 'Do not split a compact hook into four weak rows'
+    assert HEADLINE_TOP+(len(lines)-1)*pitch+_ink_height(font)<=HEADLINE_BOTTOM
+    assert all(_line_width(draw,line,font) <= WIDTH-2*MARGIN for line in lines)
+
+
+def test_owner_pleiades_cover_has_safe_pixel_margins_and_adaptive_line_count():
+    """The exact headline reported as visually undersized is a regression case."""
+    from PIL import ImageChops
+    title=('GUGUSAN BINTANG PALING TERKENAL INI TERNYATA MENYIMPAN '
+           'SELIMUT DEBU RAKSASA YANG HANYA MUNCUL LEWAT PAJANAN 23 JAM')
+    image=Image.new('RGB',(WIDTH,1350),'black')
+    draw=ImageDraw.Draw(image)
+    font,lines,pitch=_headline_layout(draw,title)
+    assert 2<=len(lines)<=5
+    assert len(lines[-1].split())>1
+    for idx,line in enumerate(lines):
+        _draw_title_line(draw,line,_title_draw_y(font,idx,pitch),font,set())
+    bounds=ImageChops.difference(image,Image.new('RGB',image.size,'black')).getbbox()
+    assert bounds
+    left,top,right,bottom=bounds
+    assert left>=SIDE_MARGIN-4 and WIDTH-right>=SIDE_MARGIN-4
+    assert top>=HEADLINE_TOP-3 and bottom<=HEADLINE_BOTTOM
+    assert len(' '.join(lines).split())==len(title.split())
