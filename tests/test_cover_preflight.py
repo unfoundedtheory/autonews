@@ -30,17 +30,17 @@ def data(highlight):
 def test_preflight_matches_render(tmp_path):
     assert cover_fits(GOOD)
     assert not cover_fits(TOO_LONG)
-    assert len(require_cover_fit(GOOD))==4
+    assert 2<=len(require_cover_fit(GOOD))<=5
     photo=tmp_path/'source.jpg'
     Image.new('RGB',(1400,1800),'#213547').save(photo)
     try:
         render(photo,TOO_LONG,tmp_path/'bad.jpg')
-        assert False,'Four-line layout must reject long headline'
+        assert False,'Cover layout must reject long headline'
     except ValueError as exc:
-        assert 'empat baris' in str(exc)
+        assert 'margin aman' in str(exc)
     assert not (tmp_path/'bad.jpg').exists()
     review=assess(TOO_LONG,CAPTION,TAGS,[{'claim':'1'},{'claim':'2'}])
-    assert 'cover_four_line_overflow' in review['issues']
+    assert 'cover_layout_overflow' in review['issues']
 
 def test_auto_fit_checks_actual_geometry_and_evidence():
     draft=SimpleNamespace(highlight=TOO_LONG,caption=CAPTION,hashtags=TAGS,is_tragedy=False)
@@ -70,7 +70,7 @@ def test_bad_cover_never_triggers_repeated_photo_fetch(monkeypatch):
             image_intake=lambda *args:calls.append('download'))
         assert calls==[]
         assert draft.image_url is None and draft.image_local_path is None
-        assert 'empat baris' in draft.last_error
+        assert 'area cover' in draft.last_error
         assert draft.status=='pending_approval'
         qc=db.query(Audit).filter_by(draft_id=draft.id,event='editorial_qc').first()
         assert qc.detail['status']=='needs_manual_review'
@@ -94,7 +94,7 @@ def test_old_passed_qc_is_flagged_when_cover_will_not_fit():
         report=report_for_draft(db,d,st)
         assert not report['passed']
         assert report['status']=='needs_manual_review'
-        assert 'cover_four_line_overflow' in report['issues']
+        assert 'cover_layout_overflow' in report['issues']
 
 def test_balanced_wrap_can_target_four_lines_even_if_three_would_score_better():
     from PIL import ImageDraw
