@@ -18,7 +18,7 @@ def assess(highlight, caption, hashtags, evidence, *, tragedy=False, image=None,
     h=highlight.casefold()
     c=caption.casefold()
     if any(s in h for s in SENSATIONAL): issues.append('hook_clickbait')
-    if check_cover and not cover_fits(highlight,CONFIG.font_path): issues.append('cover_four_line_overflow')
+    if check_cover and not cover_fits(highlight,CONFIG.font_path): issues.append('cover_layout_overflow')
     # No arbitrary text limit: the actual 4-line renderer checks physical fit.
     # Flag repeated meaningful words, while tolerating common connecting words.
     stopwords={'yang','dalam','dengan','untuk','pada','akan','dari','atau','para','sebuah','menjadi'}
