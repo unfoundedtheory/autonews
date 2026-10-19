@@ -25,6 +25,7 @@ BADGE_BOX = (402, 900, 678, 948)
 HEADLINE_TOP = 981
 HEADLINE_BOTTOM = HEIGHT-BOTTOM_MARGIN
 TRACKING_EM = -0.047             # League Spartan letter spacing -47
+MIN_EDITORIAL_FONT_PX = 70       # Shorten editorial copy, never silently publish tiny lettering.
 LINE_SPACING = 1.08              # optically relaxed compared with prior 1.05
 WORD_GAP_EM = 0.20               # distinct visual spaces remain between whole words
 DEFAULT_BADGE = Path(__file__).resolve().parent / "assets" / "reference_badge.png"
@@ -176,6 +177,17 @@ def _headline_layout(draw, highlight, font_path=None, max_width=WIDTH-2*MARGIN):
             and (len(lines[-1].split())>1 or len(words)<4)):
             return font,lines,pitch
     raise ValueError('Highlight belum muat tepat empat baris dengan margin kiri/kanan/bawah 56px; persingkat melalui Telegram')
+
+
+def headline_font_size(highlight: str, font_path: str | None = None):
+    """Actual pixel font size after BOTH four-line vertical and width constraints.
+
+    A headline can technically fit yet look tiny if the copy is verbose.
+    The newsroom should suggest a shorter evidence-checked hook in that case.
+    """
+    canvas=ImageDraw.Draw(Image.new('RGB', (1, 1)))
+    font, _, _=_headline_layout(canvas, highlight, font_path)
+    return font.size
 
 
 @lru_cache(maxsize=256)
