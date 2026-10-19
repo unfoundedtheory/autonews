@@ -597,6 +597,24 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                  'yang akan dijadwalkan dan diposting tanpa Approve.')
             if bot:bot.answer(cb.get('id'),'Full Otomatis aktif')
             return {'ok':True,'automation_mode':'full_auto'}
+        if action.startswith('replacements:'):
+            from .automation_mode import current_mode, MANUAL_POST
+            from .replacements import offer_replacements
+            if current_mode(db)[0]!=MANUAL_POST:
+                send('Penggantian tanpa approval hanya tersedia di Post Manual.')
+                return {'ok':True,'replacement':'mode_unavailable'}
+            try:
+                rejected_id=action.partition(':')[2]
+                UUID(rejected_id)
+                old=db.get(Draft,rejected_id)
+                if not old or old.status!='rejected':
+                    raise ValueError('Berita yang ditolak tidak tersedia.')
+                options=offer_replacements(db,old,uid,bot,chat_id)
+                return {'ok':True,'replacement_choices':len(options)}
+            except (ValueError,RuntimeError,httpx.HTTPError,OSError) as exc:
+                db.rollback()
+                send('⚠️ Ide pengganti belum tersedia: '+str(exc)[:220])
+                return {'ok':True,'replacement':'error'}
         if action == 'generate_now':
             if bot:bot.answer(cb.get('id'),'Menyiapkan berita')
             send('📰 Menyiapkan berita dari sumber resmi…')
@@ -747,6 +765,33 @@ def telegram_webhook(payload:dict,db=Depends(session)):
             if action=='open':
                 from .automation_mode import manual_post_ready
                 preview_current()
+            elif action=='replace':
+                from .replacements import validate_selection, offer_replacements
+                from .pipeline import prepare_story
+                from .automation_mode import deliver_manual_post_preview
+                if bot:bot.answer(cb_id,'Membuat berita pilihan')
+                try:
+                    selected=validate_selection(db,ident,uid)
+                    prior=db.execute(select(Audit).where(
+                        Audit.event=='replacement_offered',Audit.draft_id==selected.id,
+                        Audit.actor==str(uid)).order_by(Audit.id.desc()).limit(1)).scalar_one_or_none()
+                    old_id=(prior.detail or {}).get('rejected_draft_id') if prior else None
+                    send('📰 Membuat berita pengganti pilihan Anda dari sumber resmi. '
+                         'AI memeriksa fakta, caption, dan cover sebelum mengirim preview.')
+                    new_draft=prepare_story(db,selected)
+                    db.add(Audit(draft_id=new_draft.id,event='replacement_prepared',actor=str(uid),
+                                 detail={'source_story_id':selected.id,'replaced_draft_id':old_id}))
+                    db.commit()
+                    send_editor_preview(db,bot,chat_id,new_draft,selected)
+                    send('✅ Draft pengganti berhasil dibuat. Anda dapat mengedit atau '
+                         'memposting sendiri tanpa approval.',finished=True)
+                    return {'ok':True,'replacement':'prepared','draft_id':new_draft.id}
+                except (ValueError,RuntimeError,httpx.HTTPError,OSError) as exc:
+                    db.rollback()
+                    send('⚠️ Kandidat pengganti ini belum berhasil dibuat ('+
+                         type(exc).__name__+'). Anda dapat memilih ide lain.',
+                         finished=True)
+                    return {'ok':True,'replacement':'failed'}
             elif action=='manualdone':
                 from .automation_mode import manual_post_ready
                 if not manual_post_ready(db,d) or d.publish_state!='unpublished':
@@ -1048,7 +1093,18 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     raise ValueError('Posting sudah terbit atau sedang diproses, tidak dapat ditolak.')
                 d.status='rejected';d.scheduled_at=None
                 db.add(Audit(draft_id=d.id,event='rejected',actor=str(uid)))
-                db.commit();send('❌ Draf ditolak. Tidak akan dipublikasikan.',finished=True)
+                db.commit()
+                from .automation_mode import current_mode, MANUAL_POST
+                if current_mode(db)[0]==MANUAL_POST:
+                    from .replacements import offer_replacements
+                    try:
+                        choices=offer_replacements(db,d,uid,bot,chat_id)
+                    except (ValueError,RuntimeError,httpx.HTTPError,OSError):
+                        db.rollback()
+                        send('❌ Berita ditolak. Gagal menampilkan pilihan pengganti. '
+                             'Buka kembali daftar kandidat berita.',finished=True)
+                    return {'ok':True,'rejected':d.id}
+                send('❌ Draf ditolak. Tidak akan dipublikasikan.',finished=True)
             elif action=='sources':
                 lines=[f'Sumber utama: {st.source_url}',f'Verifikasi: {st.verification_status}',
                        f'Foto: {d.media_page_url}',f'Kredit: {d.image_credit}',f'Lisensi: {d.photo_license}',
