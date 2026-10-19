@@ -21,9 +21,14 @@ def _events(db, draft, event):
 
 def planner_photo_only(db, draft):
     """An immutable consent tied to the current approved content version."""
-    return any((d or {}).get('version')==draft.version and
-               (d or {}).get('source')=='content_studio' for d in
-               _events(db,draft,'photo_only_approved'))
+    consent=any((d or {}).get('version')==draft.version and
+                (d or {}).get('source')=='content_studio' for d in
+                _events(db,draft,'photo_only_approved'))
+    recent=db.execute(select(Audit.detail).where(
+        Audit.draft_id==draft.id,Audit.event=='content_plan_changed'
+    ).order_by(Audit.id.desc()).limit(1)).scalar_one_or_none()
+    return bool(consent and recent and recent.get('auto_publish') is True
+                and recent.get('version')==draft.version)
 
 
 def pinned_planner_schedule(db, draft):
