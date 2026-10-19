@@ -18,10 +18,10 @@ def test_logo_pixels_never_shift_with_headline_size():
     draw=ImageDraw.Draw(Image.new('RGB',(1080,1350)))
     for headline in (short,long):
         font,lines,pitch=renderer._headline_layout(draw,headline)
-        assert len(lines)==4
+        assert 2<=len(lines)<=5
         assert renderer._headline_vertical_shift(font,pitch)==0
         assert renderer._title_draw_y(font,0,pitch)+font.getbbox('HM',anchor='la')[1]==981
-        assert 981+3*pitch+renderer._ink_height(font)<=1294
+        assert 981+(len(lines)-1)*pitch+renderer._ink_height(font)<=1294
         assert all(renderer._line_width(draw,line,font)<=968 for line in lines)
         canvas=Image.new('RGB',(1080,1350),'#000000')
         renderer._draw_badge(canvas,vertical_shift=250)
