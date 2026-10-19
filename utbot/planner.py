@@ -1,4 +1,4 @@
-"""Authenticated newsroom planner: read calendar, edit copy, crop focus, plan manual posts."""
+"""Authenticated newsroom planner: accurate covers and automatic Instagram scheduling."""
 from datetime import datetime, timezone
 from hashlib import sha256
 from hmac import compare_digest, new as hmac_new
@@ -74,6 +74,7 @@ def drafts():
     with Session() as db:
         records=db.execute(select(Draft,Story).join(Story,Draft.story_id==Story.id)
                            .order_by(Draft.created_at.desc()).limit(180)).all()
+        from .planner_scheduling import pinned_planner_schedule
         output=[]
         for d,st in records:
             audit=db.execute(select(Audit.detail).where(Audit.draft_id==d.id,
@@ -84,9 +85,16 @@ def drafts():
                            'source_url':st.source_url,'highlight':d.highlight,'caption':d.caption,
                            'status':d.status,'publish_state':d.publish_state,
                            'image_url':d.image_url,'source_image_url':d.source_image_url,
-                           'created_at':d.created_at.isoformat(),'planned_at':(audit or {}).get('planned_at'),
+                           'photo_credit':d.image_credit,'photo_license':d.photo_license,
+                           'rights_reviewed':d.rights_reviewed,
+                           'scheduled_at':d.scheduled_at.isoformat() if d.scheduled_at else None,
+                           'auto_scheduled':pinned_planner_schedule(db,d),
+                           'created_at':d.created_at.isoformat(),
+                           'planned_at':d.scheduled_at.isoformat() if pinned_planner_schedule(db,d) else None,
                            'focus':(focus or {}).get('focus',[0.5,0.43])})
-        return {'drafts':output,'timezone':'Asia/Jakarta','mode':'manual_post'}
+        from .config import CONFIG
+        return {'drafts':output,'timezone':'Asia/Jakarta',
+                'auto_publish_enabled':CONFIG.live_publish}
 
 
 @router.patch('/drafts/{draft_id}',dependencies=[Depends(_permit)])
@@ -100,13 +108,8 @@ def edit(draft_id: str, payload: Edit):
         if d.status in ('published','rejected') or d.publish_state!='unpublished':
             raise HTTPException(409,'Draf yang sudah dipublikasikan/ditolak tidak dapat direvisi.')
         changes=payload.model_fields_set
-        if 'planned_at' in changes:
-            if payload.planned_at is not None and payload.planned_at.tzinfo is None:
-                raise HTTPException(422,'Waktu rencana harus menyertakan zona waktu.')
-            # Manual planning never feeds the automatic Meta publishing queue.
-            db.add(Audit(draft_id=d.id,event='content_plan_changed',actor='web_editor',
-                         detail={'planned_at':payload.planned_at.astimezone(timezone.utc).isoformat()
-                                 if payload.planned_at else None,'manual_only':True}))
+        if 'planned_at' in changes and ({'highlight','caption','focus_x','focus_y'} & changes):
+            raise HTTPException(422,'Simpan revisi, jalankan QC, kemudian pilih jadwal otomatis.')
         if 'highlight' in changes:
             if not payload.highlight or len(payload.highlight)>245:
                 raise HTTPException(422,'Headline harus berisi maksimal 245 karakter.')
@@ -132,8 +135,19 @@ def edit(draft_id: str, payload: Edit):
             except (ValueError,OSError,RuntimeError) as exc:
                 db.rollback()
                 raise HTTPException(422,'Cover gagal dirender: '+str(exc)[:160]) from exc
+        if 'planned_at' in changes:
+            from .planner_scheduling import schedule_web_post,unschedule_web_post
+            try:
+                if payload.planned_at is not None:
+                    schedule_web_post(db,d,payload.planned_at)
+                else:
+                    unschedule_web_post(db,d)
+            except ValueError as exc:
+                db.rollback()
+                raise HTTPException(422,str(exc)) from exc
         db.commit()
-        return {'ok':True,'id':d.id,'version':d.version,'image_url':d.image_url}
+        return {'ok':True,'id':d.id,'version':d.version,'image_url':d.image_url,
+                'scheduled_at':d.scheduled_at.isoformat() if d.scheduled_at else None}
 
 
 @router.get('/layout/{draft_id}',dependencies=[Depends(_permit)])
