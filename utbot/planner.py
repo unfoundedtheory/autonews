@@ -146,3 +146,18 @@ def layout(draft_id: str):
         return {'fits':True,'font_size':font_size,'small_font':font_size<MIN_EDITORIAL_FONT_PX,
                 'suggestion':'Persingkat headline untuk tipografi yang lebih besar.'
                 if font_size<MIN_EDITORIAL_FONT_PX else None}
+
+
+@router.post('/drafts/{draft_id}/qc',dependencies=[Depends(_permit)])
+def check_draft_qc(draft_id: str):
+    """Owner-triggered editorial QC; no publication or approval side effects."""
+    from .quality_control import run_draft_qc
+    with Session() as db:
+        draft=db.get(Draft,draft_id)
+        if not draft:
+            raise HTTPException(404,'Draft tidak ditemukan')
+        story=db.get(Story,draft.story_id)
+        report=run_draft_qc(db,draft,story,trigger='web_content_planner')
+        db.commit()
+        return {'passed':report.get('passed'),'issues':report.get('issues',[]),
+                'version':draft.version,'status':report.get('status')}
