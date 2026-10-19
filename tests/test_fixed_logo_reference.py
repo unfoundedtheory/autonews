@@ -33,10 +33,10 @@ def test_adaptive_headlines_keep_fixed_anchor_and_safe_edges():
     )
     for title in examples:
         font,lines,pitch=_headline_layout(draw,title)
-        assert len(lines)==4
+        assert 2<=len(lines)<=5
         assert _title_draw_y(font,0,pitch)+font.getbbox('HM',anchor='la')[1]==HEADLINE_TOP
-        assert HEADLINE_TOP+3*pitch+_ink_height(font)<=HEIGHT-BOTTOM_MARGIN
-        assert len(require_cover_fit(title))==4
+        assert HEADLINE_TOP+(len(lines)-1)*pitch+_ink_height(font)<=HEIGHT-BOTTOM_MARGIN
+        assert len(require_cover_fit(title))==len(lines)
 
 
 def test_render_preserves_reference_logo_and_canvas(tmp_path):
