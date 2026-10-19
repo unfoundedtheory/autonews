@@ -720,10 +720,14 @@ def telegram_webhook(payload:dict,db=Depends(session)):
             if bot:bot.answer(cb_id,'Versi lama, buka draf terbaru')
             return {'ok':True,'stale':True}
         st=db.get(Story,d.story_id)
+        from .automation_mode import manual_post_ready
+        def preview_current():
+            if bot:
+                send_preview(bot,chat_id,d,st,manual_post=manual_post_ready(db,d))
         try:
             if action=='open':
                 from .automation_mode import manual_post_ready
-                if bot:send_preview(bot,chat_id,d,st,manual_post=manual_post_ready(db,d))
+                preview_current()
             elif action=='manualdone':
                 from .automation_mode import manual_post_ready
                 if not manual_post_ready(db,d) or d.publish_state!='unpublished':
@@ -737,7 +741,9 @@ def telegram_webhook(payload:dict,db=Depends(session)):
             elif action=='more':
                 if bot:bot.message(chat_id,'⋯ Opsi lanjutan untuk draf ini:',with_home_button(advanced_keyboard(d)))
             elif action=='actions':
-                if bot:bot.message(chat_id,'Pilih tindakan untuk draf:',with_home_button(keyboard(d)))
+                if bot:
+                    from .telegram import manual_post_keyboard
+                    bot.message(chat_id,'Pilih tindakan untuk draf:',manual_post_keyboard(d) if manual_post_ready(db,d) else with_home_button(keyboard(d)))
             elif action in ('retryig','postnow'):
                 # Explicit owner request to retry an already-approved photo.
                 # The persisted consent event prevents old manual-music drafts
@@ -821,9 +827,9 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 db.add(Audit(draft_id=d.id,event='cover_design_updated',actor=str(uid),
                              detail={'version':d.version,'note':'new scalable typography'}))
                 db.commit()
-                if bot:send_preview(bot,chat_id,d,st)
+                preview_current()
                 send('🎨 Cover sudah dibuat ulang dengan font headline terbaru. '
-                     'Approval dan jadwal sebelumnya dibatalkan. Periksa preview, '
+                     'Periksa preview hasil revisi dan hasil QC. '
                      'jalankan Hasil QC, lalu Approve versi baru.')
             elif action=='autofit':
                 if d.status!='pending_approval' or d.publish_state in ('publishing','uncertain','published'):
@@ -849,7 +855,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         d.image_local_path=None
                         d.last_error='Cover belum tersedia: '+str(exc)[:160]
                 db.commit()
-                if bot:send_preview(bot,chat_id,d,st)
+                preview_current()
                 send('✨ Highlight telah diperbaiki dan tetap memerlukan persetujuan Anda. '+
                      ('Cover siap diperiksa.' if d.image_url or d.image_local_path else
                       'Pilih Cari Ulang Cover untuk melengkapi gambarnya.'))
@@ -863,7 +869,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 try:
                     recover_article_cover(db,d,st,actor=uid)
                     db.commit()
-                    if bot:send_preview(bot,chat_id,d,st)
+                    preview_current()
                     send('🖼 Cover 4:5 berhasil dibuat dari artikel resmi. '
                          'Isi kredit dan lisensi foto, lalu lakukan Verifikasi Hak Foto sebelum Approve.')
                     return {'ok':True,'cover':'official_article'}
@@ -920,7 +926,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 if d.source_image_url or d.source_image_path:
                     render_draft(d)
                 db.commit()
-                if bot:send_preview(bot,chat_id,d,st)
+                preview_current()
                 send('✨ Hook diperbarui. QC dan approval harus diperiksa lagi.')
             elif action=='qc':
                 from .quality_control import report_for_draft,run_draft_qc
@@ -1134,7 +1140,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         sess.mode='photo_credit'
                         sess.version=d.version
                         db.commit()
-                        if bot:send_preview(bot,chat_id,d,st)
+                        preview_current()
                         send('Foto diterima. Balas dua baris seperti ini:\nKredit: NASA/Chandra\nLisensi: Public domain\nTambahkan URL sumber jika ada. /cancel untuk batal.')
                         return {'ok':True,'awaiting':'photo_credit'}
                     if sess.mode=='manual_post_link':
@@ -1235,7 +1241,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                             return {'ok':True,'photo_options':len(opts)}
                     manual=(sess.mode=='manual_hook')
                     db.delete(sess);db.commit()
-                    if bot:send_preview(bot,chat_id,d,st)
+                    preview_current()
                     if manual:
                         send('✅ Hook tulisan Anda tersimpan tanpa perubahan oleh AI. '
                              'Approval dan QC versi lama dibatalkan. '
