@@ -279,6 +279,26 @@ def generate_test_cover(db, bot, chat_id):
             ' Buka Pending Approval untuk melihat draf dan opsi Ganti Foto.')
 
 
+def send_editor_preview(db, bot, chat_id, draft, story):
+    """Keep an editable preview in Post Manual mode after every revision.
+
+    New draft versions receive a fresh manual handoff audit only after Telegram
+    accepts the preview. Regular approval mode stays unchanged.
+    """
+    if not bot:
+        return
+    from .automation_mode import current_mode, MANUAL_POST, manual_post_ready, deliver_manual_post_preview
+    if (current_mode(db)[0] == MANUAL_POST and
+        draft.publish_state == 'unpublished' and
+        draft.status == 'pending_approval'):
+        if manual_post_ready(db, draft):
+            send_preview(bot, chat_id, draft, story, manual_post=True)
+        else:
+            deliver_manual_post_preview(db, draft, bot, chat_id)
+    else:
+        send_preview(bot, chat_id, draft, story)
+
+
 def generate_news_now(db, bot, chat_id):
     """Create one real editorial draft from the production discovery queue, requiring approval."""
     from .research import discover, SOURCES, evergreen_sources
@@ -722,11 +742,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
         st=db.get(Story,d.story_id)
         from .automation_mode import manual_post_ready
         def preview_current():
-            if bot:
-                if manual_post_ready(db,d):
-                    send_preview(bot,chat_id,d,st,manual_post=True)
-                else:
-                    send_preview(bot,chat_id,d,st)
+            send_editor_preview(db,bot,chat_id,d,st)
         try:
             if action=='open':
                 from .automation_mode import manual_post_ready
@@ -1143,7 +1159,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         sess.mode='photo_credit'
                         sess.version=d.version
                         db.commit()
-                        if bot:send_preview(bot,chat_id,d,st)
+                        send_editor_preview(db,bot,chat_id,d,st)
                         send('Foto diterima. Balas dua baris seperti ini:\nKredit: NASA/Chandra\nLisensi: Public domain\nTambahkan URL sumber jika ada. /cancel untuk batal.')
                         return {'ok':True,'awaiting':'photo_credit'}
                     if sess.mode=='manual_post_link':
@@ -1244,7 +1260,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                             return {'ok':True,'photo_options':len(opts)}
                     manual=(sess.mode=='manual_hook')
                     db.delete(sess);db.commit()
-                    if bot:send_preview(bot,chat_id,d,st)
+                    send_editor_preview(db,bot,chat_id,d,st)
                     if manual:
                         send('✅ Hook tulisan Anda tersimpan tanpa perubahan oleh AI. '
                              'Approval dan QC versi lama dibatalkan. '
