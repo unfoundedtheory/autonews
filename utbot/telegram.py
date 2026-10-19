@@ -46,7 +46,8 @@ def manual_post_keyboard(draft):
     rows.extend([
         [{'text':'⋯ Edit Lainnya','callback_data':f'more:{ref}:{v}'},
          {'text':'🔎 Sumber & QC','callback_data':f'more:{ref}:{v}'}],
-        [{'text':'✅ Sudah Saya Posting','callback_data':f'manualdone:{ref}:{v}'}],
+        [{'text':'✅ Sudah Saya Posting','callback_data':f'manualdone:{ref}:{v}'},
+         {'text':'❌ Tolak & Ganti Berita','callback_data':f'reject:{ref}:{v}'}],
         home_button()['inline_keyboard'][0],
     ])
     return {'inline_keyboard':rows}
