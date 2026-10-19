@@ -28,9 +28,25 @@ function dateKey(date){return new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Ja
 function formatDay(iso){return iso?dateKey(iso):''}
 function escapeHTML(value){return String(value||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function active(d){return d.status!=='rejected'&&d.status!=='published'&&d.publish_state==='unpublished'}
-function renderList(){const filter=$('search').value.toLowerCase();$('items').innerHTML='';for(const d of items){if(!(d.highlight+' '+d.title).toLowerCase().includes(filter))continue;let node=document.createElement('div');node.className='item';node.draggable=active(d);node.setAttribute('aria-selected',d.id===selected?.id?'true':'false');node.innerHTML='<strong>'+escapeHTML(d.highlight)+'</strong><div class="meta">'+escapeHTML(d.status)+' · '+(d.planned_at?'Rencana '+formatDay(d.planned_at):'Belum dijadwalkan')+'</div>';node.onclick=()=>choose(d.id);node.ondragstart=e=>e.dataTransfer.setData('text/plain',d.id);$('items').appendChild(node)}if(!$('items').children.length)$('items').innerHTML='<div class="empty">Tidak ada draft.</div>'}
+function renderList(){const filter=$('search').value.toLowerCase();$('items').innerHTML='';for(const d of items){if(!(d.highlight+' '+d.title).toLowerCase().includes(filter))continue;let node=document.createElement('div');node.className='item';node.draggable=active(d);node.setAttribute('aria-selected',d.id===selected?.id?'true':'false');node.innerHTML='<strong>'+escapeHTML(d.highlight)+'</strong><div class="meta">'+escapeHTML(d.status)+' · '+(d.scheduled_at?'Posting '+wibInput(d.scheduled_at).replace('T',' ')+' WIB':'Belum dijadwalkan')+'</div>';node.onclick=()=>choose(d.id);node.ondragstart=e=>e.dataTransfer.setData('text/plain',d.id);$('items').appendChild(node)}if(!$('items').children.length)$('items').innerHTML='<div class="empty">Tidak ada draft.</div>'}
 function mondayIndex(date){return (date.getDay()+6)%7}
-function renderCalendar(){const first=new Date(currentMonth.getFullYear(),currentMonth.getMonth(),1), last=new Date(currentMonth.getFullYear(),currentMonth.getMonth()+1,0);$('monthLabel').textContent=first.toLocaleDateString('id-ID',{month:'long',year:'numeric'});const days=['Sen','Sel','Rab','Kam','Jum','Sab','Min'];$('calendar').replaceChildren();for(const name of days){let d=document.createElement('div');d.className='day-label';d.textContent=name;$('calendar').append(d)}for(let i=0;i<mondayIndex(first);i++){$('calendar').appendChild(document.createElement('div'))}for(let day=1;day<=last.getDate();day++){let cell=document.createElement('div');let iso=[first.getFullYear(),String(first.getMonth()+1).padStart(2,'0'),String(day).padStart(2,'0')].join('-');cell.className='day';if(iso===dateKey(new Date()))cell.classList.add('today');const label=document.createElement('span');label.className='day-label';label.textContent=String(day);cell.append(label);for(const draft of items.filter(x=>formatDay(x.planned_at)===iso)){let chip=document.createElement('div');chip.className='chip';chip.draggable=active(draft);chip.textContent=draft.highlight;chip.onclick=()=>choose(draft.id);chip.ondragstart=e=>e.dataTransfer.setData('text/plain',draft.id);cell.append(chip)}cell.ondragover=e=>{e.preventDefault();cell.classList.add('dragover')};cell.ondragleave=()=>cell.classList.remove('dragover');cell.ondrop=async e=>{e.preventDefault();cell.classList.remove('dragover');const id=e.dataTransfer.getData('text/plain'),d=items.find(x=>x.id===id);if(d&&active(d)){try{await request('/drafts/'+id,{method:'PATCH',body:JSON.stringify({planned_at:iso+'T12:00:00+07:00'})});await load();choose(id);status('Rencana posting diperbarui')}catch(err){status(err.message)}}};$('calendar').append(cell)}}
+function renderCalendar(){const first=new Date(currentMonth.getFullYear(),currentMonth.getMonth(),1), last=new Date(currentMonth.getFullYear(),currentMonth.getMonth()+1,0);$('monthLabel').textContent=first.toLocaleDateString('id-ID',{month:'long',year:'numeric'});const days=['Sen','Sel','Rab','Kam','Jum','Sab','Min'];$('calendar').replaceChildren();for(const name of days){let d=document.createElement('div');d.className='day-label';d.textContent=name;$('calendar').append(d)}for(let i=0;i<mondayIndex(first);i++){$('calendar').appendChild(document.createElement('div'))}for(let day=1;day<=last.getDate();day++){let cell=document.createElement('div');let iso=[first.getFullYear(),String(first.getMonth()+1).padStart(2,'0'),String(day).padStart(2,'0')].join('-');cell.className='day';if(iso===dateKey(new Date()))cell.classList.add('today');const label=document.createElement('span');label.className='day-label';label.textContent=String(day);cell.append(label);for(const draft of items.filter(x=>formatDay(x.scheduled_at)===iso)){let chip=document.createElement('div');chip.className='chip';chip.draggable=active(draft);chip.textContent=wibInput(draft.scheduled_at).slice(-5)+' '+draft.highlight;chip.onclick=()=>choose(draft.id);chip.ondragstart=e=>e.dataTransfer.setData('text/plain',draft.id);cell.append(chip)}cell.ondragover=e=>{e.preventDefault();cell.classList.add('dragover')};cell.ondragleave=()=>cell.classList.remove('dragover');cell.ondrop=async e=>{
+  e.preventDefault();cell.classList.remove('dragover');
+  const id=e.dataTransfer.getData('text/plain'),d=items.find(x=>x.id===id);
+  if(!d||!active(d))return;
+  let chosen=null;
+  for(const hour of ['06','12','18']){
+    const dt=iso+'T'+hour+':00:00+07:00';
+    const used=items.some(x=>x.id!==id&&x.scheduled_at&&
+      new Date(x.scheduled_at).getTime()===new Date(dt).getTime());
+    if(!used&&new Date(dt)>new Date()){chosen=dt;break;}
+  }
+  if(!chosen)return status('Tanggal ini sudah penuh atau seluruh slot telah lewat.');
+  try{
+    await request('/drafts/'+id,{method:'PATCH',body:JSON.stringify({planned_at:chosen})});
+    await load();choose(id);status('✅ Posting Instagram otomatis terjadwal (foto tanpa musik)');
+  }catch(err){status('Tidak dapat menjadwalkan: '+err.message)}
+};$('calendar').append(cell)}}
 function cropUpdate(){
   $('sourcePhoto').style.objectPosition=(focus[0]*100)+'% '+(focus[1]*100)+'%';
   $('focusLabel').textContent=Math.round(focus[0]*100)+'% / '+Math.round(focus[1]*100)+'%';
@@ -81,8 +97,39 @@ $('cover').onpointerup=()=>drag=null;$('cover').onpointercancel=()=>drag=null;
 $('focusReset').onclick=()=>{focus=[.5,.43];cropping=true;cropUpdate();coverMode()};
 $('title').oninput=()=>status('Judul berubah. Simpan untuk melihat hasil asli renderer.');
 function localIso(value){return value?value+':00+07:00':null}
-$('save').onclick=async()=>{if(!selected)return;try{let payload={};if($('title').value!==selected.highlight)payload.highlight=$('title').value;if($('caption').value!==selected.caption)payload.caption=$('caption').value;if(JSON.stringify(focus)!==JSON.stringify(selected.focus))Object.assign(payload,{focus_x:focus[0],focus_y:focus[1]});if(localIso($('when').value)!==selected.planned_at){payload.planned_at=localIso($('when').value)}if(Object.keys(payload).length===0)return status('Tidak ada perubahan');await request('/drafts/'+selected.id,{method:'PATCH',body:JSON.stringify(payload)});let id=selected.id;await load();choose(id);status('Perubahan berhasil disimpan')}catch(err){status(err.message)}};
+$('save').onclick=async()=>{
+ if(!selected)return;
+ try{
+   const payload={};
+   if($('title').value!==selected.highlight)payload.highlight=$('title').value;
+   if($('caption').value!==selected.caption)payload.caption=$('caption').value;
+   if(JSON.stringify(focus)!==JSON.stringify(selected.focus))
+     Object.assign(payload,{focus_x:focus[0],focus_y:focus[1]});
+   if(!Object.keys(payload).length)return status('Tidak ada perubahan naskah atau crop.');
+   await request('/drafts/'+selected.id,{method:'PATCH',body:JSON.stringify(payload)});
+   const id=selected.id;await load();choose(id);
+   status('Cover/naskah disimpan. Jalankan QC sebelum menjadwalkan otomatis.');
+ }catch(err){status('Gagal menyimpan: '+err.message)}
+};
+$('schedule').onclick=async()=>{
+ if(!selected)return;
+ try{
+   const iso=localIso($('when').value);
+   if(!iso)return status('Pilih jadwal posting WIB (06.00, 12.00, atau 18.00).');
+   await request('/drafts/'+selected.id,{method:'PATCH',body:JSON.stringify({planned_at:iso})});
+   const id=selected.id;await load();choose(id);
+   status('✅ Berita dijadwalkan untuk posting Instagram otomatis (tanpa musik).');
+ }catch(err){status('Jadwal belum berhasil: '+err.message)}
+};
+$('rerender').onclick=async()=>{
+ if(!selected)return;
+ try{
+   await request('/drafts/'+selected.id+'/render',{method:'POST'});
+   const id=selected.id;await load();choose(id);
+   status('Cover asli diperbarui: logo resmi dan highlight hijau mengikuti renderer.');
+ }catch(err){status('Render gagal: '+err.message)}
+};
 $('runQC').onclick=async()=>{if(!selected)return;try{status('Memeriksa naskah, harap tunggu…');const result=await request('/drafts/'+selected.id+'/qc',{method:'POST'});status(result.passed?'QC lulus untuk versi '+result.version:'QC belum lulus: '+(result.issues||[]).slice(0,4).join(', '))}catch(e){status('QC gagal: '+e.message)}};
-$('clearDate').onclick=()=>{$('when').value='';status('Klik Simpan Perubahan untuk menghapus rencana')};
+$('clearDate').onclick=async()=>{if(!selected||!selected.auto_scheduled)return;try{await request('/drafts/'+selected.id,{method:'PATCH',body:JSON.stringify({planned_at:null})});const id=selected.id;await load();choose(id);status('Jadwal otomatis dibatalkan.')}catch(err){status('Gagal membatalkan: '+err.message)}};
 request('/drafts').then(data=>{items=data.drafts;$('login').classList.add('hide');$('studio').classList.remove('hide');renderList();renderCalendar()}).catch(()=>{});
 </script></body></html>
