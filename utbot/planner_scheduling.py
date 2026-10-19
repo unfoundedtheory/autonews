@@ -31,6 +31,15 @@ def planner_photo_only(db, draft):
                 and recent.get('version')==draft.version)
 
 
+def explicitly_auto_photo(db, draft):
+    """Consent from this website OR newly generated full-auto eligible version."""
+    if planner_photo_only(db,draft):
+        return True
+    return any((row or {}).get('version')==draft.version and
+               (row or {}).get('source')=='full_auto' for row in
+               _events(db,draft,'photo_only_approved'))
+
+
 def pinned_planner_schedule(db, draft):
     if (draft.status!='approved' or draft.approved_version!=draft.version or
         draft.publish_state!='unpublished' or not planner_photo_only(db,draft)):
