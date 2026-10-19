@@ -38,6 +38,8 @@ async def lifespan(app):
 app=FastAPI(title='Unfounded Theory Automation',version='0.7.0',lifespan=lifespan)
 from .meta_oauth import router as meta_oauth_router
 app.include_router(meta_oauth_router)
+from .planner import router as planner_router
+app.include_router(planner_router)
 
 def session():
     if __import__('os').environ.get('VERCEL') and CONFIG.database_url.startswith('sqlite'):
@@ -876,6 +878,32 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         'sebagai pesan baru. Teks Anda tidak akan diubah AI. '
                         'Semua tetap melalui QC editorial. /cancel untuk batal.',
                         {'inline_keyboard':rows})
+            elif action=='boostfont':
+                if (d.status not in ('pending_approval','approved') or
+                    d.publish_state!='unpublished'):
+                    raise ValueError('Berita ini tidak bisa direvisi.')
+                from .renderer import headline_font_size
+                from .hook_editor import cover_fit_alternative
+                from .quality_control import run_draft_qc
+                old_size=headline_font_size(d.highlight,CONFIG.font_path)
+                candidate=cover_fit_alternative(d,st)
+                new_size=headline_font_size(candidate,CONFIG.font_path)
+                if new_size<=old_size:
+                    raise ValueError('Belum ditemukan versi yang lebih besar tanpa mengubah fakta.')
+                revise(db,d,'highlight',candidate,uid)
+                from .manual_hook import accent_for_hook
+                d.accent_words=accent_for_hook(candidate,d.accent_words)
+                if d.source_image_url or d.source_image_path:
+                    render_draft(d)
+                result=run_draft_qc(db,d,st,trigger='telegram_font_boost')
+                db.add(Audit(draft_id=d.id,event='cover_font_boosted',actor=str(uid),
+                             detail={'version':d.version,'previous_px':old_size,
+                                     'current_px':new_size,'qc_passed':bool(result.get('passed'))}))
+                db.commit()
+                preview_current()
+                send(f'🔠 Ukuran font naik dari {old_size}px menjadi {new_size}px. '
+                     'Headline diringkas berdasarkan evidence resmi. Periksa ulang '
+                     'caption, visual, dan hasil QC sebelum posting manual.')
             elif action=='redesign':
                 if d.status not in ('pending_approval','approved') or d.publish_state in ('publishing','uncertain','published','awaiting_container'):
                     raise ValueError('Cover tidak dapat diubah saat publikasi atau setelah terbit.')

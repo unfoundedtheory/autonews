@@ -107,3 +107,15 @@ def test_rendered_ink_stays_inside_equal_side_and_bottom_safe_area():
         assert 1350-b>=BOTTOM_MARGIN,(headline,'bottom',1350-b)
         assert abs(l-(WIDTH-r))<=12,(headline,'optical center',l,WIDTH-r)
         assert t>=HEADLINE_TOP-3,(headline,'top',t)
+
+
+def test_owner_long_pleiades_hook_reports_undersized_type():
+    """Regression from the real cover: legal wrapping is NOT adequate legibility."""
+    from utbot.renderer import headline_font_size, MIN_EDITORIAL_FONT_PX
+    long_title=('GUGUSAN BINTANG PALING TERKENAL INI TERNYATA MENYIMPAN '
+                'SELIMUT DEBU RAKSASA YANG HANYA MUNCUL LEWAT PAJANAN 23 JAM')
+    short_title='GUGUSAN BINTANG TERKENAL INI MENYIMPAN SELIMUT DEBU RAKSASA'
+    long_px=headline_font_size(long_title)
+    short_px=headline_font_size(short_title)
+    assert long_px < short_px, (long_px,short_px)
+    assert short_px >= MIN_EDITORIAL_FONT_PX, (long_px,short_px)
