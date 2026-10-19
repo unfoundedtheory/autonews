@@ -753,11 +753,11 @@ def telegram_webhook(payload:dict,db=Depends(session)):
         except (TypeError,ValueError):
             if bot:bot.answer(cb_id,'Tombol tidak valid')
             return {'ok':True}
-        d=db.get(Draft,ident)
-        if not d or d.version!=version:
+        d=db.get(Draft,ident) if action!='replace' else None
+        if action!='replace' and (not d or d.version!=version):
             if bot:bot.answer(cb_id,'Versi lama, buka draf terbaru')
             return {'ok':True,'stale':True}
-        st=db.get(Story,d.story_id)
+        st=db.get(Story,d.story_id) if d else None
         from .automation_mode import manual_post_ready
         def preview_current():
             send_editor_preview(db,bot,chat_id,d,st)
