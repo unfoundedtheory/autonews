@@ -144,7 +144,7 @@ def readiness(db=Depends(session)):
         'facebook_page_configured':bool(CONFIG.facebook_page_id and CONFIG.facebook_page_token),
         'manual_photo_music':CONFIG.photo_music_mode=='manual',
         'worker_secret':bool(CONFIG.worker_secret),
-        'four_line_renderer':True,
+        'flexible_space_first_renderer':True,
     }
     required=['database_reachable','persistent_postgres','telegram_bot',
               'telegram_webhook_secret','telegram_allowed_admin',
@@ -928,7 +928,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     raise ValueError('Hanya draf pending yang boleh diperbaiki.')
                 from .hook_editor import cover_fit_alternative
                 from .renderer import require_cover_fit
-                if bot:bot.answer(cb_id,'Mencari hook yang muat empat baris')
+                if bot:bot.answer(cb_id,'Mencari hook yang memaksimalkan ruang cover')
                 replacement=cover_fit_alternative(d,st)
                 require_cover_fit(replacement,CONFIG.font_path)
                 original=d.highlight
@@ -1166,7 +1166,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 if action=='manualhook':
                     send('✍️ Kirim satu headline baru dalam pesan Telegram berikutnya. '
                          'Teks Anda akan dipakai PERSIS, tanpa ditulis ulang AI. '
-                         'Sistem memeriksa angka sumber, format, dan empat baris cover. '
+                         'Sistem memeriksa angka sumber, format, dan keterbacaan cover. '
                          'Setelah tersimpan, gunakan 📋 Hasil QC. /cancel untuk batal.')
                 elif action=='highlight':
                     send('✏️ Kirim instruksi agar AI merevisi hook, misalnya "Buat lebih personal". '
