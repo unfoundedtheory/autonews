@@ -17,7 +17,7 @@ WHITE = "#FFFFFF"
 SIDE_MARGIN = 56
 BOTTOM_MARGIN = 56
 MARGIN = SIDE_MARGIN              # backward-compatible horizontal safe area
-LAYOUT_STYLE = "fixed_reference_logo_space_first_flexible_headline_v10"
+LAYOUT_STYLE = "fixed_reference_logo_edge_safe_max_font_before_lines_v11"
 # Owner's 1080×1350 reference: logo is locked at (402,900)-(678,948).
 # Headline ALWAYS begins beneath it, at y=981. Only font size and
 # inter-line pitch may adapt to the available space. Safe edge gap: 56px.
@@ -160,26 +160,31 @@ def _reference_line_pitch(font):
 
 
 def _headline_layout(draw, highlight, font_path=None, max_width=WIDTH-2*MARGIN):
-    """Fill the available cover area; NEVER force four lines.
+    """Prioritize safe 56px margins, then maximum font, then line count.
 
-    Find the largest feasible font separately for 2–5-line layouts, then
-    compare real occupied width AND vertical coverage. One-word or very short
-    last lines are discouraged by the same DP wrapper. The fixed owner logo,
-    headline start, 56px margins and natural line pitch never move.
+    All counts 2–5 compete at EACH candidate font size. The first feasible
+    size wins; four lines never justify a smaller font. The logo position,
+    headline start, and full safe area remain unchanged.
     """
     words=_headline_tokens(highlight)
     if not words:
         raise ValueError('Headline kosong.')
-    candidates={}
+    # PRIORITY 1: all rendered glyphs must remain within the 56px safe area.
+    # PRIORITY 2: the LARGEST feasible font wins, irrespective of line count.
+    # PRIORITY 3: only among equal-size fits should line balance, edge usage,
+    # and the optional four-line preference decide the winner.
+    # Checking all candidates at each size also prevents space-coverage
+    # weights from selecting an unnecessarily small font.
     for size in range(144,47,-2):
         font=_font(size,font_path)
         pitch=_reference_line_pitch(font)
         cap=_ink_height(font)
+        feasible=[]
         for count in range(2,6):
-            if count in candidates or len(words)<count:
+            if len(words)<count:
                 continue
-            block_height=(count-1)*pitch+cap
-            if HEADLINE_TOP+block_height>HEADLINE_BOTTOM:
+            height=(count-1)*pitch+cap
+            if HEADLINE_TOP+height>HEADLINE_BOTTOM:
                 continue
             lines=_balanced_wrap(draw,words,font,max_width,
                                  max_lines=count,exact_lines=count,
@@ -187,30 +192,23 @@ def _headline_layout(draw, highlight, font_path=None, max_width=WIDTH-2*MARGIN):
             if len(lines)!=count:
                 continue
             widths=[_line_width(draw,line,font) for line in lines]
-            if any(w>max_width for w in widths):
+            if any(width>max_width for width in widths):
                 continue
             if len(words)>3 and len(lines[-1].split())==1:
                 continue
-            # The best candidate within each line count is the biggest font.
-            candidates[count]=(font,lines,pitch,widths,block_height)
-        if len(candidates)==min(4,max(1,len(words)-1)):
-            break
-    if not candidates:
-        raise ValueError('Headline tidak muat dengan margin aman 56px; persingkat melalui Telegram.')
-
-    def space_coverage(item):
-        font,lines,pitch,widths,height=item
-        # The owner prioritizes a cover-filling title over an arbitrary line
-        # count. Keep visibly large letters, well-filled rows and a title
-        # block extending toward the fixed lower safety edge.
-        edge=max(widths)/max_width
-        average=sum(widths)/(len(lines)*max_width)
-        vertical=height/(HEADLINE_BOTTOM-HEADLINE_TOP)
-        relative_font=font.size/144
-        return (.42*edge + .24*average + .22*vertical +
-                .12*relative_font)
-    best=max(candidates.values(),key=space_coverage)
-    return best[0],best[1],best[2]
+            # All options at this font size satisfy the non-negotiable margins.
+            # Prefer a nearly edge-filled line, then balanced line widths;
+            # four lines is a tiebreaker, NOT a reason to reduce font size.
+            edge=max(widths)/max_width
+            mean=sum(widths)/(count*max_width)
+            weak=min(widths)/max_width
+            balance=-sum((w/max_width-mean)**2 for w in widths)/count
+            feasible.append(((edge, mean, weak, balance, -abs(count-4)),
+                             lines))
+        if feasible:
+            _,lines=max(feasible,key=lambda pair:pair[0])
+            return font,lines,pitch
+    raise ValueError('Headline tidak muat dengan margin aman 56px; persingkat melalui Telegram.')
 
 
 def headline_font_size(highlight: str, font_path: str | None = None):
