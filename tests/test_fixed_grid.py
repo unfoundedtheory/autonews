@@ -149,3 +149,28 @@ def test_owner_pleiades_cover_has_safe_pixel_margins_and_adaptive_line_count():
     assert left>=SIDE_MARGIN-4 and WIDTH-right>=SIDE_MARGIN-4
     assert top>=HEADLINE_TOP-3 and bottom<=HEADLINE_BOTTOM
     assert len(' '.join(lines).split())==len(title.split())
+
+
+def test_maximum_feasible_font_is_primary_over_four_lines():
+    """No smaller font can win merely because its layout has four lines."""
+    draw=ImageDraw.Draw(Image.new('RGB',(WIDTH,1350)))
+    from utbot.renderer import _balanced_wrap,_reference_line_pitch,_headline_tokens
+    examples=HEADLINES + [
+        'EMPAT ORANG INI TELAH MENGURUNG DIRI SELAMA 365 HARI DI RUANG SIMULASI MARS TANPA KONTAK LANGSUNG',
+        'GUGUSAN BINTANG PALING TERKENAL INI TERNYATA MENYIMPAN SELIMUT DEBU RAKSASA YANG HANYA MUNCUL LEWAT PAJANAN 23 JAM',
+    ]
+    for title in examples:
+        face,lines,pitch=_headline_layout(draw,title)
+        assert all(_line_width(draw,line,face)<=WIDTH-2*MARGIN for line in lines)
+        assert HEADLINE_TOP+(len(lines)-1)*pitch+_ink_height(face)<=HEADLINE_BOTTOM
+        words=_headline_tokens(title)
+        for larger in range(face.size+2,145,2):
+            font=_font(larger)
+            line_pitch=_reference_line_pitch(font)
+            for count in range(2,6):
+                if len(words)<count or HEADLINE_TOP+(count-1)*line_pitch+_ink_height(font)>HEADLINE_BOTTOM:
+                    continue
+                wrapped=_balanced_wrap(draw,words,font,WIDTH-2*MARGIN,
+                                       max_lines=count,exact_lines=count,min_lines=2)
+                assert not (len(wrapped)==count and
+                            (len(words)<=3 or len(wrapped[-1].split())>1)), (title,face.size,larger,wrapped)

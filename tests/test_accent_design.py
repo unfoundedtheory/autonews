@@ -47,14 +47,14 @@ def test_true_league_spartan_bold_seven_hundred():
     assert renderer.LINE_SPACING == 1.08
 
 
-def test_long_reference_adapts_font_for_four_lines_and_preserves_semantic_accents(tmp_path,monkeypatch):
+def test_long_reference_maximizes_font_and_preserves_semantic_accents(tmp_path,monkeypatch):
     from PIL import ImageDraw
     headline=('Piramida Raksasa Ini Terkubur 25 Meter Di Dasar '
               'Laut Jepang Dan Diklaim Lebih Tua Dari Piramida Mesir')
     font,lines,pitch=renderer._headline_layout(
         ImageDraw.Draw(Image.new('RGB',(1080,1350))),headline)
-    assert len(lines)==4
-    assert 48<=font.size<=112
+    assert 2<=len(lines)<=5
+    assert 48<=font.size<=144
     assert pitch==renderer._reference_line_pitch(font)
     # The actual line height scales with the dynamically selected font size.
     assert 30<=renderer._ink_height(font)<=85

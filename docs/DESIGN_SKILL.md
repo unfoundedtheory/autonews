@@ -194,3 +194,10 @@ panjang headline atau ruang kosong di bawahnya.
 - Bandingkan kandidat layout 2/3/4/5 baris dan pilih berdasarkan *space-coverage*, bukan jumlah baris.
 - Jangan memotong kata, men-stretch teks, mengurangi margin, atau merusak keakuratan sains; jangan tinggalkan satu kata pada baris terakhir.
 - QC, preflight, editor website dan render Telegram harus memakai aturan baru yang sama. Aturan empat baris di bagian historis sebelumnya tidak berlaku bila bertentangan.
+
+
+## 20. Koreksi prioritas tipografi pemilik (20 Oktober 2026)
+
+**Ini menggantikan urutan penilaian skor space-coverage dan seluruh kewajiban empat baris di bagian historis.** Urutan keras: (1) **margin aman kiri, kanan, bawah 56px** pada kanvas 1080×1350 dan tidak bertabrakan dengan logo; (2) **ukuran font League Spartan Bold 700 paling besar yang muat**; (3) baru tentukan jumlah baris berdasarkan keterisian tepi, keseimbangan, dan empat baris sebagai preferensi terakhir. Jangan pernah memilih font lebih kecil hanya karena skor rata-rata baris, jumlah empat baris, atau tampilan simetris. Bandingkan semua opsi 2–5 baris di **ukuran font yang sama**, mulai dari font terbesar, berhenti pada ukuran pertama yang valid. Jika judul terlalu panjang untuk tetap besar, tawarkan pemendekan hook yang berbasis fakta, bukan menggeser logo/memotong atau memperlebar teks melewati margin.
+
+QC harus memeriksa ukuran font aktual, margin tinta glyph, panjang baris, dan keterbacaan thumbnail. Posisi logo absolut (402,900)–(678,948), headline mulai y=981, warna hijau/putih, dan layering foto tetap.
