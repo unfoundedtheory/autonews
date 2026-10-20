@@ -7,9 +7,11 @@ WIB=ZoneInfo("Asia/Jakarta")
 SLOTS=(6,12,18)
 
 def schedule_approved(db, now=None, daily_limit=3, horizon_days=90):
-    """Rebuild *future* queue only. Slots are available at 06/12/18 WIB, daily max 3.
+    """Assign unused future slots without changing approved existing schedules.
 
-    Use a database transaction/advisory lock around this operation in production.
+    Overdue postings remain due for a later retry; they must never be moved.
+    Slots: 06/12/18 WIB, at most three scheduled posts per WIB day.
+    Transaction-level advisory lock serializes assignment on PostgreSQL.
     """
     if not 1<=daily_limit<=3: raise ValueError("limit must be between 1 and 3")
     # Serialize queue rebuild across simultaneous worker and Telegram approval.
@@ -18,25 +20,23 @@ def schedule_approved(db, now=None, daily_limit=3, horizon_days=90):
     now=(now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     local=now.astimezone(WIB)
     ds=db.execute(select(Draft).where(Draft.status=="approved", Draft.approved_version==Draft.version, Draft.publish_state=="unpublished").order_by(Draft.approved_at,Draft.created_at,Draft.id)).scalars().all()
-    # Never override explicit owner-selected website slots during routine queue rebuild.
-    from .planner_scheduling import pinned_planner_schedule
-    pinned={d.id for d in ds if pinned_planner_schedule(db,d)}
-    occupied={} # daily quota, including already published/uncertain posts
-    used_slots=set() # at most ONE post in a given slot
-    locked=db.execute(select(Draft).where(Draft.scheduled_at.is_not(None), Draft.publish_state.in_(["published","publishing","uncertain","awaiting_container","manual_music_pending"]))).scalars().all()
-    for p in locked:
-        slot=p.scheduled_at.replace(tzinfo=timezone.utc) if p.scheduled_at.tzinfo is None else p.scheduled_at
+    # CRITICAL: an approved slot is durable, even after the target time passes.
+    # Previous queue rebuilds erased ALL unpinned scheduled_at values and only
+    # regenerated *future* slots. Missed posts were postponed forever.
+    # Preserve approved slots (including overdue) and owner-pinned web slots;
+    # reserve them before assigning a time only to genuinely unscheduled drafts.
+    occupied={}  # planned slots per WIB day including completed/in-flight posts
+    used_slots=set()
+    locked=db.execute(select(Draft).where(
+        Draft.scheduled_at.is_not(None),
+        Draft.publish_state.in_(["published","publishing","uncertain",
+                                  "awaiting_container","manual_music_pending"])
+    )).scalars().all()
+    for p in locked + [d for d in ds if d.scheduled_at is not None]:
+        slot=p.scheduled_at.replace(tzinfo=timezone.utc) if p.scheduled_at.tzinfo is None else p.scheduled_at.astimezone(timezone.utc)
         day=slot.astimezone(WIB).date()
         occupied[day]=occupied.get(day,0)+1
         used_slots.add(slot)
-    for d in ds:
-        if d.id in pinned and d.scheduled_at is not None:
-            pinned_slot=d.scheduled_at
-            local_day=pinned_slot.astimezone(WIB).date()
-            occupied[local_day]=occupied.get(local_day,0)+1
-            used_slots.add(pinned_slot)
-        else:
-            d.scheduled_at=None
     candidates=[]
     for offset in range(horizon_days):
         day=local.date()+timedelta(days=offset)
@@ -45,7 +45,8 @@ def schedule_approved(db, now=None, daily_limit=3, horizon_days=90):
             if slot>now:
                 candidates.append((day,slot))
     for d in ds:
-        if d.id in pinned:continue
+        if d.scheduled_at is not None:
+            continue  # Never move an existing approved slot, even if overdue.
         for day,slot in candidates:
             if occupied.get(day,0)>=daily_limit or slot in used_slots: continue
             if d.expires_at:

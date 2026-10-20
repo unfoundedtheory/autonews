@@ -719,17 +719,24 @@ def telegram_webhook(payload:dict,db=Depends(session)):
         elif action=='stories':
             show_stories(page)
         elif action=='queue':
+            now_utc=datetime.now(timezone.utc)
+            # Keep overdue entries visible instead of concealing them just
+            # because their immutable approved slot is already in the past.
             rows=db.execute(select(Draft).where(
                 Draft.status=='approved',
                 Draft.approved_version==Draft.version,
-                Draft.publish_state.in_(['unpublished','awaiting_container']),
-                Draft.scheduled_at > datetime.now(timezone.utc))
+                Draft.publish_state.in_(['unpublished','awaiting_container','manual_music_pending']),
+                Draft.scheduled_at.is_not(None))
                 .order_by(Draft.scheduled_at).limit(15)).scalars().all()
             def describe_scheduled(d):
                 at=d.scheduled_at
                 at=at.replace(tzinfo=timezone.utc) if at.tzinfo is None else at
-                return f'{at.astimezone(WIB):%d/%m %H:%M} - {d.highlight}'
-            message='📅 Jadwal WIB\n'+(
+                suffix=(' ⚠️ TERLAMBAT / BELUM TERBIT' if at<=now_utc
+                        else ' • terjadwal')
+                if d.publish_state=='manual_music_pending':
+                    suffix=' 🎵 Menunggu konfirmasi posting manual'
+                return f'{at.astimezone(WIB):%d/%m %H:%M} - {d.highlight}{suffix}'
+            message='📅 Jadwal WIB (waktu approval tidak otomatis digeser)\n'+(
                 '\n'.join(f'{i+1}. {describe_scheduled(d)}' for i,d in enumerate(rows))
                 or 'Belum ada antrean')
             eligible=[]

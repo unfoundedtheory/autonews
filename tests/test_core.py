@@ -122,3 +122,55 @@ def test_three_daily_publishing_slots_preserve_original_times(db):
     days=[d.scheduled_at.astimezone(WIB).date().isoformat() for d in ds]
     assert hours == [6,12,18,6,12]
     assert days == ['2026-10-10']*3+['2026-10-11']*2
+
+
+def test_existing_approved_slots_never_roll_forward_when_cron_runs_late(db):
+    """Missed 06/12/18 posts stay overdue, not silently moved to tomorrow."""
+    from utbot.scheduler import due
+    drafts=factory(db,5)
+    for draft in drafts:approve(db,draft,"42")
+    first=datetime(2026,10,19,17,0,tzinfo=timezone.utc)  # 20 Oct 00 WIB
+    initial=schedule_approved(db,now=first,daily_limit=3)
+    db.commit()
+    original={item:schedule for item,schedule in initial}
+    assert [d.scheduled_at.astimezone(WIB).day for d in drafts]==[20,20,20,21,21]
+    after_evening=datetime(2026,10,20,13,0,tzinfo=timezone.utc) # 20 Oct 20 WIB
+    for offset in (0,1,8,25,49):
+        schedule_approved(db,now=after_evening+timedelta(hours=offset),daily_limit=3)
+        db.commit()
+        assert {d.id:d.scheduled_at for d in drafts}==original
+    overdue=due(db,after_evening)
+    assert {d.id for d in overdue}=={d.id for d in drafts[:3]}
+
+
+def test_new_approvals_do_not_reassign_existing_approved_and_overdue_posts(db):
+    drafts=factory(db,4)
+    for draft in drafts[:3]: approve(db,draft,"42")
+    initial=datetime(2026,10,19,17,0,tzinfo=timezone.utc)
+    schedule_approved(db,now=initial,daily_limit=3)
+    original=[draft.scheduled_at for draft in drafts[:3]]
+    approve(db,drafts[3],"42")
+    morning=datetime(2026,10,19,23,30,tzinfo=timezone.utc)  # 20 Oct 06:30 WIB
+    schedule_approved(db,now=morning,daily_limit=3)
+    assert [draft.scheduled_at for draft in drafts[:3]]==original
+    assert drafts[3].scheduled_at.astimezone(WIB).date().isoformat()=='2026-10-21'
+    assert drafts[3].scheduled_at.astimezone(WIB).hour==6
+
+
+def test_web_pinned_and_manual_approval_slots_both_remain_immutable(db):
+    from utbot.models import Audit
+    ds=factory(db,2)
+    for draft in ds:approve(db,draft,"42")
+    pinned=datetime(2026,10,21,5,0,tzinfo=timezone.utc) # 21 Oct 12 WIB
+    ds[0].scheduled_at=pinned
+    db.add(Audit(draft_id=ds[0].id,event='photo_only_approved',
+                 actor='content_studio',detail={'version':ds[0].version,'source':'content_studio'}))
+    db.add(Audit(draft_id=ds[0].id,event='content_plan_changed',
+                 actor='content_studio',detail={'version':ds[0].version,
+                 'planned_at':pinned.isoformat(),'auto_publish':True}))
+    other=datetime(2026,10,19,23,0,tzinfo=timezone.utc)
+    ds[1].scheduled_at=other
+    db.commit()
+    schedule_approved(db,now=datetime(2026,10,21,6,0,tzinfo=timezone.utc),daily_limit=3)
+    assert ds[0].scheduled_at==pinned
+    assert ds[1].scheduled_at==other
