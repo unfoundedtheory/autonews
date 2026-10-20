@@ -161,7 +161,7 @@ def test_generate_now_uses_real_pipeline_and_keeps_approval_required(monkeypatch
         db.close()
 
 
-def test_queue_only_lists_future_unpublished_approved_posts(monkeypatch):
+def test_queue_includes_overdue_and_future_unpublished_approved_posts(monkeypatch):
     from datetime import timedelta
     db=session()
     bot=FakeTelegram()
@@ -189,7 +189,8 @@ def test_queue_only_lists_future_unpublished_approved_posts(monkeypatch):
         assert result['menu']=='queue'
         text=bot.messages[-1][0]
         assert 'Queue test 1' in text
-        assert 'Queue test 0' not in text
+        assert 'Queue test 0' in text
+        assert 'TERLAMBAT / BELUM TERBIT' in text
         assert 'Queue test 2' not in text
         assert 'Queue test 3' not in text
         assert bot.messages[-1][1]['inline_keyboard'][-1][0]['callback_data']=='nav:home'
