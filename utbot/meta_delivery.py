@@ -74,7 +74,7 @@ def publish_facebook_once(db,draft,*,actor="worker",poster=None,config=None):
         # Never persist access tokens, URLs, captions, or raw Graph responses.
         # A Graph 4xx is a definitive rejection; timeouts/5xx may have posted.
         reason=str(exc)
-        match=re.fullmatch(r'Meta Graph HTTP (\\d{3}) \\(details withheld\\)',reason)
+        match=re.fullmatch(r'Meta Graph HTTP (\d{3}) \(details withheld\)',reason)
         status=int(match.group(1)) if match else None
         rejected=status is not None and 400 <= status < 500
         event='facebook_rejected' if rejected else 'facebook_uncertain'
