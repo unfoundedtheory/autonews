@@ -92,6 +92,9 @@ def approve(db, draft, actor, *, human_fact_checked=False):
     draft.approved_by=str(actor)
     draft.approved_at=utcnow()
     draft.status="approved"
+    # Final owner approval also satisfies the legacy rights_reviewed workflow flag.
+    # This does not fabricate a photo credit, source, or license.
+    draft.rights_reviewed=True
     db.add(Audit(draft_id=draft.id,event="approved",actor=str(actor),detail={"version":draft.version}))
 
 def revise(db,draft,field,value,actor):
