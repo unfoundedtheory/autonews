@@ -47,8 +47,10 @@ def publish_facebook_once(db,draft,*,actor="worker",poster=None,config=None):
     ).first()
     if previous:
         return {'facebook':'already_attempted', 'requires_reconciliation':True}
-    if draft.status!='published' or not draft.rights_reviewed:
-        return {'facebook':'blocked','reason':'Instagram confirmation and photo rights required'}
+    # Publication already requires current-version approval. Do not block a
+    # confirmed Instagram post solely because an older review flag was false.
+    if draft.status!='published' or draft.approved_version!=draft.version:
+        return {'facebook':'blocked','reason':'Confirmed Instagram post with current-version approval required'}
     if not draft.image_url or not draft.image_url.startswith('https://'):
         return {'facebook':'blocked','reason':'No publicly hosted JPEG'}
 

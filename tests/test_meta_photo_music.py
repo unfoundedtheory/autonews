@@ -177,6 +177,23 @@ def test_facebook_opt_in_idempotent_and_no_blind_retry():
         db.close()
 
 
+def test_facebook_legacy_approved_post_works_without_review_flag():
+    db=make_db()
+    try:
+        _,d=approved_draft(db)
+        d.status='published';d.publish_state='published';d.rights_reviewed=False
+        db.commit()
+        settings=replace(CONFIG,live_publish=True,facebook_crosspost=True,
+                         facebook_page_id='123',facebook_page_token='secret')
+        calls=[]
+        fake=SimpleNamespace(publish_page_photo=lambda *args:
+             (calls.append(args) or {'id':'123_456','photo_id':'456'}))
+        assert publish_facebook_once(db,d,poster=fake,config=settings)['facebook']=='published'
+        assert len(calls)==1
+    finally:
+        db.close()
+
+
 def test_facebook_failure_requires_reconciliation():
     db=make_db()
     try:
