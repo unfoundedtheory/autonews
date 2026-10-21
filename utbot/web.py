@@ -811,7 +811,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 db.commit()
                 send('Kirim tautan posting Instagram https://www.instagram.com/p/... setelah Anda menerbitkannya.')
                 return {'ok':True,'manual_post':'awaiting_link'}
-            elif action in ('carousel','carouselpreview','carsingle'):
+            elif action in ('carousel','carousel20','carouselpreview','carsingle'):
                 from .carousel import build_carousel,send_carousel_preview,slides_for
                 if action == 'carouselpreview':
                     if not slides_for(d):
@@ -825,7 +825,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                             d.post_format='single';d.carousel_slides=[]
                             render_draft(d)
                     else:
-                        d.carousel_slides=build_carousel(db,d,st)
+                        d.carousel_slides=build_carousel(db,d,st,limit=20 if action=='carousel20' else 10)
                         d.post_format='carousel'
                         # The preview and Facebook photo must show the same
                         # newly rendered carousel cover as Instagram slide 1.
@@ -838,7 +838,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     db.commit()
                     send_editor_preview(db,bot,chat_id,d,st)
                     send(('📚 Carousel '+str(len(d.carousel_slides or []))+' slide disiapkan. '
-                          'Lihat Preview Slide lalu Approve.' if action=='carousel'
+                          'Lihat Preview Slide lalu Approve.' if action in ('carousel','carousel20')
                           else '✅ Kembali ke single post.'),finished=True)
             elif action=='more':
                 if bot:bot.message(chat_id,'⋯ Opsi lanjutan untuk draf ini:',with_home_button(advanced_keyboard(d)))
