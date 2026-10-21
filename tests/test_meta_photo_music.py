@@ -194,6 +194,26 @@ def test_facebook_legacy_approved_post_works_without_review_flag():
         db.close()
 
 
+def test_facebook_permission_rejection_records_safe_diagnostics():
+    db=make_db()
+    try:
+        _,d=approved_draft(db)
+        d.status='published';d.publish_state='published';db.commit()
+        settings=replace(CONFIG,live_publish=True,facebook_crosspost=True,
+                         facebook_page_id='123',facebook_page_token='secret')
+        def fail(*args):raise ValueError('Meta Graph HTTP 403 (details withheld)')
+        fake=SimpleNamespace(publish_page_photo=fail)
+        out=publish_facebook_once(db,d,poster=fake,config=settings)
+        assert out['facebook']=='rejected'
+        assert out['reason']=='graph_http_403'
+        record=db.query(Audit).filter_by(draft_id=d.id,event='facebook_rejected').one()
+        assert record.detail['category']=='graph_http_403'
+        assert 'secret' not in str(record.detail)
+        assert publish_facebook_once(db,d,poster=fake,config=settings)['facebook']=='already_attempted'
+    finally:
+        db.close()
+
+
 def test_facebook_failure_requires_reconciliation():
     db=make_db()
     try:

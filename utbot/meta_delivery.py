@@ -5,6 +5,8 @@ outcome must NEVER be reissued automatically. Native IG→FB sharing may already
 be enabled; this option stays disabled until the owner explicitly opts in.
 """
 from .models import Audit, MetaConnection
+import httpx
+import re
 from sqlalchemy import select
 from .config import CONFIG
 from .meta import MetaGraph
@@ -43,7 +45,7 @@ def publish_facebook_once(db,draft,*,actor="worker",poster=None,config=None):
         db.execute(text('SELECT pg_advisory_xact_lock(:key)'),{'key':key})
     previous=db.query(Audit).filter(
         Audit.draft_id==draft.id,
-        Audit.event.in_(['facebook_publish_started','facebook_published','facebook_uncertain'])
+        Audit.event.in_(['facebook_publish_started','facebook_published','facebook_uncertain','facebook_rejected'])
     ).first()
     if previous:
         return {'facebook':'already_attempted', 'requires_reconciliation':True}
@@ -67,9 +69,24 @@ def publish_facebook_once(db,draft,*,actor="worker",poster=None,config=None):
                              'photo_id':result['photo_id'],'post_id':result['id']}))
         db.commit()
         return {'facebook':'published','facebook_post_id':result['id']}
-    except Exception:
+    except Exception as exc:
         db.rollback()
-        db.add(Audit(draft_id=draft.id,event='facebook_uncertain',actor=str(actor),
-                     detail={'note':'Check Page before any new attempt'}))
+        # Never persist access tokens, URLs, captions, or raw Graph responses.
+        # A Graph 4xx is a definitive rejection; timeouts/5xx may have posted.
+        reason=str(exc)
+        match=re.fullmatch(r'Meta Graph HTTP (\d{3}) \(details withheld\)',reason)
+        status=int(match.group(1)) if match else None
+        rejected=status is not None and 400 <= status < 500
+        event='facebook_rejected' if rejected else 'facebook_uncertain'
+        category=('graph_http_'+str(status) if status else
+                  'network_timeout' if isinstance(exc,httpx.TimeoutException) else
+                  'network_error' if isinstance(exc,httpx.TransportError) else
+                  'unexpected_response_or_error')
+        db.add(Audit(draft_id=draft.id,event=event,actor=str(actor),
+                     detail={'category':category,'exception_type':type(exc).__name__,
+                             'version':draft.version,
+                             'note':'Verify Page permissions and OAuth token' if rejected
+                             else 'Check Page before any new attempt'}))
         db.commit()
-        return {'facebook':'uncertain','requires_reconciliation':True}
+        return {'facebook':'rejected' if rejected else 'uncertain',
+                'reason':category,'requires_reconciliation':not rejected}
