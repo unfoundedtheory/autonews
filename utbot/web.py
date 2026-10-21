@@ -1525,9 +1525,20 @@ def publish_job(db=Depends(session), target_draft_id=None):
         d.last_error='Gambar final belum tersedia';db.commit()
         return {'blocked':d.id,'error':d.last_error}
     if not d.rights_reviewed:
-        from .stock_flow import photo_auto_safe, is_auto_approved
-        if not (manual_mode and is_auto_approved(db,d) and photo_auto_safe(d)):
-            return {'blocked':d.id,'error':'Hak foto belum dikonfirmasi'}
+        # Older owner-approved versions may lack the legacy review flag.
+        # A version-matched photo-only approval counts as the owner's review;
+        # older manual-music approvals must still remain manual.
+        consents=db.execute(select(Audit.detail).where(
+            Audit.draft_id==d.id,Audit.event=='photo_only_approved'
+        )).scalars().all()
+        if any((entry or {}).get('version')==d.version for entry in consents):
+            d.rights_reviewed=True
+            db.add(Audit(draft_id=d.id,event='photo_approval_backfilled',
+                         actor='worker',detail={'version':d.version}))
+        else:
+            from .stock_flow import photo_auto_safe, is_auto_approved
+            if not (manual_mode and is_auto_approved(db,d) and photo_auto_safe(d)):
+                return {'blocked':d.id,'error':'Hak foto belum dikonfirmasi'}
     # Lock claim before ANY external request. Stuck publishing requires manual reconciliation.
     d.publish_state='publishing';db.commit()
     bot=_bot()
