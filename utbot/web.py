@@ -1080,10 +1080,10 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                      'Periksa apakah posting sudah terbit di Instagram sebelum menyetujui ulang.')
             elif action=='approve':
                 if d.status=='approved' and d.approved_version==d.version:
-                    if bot:bot.message(chat_id,'✅ Berita ini sudah dijadwalkan.',
-                        with_home_button({'inline_keyboard':[[
-                            {'text':'📸 Post Sekarang','callback_data':f'postnow:{d.id}:{d.version}'}]]})
-                        if d.publish_state=='unpublished' else home_button())
+                    # A previous preview keyboard may still have an Approve
+                    # button. Reply with a Telegram toast, NEVER a new message.
+                    # Repeated taps do not re-schedule, re-notify, or post.
+                    if bot:bot.answer(cb_id,'✅ Sudah dijadwalkan; tidak ada perubahan.')
                     return {'ok':True,'approval':'already_approved'}
                 if d.status!='pending_approval' or d.publish_state!='unpublished':
                     raise ValueError('Hanya draf pending yang belum dipublikasikan dapat disetujui.')
