@@ -132,7 +132,8 @@ def build_carousel(db, draft, story, *, limit=API_MAX_SLIDES):
             raise ValueError("Cover asli perlu diunggah ulang sebelum membuat carousel.")
         intake_image(draft.source_image_url, src)
     out = Path(__import__("tempfile").gettempdir()) / "autonews" / draft.id / f"carousel_cover_v{draft.version + 1}.jpg"
-    render_carousel_cover(src, draft.highlight, out)
+    from .config import CONFIG
+    render_carousel_cover(src, draft.highlight, out, logo_path=CONFIG.brand_logo)
     cover_url = upload_public_jpeg(out, f"{draft.id}/carousel/v{draft.version + 1}/slide_01.jpg")
     slides = [{
         "image_url": cover_url,

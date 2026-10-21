@@ -335,6 +335,40 @@ def _fade_gradient():
     return Image.new("RGB", (WIDTH, HEIGHT), "#000000"), mask
 
 
+def render_carousel_cover(input_image, highlight, outpath, logo_path=None):
+    """Cover first slide only: brand logo upper-left, hook at top of picture."""
+    if not logo_path or not Path(logo_path).is_file():
+        raise ValueError("Logo resmi wajib ada")
+    img=Image.open(input_image)
+    if min(img.size)<600: raise ValueError("Resolusi foto tidak cukup")
+    img=_place_photo(img,(0.5,0.43)).convert("RGBA")
+    overlay=Image.new("RGBA",(WIDTH,HEIGHT),(0,0,0,0))
+    ImageDraw.Draw(overlay).rectangle((0,0,WIDTH,390),fill=(0,0,0,150))
+    img=Image.alpha_composite(img,overlay)
+    badge=Image.open(logo_path).convert("RGBA")
+    badge.thumbnail((300,80),Image.Resampling.LANCZOS)
+    img.alpha_composite(badge,(MARGIN,38))
+    draw=ImageDraw.Draw(img)
+    words=(highlight or "").split()
+    if not words: raise ValueError("Headline carousel kosong")
+    for size in range(64,31,-2):
+        font=_font(size)
+        lines=[];line=""
+        for word in words:
+            candidate=(line+" "+word).strip()
+            if line and draw.textbbox((0,0),candidate,font=font)[2]>WIDTH-2*MARGIN:
+                lines.append(line);line=word
+            else:line=candidate
+        if line:lines.append(line)
+        if len(lines)<=3:break
+    if len(lines)>3:raise ValueError("Headline carousel terlalu panjang untuk bagian atas")
+    for i,line in enumerate(lines):
+        draw.text((MARGIN,148+i*int(size*1.06)),line.upper(),font=font,fill=WHITE)
+    outpath=Path(outpath);outpath.parent.mkdir(parents=True,exist_ok=True)
+    img.convert("RGB").save(outpath,"JPEG",quality=94)
+    return str(outpath)
+
+
 def render(input_image, highlight, outpath, accent_words=None, logo_path=None,
            font_path=None, photo_focus=(0.5, 0.43), source_type="documentary"):
     """Render an approved cover, without changing the underlying scientific photo.

@@ -13,6 +13,7 @@ def keyboard(draft):
             [{'text':'✏️ Revisi Hook','callback_data':f'highlight:{ref}:{v}'},
              {'text':'📝 Revisi Caption','callback_data':f'caption:{ref}:{v}'}],
             [{'text':'🟢 Ganti Highlight Hijau','callback_data':f'green:{ref}:{v}'}],
+            [{'text':'📚 Buat Carousel','callback_data':f'carousel:{ref}:{v}'}],
             [{'text':'🖼 Ganti Foto','callback_data':f'photo:{ref}:{v}'},
              {'text':'⋯ Lainnya','callback_data':f'more:{ref}:{v}'}],
         ]

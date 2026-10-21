@@ -49,6 +49,10 @@ def schedule_approved(db, now=None, daily_limit=3, horizon_days=90):
             continue  # Never move an existing approved slot, even if overdue.
         for day,slot in candidates:
             if occupied.get(day,0)>=daily_limit or slot in used_slots: continue
+            if getattr(d,'post_format','single')=='carousel':
+                from .carousel import validate_daily_limit
+                try:validate_daily_limit(db,d,slot)
+                except ValueError:continue
             if d.expires_at:
                 expiry=d.expires_at.replace(tzinfo=timezone.utc) if d.expires_at.tzinfo is None else d.expires_at
                 if expiry<=slot: continue
