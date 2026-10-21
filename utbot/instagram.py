@@ -16,6 +16,19 @@ class InstagramPublisher:
         if not image_url.startswith("https://"): raise ValueError("Public HTTPS image URL required")
         d=self._request("POST",f"{self.ig_id}/media",data={"image_url":image_url,"caption":caption})
         return d["id"]
+    def create_carousel_child(self,image_url):
+        if not image_url.startswith("https://"):
+            raise ValueError("Public HTTPS image URL required")
+        return self._request("POST", f"{self.ig_id}/media",
+                             data={"image_url":image_url, "is_carousel_item":"true"})["id"]
+
+    def create_carousel_container(self,children,caption):
+        if not 2 <= len(children) <= 10 or not all(children):
+            raise ValueError("Carousel API memerlukan 2–10 child containers")
+        return self._request("POST", f"{self.ig_id}/media",
+                             data={"media_type":"CAROUSEL",
+                                   "children":",".join(children),"caption":caption})["id"]
+
     def container_status(self,container_id):
         return self._request("GET",container_id,params={"fields":"status_code,status"}).get("status_code")
     def publish(self,container_id):
