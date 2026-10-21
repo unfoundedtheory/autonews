@@ -144,16 +144,43 @@ def build_carousel(db, draft, story, *, limit=API_MAX_SLIDES):
         "credit": draft.image_credit or "",
         "license": draft.photo_license or "",
     }]
+    # Normalize every sourced image to the actual 1080x1350 JPEG required by
+    # Instagram. Do not assume a Wikimedia thumbnail is a publishable JPEG.
+    # Blurred edge fill preserves the complete subject without forced cropping.
+    from PIL import Image, ImageOps, ImageFilter
+    prepared = []
+    failures = []
     for index, candidate in enumerate(selected):
-        slides.append({
-            "image_url": candidate["image_url"],
-            "caption": _slide_caption(candidate, story,
-                     evidence[index + 1] if index + 1 < len(evidence) else None),
-            "title": str(candidate.get("title") or "")[:160],
-            "source_url": candidate["page_url"],
-            "credit": candidate["credit"],
-            "license": candidate["license"],
-        })
+        try:
+            location = Path(__import__("tempfile").gettempdir()) / "autonews" / draft.id / f"slide_source_{index + 2}.jpg"
+            source = intake_image(candidate["image_url"], str(location))
+            with Image.open(source) as original:
+                original = ImageOps.exif_transpose(original).convert("RGB")
+                background = ImageOps.fit(original, (1080, 1350)).filter(ImageFilter.GaussianBlur(32))
+                foreground = ImageOps.contain(original, (1080, 1350))
+                left = (1080 - foreground.width) // 2
+                top = (1350 - foreground.height) // 2
+                background.paste(foreground, (left, top))
+                output = location.with_name(f"slide_final_{index + 2}.jpg")
+                background.save(output, "JPEG", quality=91, optimize=True)
+            public_url = upload_public_jpeg(
+                output, f"{draft.id}/carousel/v{draft.version + 1}/slide_{index + 2:02d}.jpg")
+            prepared.append({
+                "image_url": public_url,
+                "caption": _slide_caption(candidate, story,
+                         evidence[index + 1] if index + 1 < len(evidence) else None),
+                "title": str(candidate.get("title") or "")[:160],
+                "source_url": candidate["page_url"],
+                "credit": candidate["credit"],
+                "license": candidate["license"],
+            })
+        except (ValueError, OSError, RuntimeError, __import__('httpx').HTTPError) as exc:
+            failures.append(type(exc).__name__)
+            continue
+    if not prepared:
+        raise ValueError("Tidak ada foto pendukung yang berhasil disiapkan menjadi JPEG 4:5: "
+                         + ", ".join(failures[:4]))
+    slides.extend(prepared)
     return slides
 
 
