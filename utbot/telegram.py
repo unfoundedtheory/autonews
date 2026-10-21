@@ -13,10 +13,6 @@ def keyboard(draft):
             [{'text':'✏️ Revisi Hook','callback_data':f'highlight:{ref}:{v}'},
              {'text':'📝 Revisi Caption','callback_data':f'caption:{ref}:{v}'}],
             [{'text':'🟢 Ganti Highlight Hijau','callback_data':f'green:{ref}:{v}'}],
-            [{'text':'📚 Buat Carousel','callback_data':f'carousel:{ref}:{v}'},
-             {'text':'🖼 Ganti Foto','callback_data':f'photo:{ref}:{v}'}],
-            [{'text':'👁 Preview Slide','callback_data':f'carouselpreview:{ref}:{v}'},
-             {'text':'↩️ Single Post','callback_data':f'carsingle:{ref}:{v}'}],
             [{'text':'🖼 Ganti Foto','callback_data':f'photo:{ref}:{v}'},
              {'text':'⋯ Lainnya','callback_data':f'more:{ref}:{v}'}],
         ]
@@ -67,6 +63,11 @@ def advanced_keyboard(draft):
     rows=[]
     editable=(draft.status in ('pending_approval','approved')
               and draft.publish_state not in ('publishing','published','uncertain','awaiting_container'))
+    if draft.status=='pending_approval' and draft.publish_state=='unpublished':
+        rows.append([{'text':'📚 Buat Carousel','callback_data':f'carousel:{ref}:{v}'},
+                     {'text':'↩️ Single Post','callback_data':f'carsingle:{ref}:{v}'}])
+        if getattr(draft,'post_format','single')=='carousel':
+            rows.append([{'text':'👁 Preview Carousel','callback_data':f'carouselpreview:{ref}:{v}'}])
     if editable:
         rows.append([
             {'text':'✨ Alternatif Hook','callback_data':f'hookideas:{ref}:{v}'},
