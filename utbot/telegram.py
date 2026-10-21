@@ -69,6 +69,9 @@ def advanced_keyboard(draft):
                      {'text':'↩️ Single Post','callback_data':f'carsingle:{ref}:{v}'}])
         if getattr(draft,'post_format','single')=='carousel':
             rows.append([{'text':'👁 Preview Carousel','callback_data':f'carouselpreview:{ref}:{v}'}])
+    if editable and draft.status=='pending_approval':
+        rows.append([{'text':'📚 Carousel manual sampai 20 slide',
+                      'callback_data':f'carousel20:{ref}:{v}'}])
     if editable:
         rows.append([
             {'text':'✨ Alternatif Hook','callback_data':f'hookideas:{ref}:{v}'},
