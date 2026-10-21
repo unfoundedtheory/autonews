@@ -161,8 +161,12 @@ def send_carousel_preview(bot, chat_id, draft):
     slides = require_slide_set(draft)
     if not bot:
         return
-    for offset in range(0, len(slides), 10):
-        items = slides[offset:offset + 10]
+    offsets = list(range(0, len(slides), 10))
+    if len(slides) > 10 and len(slides) % 10 == 1:
+        offsets = [0, 9] if len(slides) == 11 else [0, 10]
+    for offset in offsets:
+        size = 9 if len(slides) == 11 and offset == 0 else 10
+        items = slides[offset:offset + size]
         bot.call("sendMediaGroup", {"chat_id": chat_id, "media": [
             {"type": "photo", "media": s["image_url"],
              "caption": f"Slide {offset + i + 1}/{len(slides)} • " + str(s["caption"])[:850]}
