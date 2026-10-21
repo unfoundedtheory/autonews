@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 import httpx,json,re,unicodedata
 from types import SimpleNamespace
 from sqlalchemy import select,case
+from .research import sort_candidates
 from .models import Story,Draft,Audit
 from .editorial import trusted_source,lint,editorial_instructions,editorial_guide_sha256
 from .quality_control import assess,review_style,QC_RUBRIC_VERSION
@@ -379,7 +380,9 @@ def prepare_batch(db,limit=3,notifier=None):
     tried=set(db.execute(select(Audit.draft_id).where(
         Audit.event=='candidate_prepare_failed',Audit.created_at>=cutoff
     )).scalars().all())
-    stories=[st for st in stories if st.id not in tried]
+    # Rank the fetched pool locally: official Indonesian astronomy/space first.
+    # Preserve fact, rights and editorial QC gates for every candidate.
+    stories=sort_candidates([st for st in stories if st.id not in tried])
     outcome=[]
     failures=[]
     attempted=0
