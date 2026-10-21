@@ -855,6 +855,10 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 if not any((entry or {}).get('version')==d.version for entry in approvals):
                     raise ValueError('Draft ini disetujui dalam mode lama. '
                                      'Jangan posting otomatis tanpa approval foto baru.')
+                if d.post_format=='carousel':
+                    from .carousel import require_slide_set,validate_daily_limit
+                    require_slide_set(d,for_api=True)
+                    validate_daily_limit(db,d,datetime.now(timezone.utc))
                 d.rights_reviewed=True
                 # An explicit Post Sekarang request overrides a future posting slot.
                 # The publisher still enforces approved version and unpublished state.
