@@ -38,6 +38,7 @@ def test_approval_without_separate_photo_confirm(db):
     d.rights_reviewed=False
     approve(db,d,"42")
     assert d.status=="approved"
+    assert d.rights_reviewed is True
 
 
 def test_facts_and_final_cover_remain_required(db):
