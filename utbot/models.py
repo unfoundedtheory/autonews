@@ -50,6 +50,8 @@ class Draft(Base):
     hashtags=Column(JSON, nullable=False)
     # image_url is ALWAYS the fully rendered, publicly hosted 4:5 post; never an unprocessed photo.
     image_url=Column(Text, nullable=True)
+    post_format=Column(String(12), nullable=False, default="single")
+    carousel_slides=Column(JSON, nullable=False, default=list)
     source_image_url=Column(Text, nullable=True)
     source_image_path=Column(Text, nullable=True)
     media_page_url=Column(Text, nullable=True)
