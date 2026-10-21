@@ -58,7 +58,7 @@ def test_pipeline_drafts_unreviewed_rights_and_renders(db,tmp_path,monkeypatch):
     assert Image.open(d.image_local_path).size==(1080,1350)
     assert d.image_url is None and not d.rights_reviewed
     approve(db,d,'42')
-    assert d.rights_reviewed is False
+    assert d.rights_reviewed is True  # Approval sets the legacy workflow flag.
     assert d.approved_version==1
     revise(db,d,'highlight','Sinyal Aneh Kembali Diamati Para Ilmuwan Dalam Pencarian Materi Gelap','42')
     assert d.approved_version is None
