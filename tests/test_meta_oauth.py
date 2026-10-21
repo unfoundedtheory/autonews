@@ -48,6 +48,7 @@ def test_connect_rejects_wrong_password_and_has_correct_redirect(monkeypatch):
         assert url['config_id']==['1845302206633686']
         assert 'META_APP_SECRET' not in response.headers['location']
         assert url['client_id']==['12345678']
+        assert 'pages_manage_posts' in url['scope'][0].split(',')
 
 
 def test_callback_state_blocks_without_cookie_or_wrong_nonce(monkeypatch):
@@ -260,3 +261,99 @@ def test_container_status_form_and_auth_gates(monkeypatch):
         assert wrong.status_code==403
         invalid=client.post('/meta/check-container',data={'password':'test-dedicated-password','container_id':'../media_publish'})
         assert invalid.status_code==400
+
+
+def test_meta_callback_requires_posting_permission_and_page_content_task(monkeypatch):
+    """New connections must prove both the requested scope and Page tasks."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.pool import StaticPool
+    import httpx
+    import pytest
+
+    env=setup(monkeypatch)
+    eng=create_engine('sqlite://',connect_args={'check_same_thread':False},
+                      poolclass=StaticPool)
+    Base.metadata.create_all(eng)
+    factory=sessionmaker(bind=eng,expire_on_commit=False)
+    monkeypatch.setattr(meta_oauth,'Session',factory)
+
+    granted=True
+    tasks=['CREATE_CONTENT']
+    real_client=httpx.Client
+    seen=[]
+    def handler(request):
+        nonlocal granted,tasks
+        path=request.url.path
+        seen.append((path,dict(request.url.params)))
+        if path.endswith('/oauth/access_token'):
+            if request.url.params.get('grant_type')=='fb_exchange_token':
+                return httpx.Response(200,json={'access_token':'user-token'})
+            return httpx.Response(200,json={'access_token':'short-token'})
+        if path.endswith('/me/permissions'):
+            assert request.headers['authorization']=='Bearer user-token'
+            assert 'access_token' not in request.url.params
+            return httpx.Response(200,json={'data':[
+                {'permission':'pages_manage_posts',
+                 'status':'granted' if granted else 'declined'}]})
+        if path.endswith('/me/accounts'):
+            assert request.headers['authorization']=='Bearer user-token'
+            assert 'access_token' not in request.url.params
+            assert 'tasks' in request.url.params['fields']
+            return httpx.Response(200,json={'data':[{
+                'id':'100','name':'Unfounded Theory','access_token':'page-token',
+                'instagram_business_account':{'id':'200'},'tasks':tasks}]})
+        raise AssertionError('Unexpected Graph endpoint: '+path)
+
+    monkeypatch.setattr(meta_oauth.httpx,'Client',
+                        lambda *args,**kwargs:real_client(transport=httpx.MockTransport(handler)))
+
+    def connect():
+        return meta_oauth._complete_callback(None,env['META_APP_ID'],
+            env['META_APP_SECRET'],env['META_TOKEN_ENCRYPTION_KEY'],
+            env['META_OAUTH_BASE_URL'],'authorization-code')
+
+    # Missing pages_manage_posts cannot overwrite previously saved connection.
+    with factory() as db:
+        existing=MetaConnection(page_id='100',instagram_id='200',page_name='Unfounded Theory',
+            encrypted_page_token=Fernet(env['META_TOKEN_ENCRYPTION_KEY'].encode()).encrypt(
+                b'original-page-token').decode())
+        db.add(existing)
+        db.commit()
+        encrypted_before=existing.encrypted_page_token
+
+    granted=False
+    with pytest.raises(meta_oauth.MetaStageError) as error:
+        connect()
+    assert error.value.stage=='page_permissions'
+    assert error.value.category=='pages_manage_posts'
+    with factory() as db:
+        assert db.get(MetaConnection,'100').encrypted_page_token==encrypted_before
+    assert not any(p.endswith('/me/accounts') for p,_ in seen)
+
+    # Permission granted but no CREATE_CONTENT: no token rotation.
+    granted=True
+    tasks=['ANALYZE','ADVERTISE']
+    response=connect()
+    assert response.status_code==403
+    assert 'CREATE_CONTENT' in response.body.decode()
+    with factory() as db:
+        assert db.get(MetaConnection,'100').encrypted_page_token==encrypted_before
+
+    # Correct permission and Page tasks -> encrypted new Page token.
+    tasks=['CREATE_CONTENT','ANALYZE']
+    response=connect()
+    assert response.status_code==200
+    assert 'page-token' not in response.body.decode()
+    with factory() as db:
+        row=db.get(MetaConnection,'100')
+        assert row.encrypted_page_token!=encrypted_before
+        assert Fernet(env['META_TOKEN_ENCRYPTION_KEY'].encode()).decrypt(
+            row.encrypted_page_token.encode())==b'page-token'
+
+
+def test_page_content_tasks_support_current_and_legacy_graph_response():
+    assert meta_oauth._page_can_publish({'tasks':['CREATE_CONTENT']})
+    assert meta_oauth._page_can_publish({'tasks':['PROFILE_PLUS_CREATE_CONTENT']})
+    assert meta_oauth._page_can_publish({'tasks':['PROFILE_PLUS_FULL_CONTROL']})
+    assert not meta_oauth._page_can_publish({'tasks':['ANALYZE']})
+    assert not meta_oauth._page_can_publish({})

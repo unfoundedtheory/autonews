@@ -29,7 +29,14 @@ COOKIE='ut_meta_oauth'
 CHOICE_COOKIE='ut_meta_choice'
 TTL=600
 BASE='https://unfoundedtheory.vercel.app'
-SCOPES='instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,business_management'
+SCOPES='instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,pages_manage_posts,business_management'
+PAGE_CONTENT_TASKS=frozenset({'CREATE_CONTENT','PROFILE_PLUS_CREATE_CONTENT','PROFILE_PLUS_FULL_CONTROL'})
+
+
+def _page_can_publish(page):
+    """Page token must belong to a Page where the owner can create content."""
+    tasks=page.get('tasks')
+    return isinstance(tasks,list) and bool(PAGE_CONTENT_TASKS.intersection(tasks))
 
 def _settings():
     app_id=os.getenv('META_APP_ID','')
@@ -70,7 +77,9 @@ def connect():
     except HTTPException:
         return _page('Pengaturan belum lengkap','<p>Server belum siap melakukan login Meta. Periksa enam Environment Variables di proyek Vercel <strong>autonews</strong> (Production), lalu Redeploy.</p>',status_code=503)
     return _page('Hubungkan Instagram',
-       '<p>Hubungkan Facebook Page dan akun Instagram Professional melalui Meta.</p>'
+       '<p>Hubungkan Facebook Page dan akun Instagram Professional melalui Meta. '
+       'Untuk crossposting, izinkan <strong>pages_manage_posts</strong> pada konfigurasi '
+       'Facebook Login for Business dan pastikan Anda memiliki hak membuat konten di Page.</p>'
        '<div class="status">● Koneksi Meta · Pemilik</div><form id="connect-form" method="post" action="/api/meta/connect">'
        '<label for="password">Password Admin AutoNews</label>'
        '<div class="field"><input id="password" name="password" type="password" required autocomplete="current-password" placeholder="Masukkan password admin">'
@@ -136,8 +145,10 @@ def _classify_meta_failure(error):
     return 'unknown'
 
 
-def _get(client,url,params,stage):
-    res=client.get(url,params=params,timeout=20,follow_redirects=False)
+def _get(client,url,params,stage,*,token=None):
+    # Keep access tokens out of query strings and server/request URL logs.
+    headers={'Authorization':'Bearer '+token} if token else None
+    res=client.get(url,params=params,headers=headers,timeout=20,follow_redirects=False)
     if res.is_error:
         try:
             failure=res.json().get('error',{})
@@ -173,7 +184,8 @@ def callback(request:Request,code:str='',state:str='',error:str=''):
     except MetaStageError as exc:
         stages={'code_exchange':'menukar kode login menjadi token',
                 'long_lived_exchange':'memperpanjang masa berlaku token',
-                'page_lookup':'mencari Facebook Page dan Instagram tertaut'}
+                'page_lookup':'mencari Facebook Page dan Instagram tertaut',
+                'page_permissions':'memeriksa izin publikasi Facebook'}
         description=stages.get(exc.stage,'memproses otorisasi')
         details='HTTP '+str(exc.status)
         if isinstance(exc.code,int):
@@ -185,6 +197,7 @@ def callback(request:Request,code:str='',state:str='',error:str=''):
                      'app_id':'Meta mendeteksi masalah App ID. Periksa ID aplikasi di Vercel.',
                      'authorization_code':'Kode otorisasi tidak valid atau kedaluwarsa. Ulangi login dari tombol Connect.',
                      'permissions':'Ada izin Meta yang belum sesuai.',
+                     'pages_manage_posts':'Izin pages_manage_posts belum disetujui. Tambahkan di Meta Login for Business configuration dan lakukan Reconnect.',
                      'unknown':'Meta belum memberikan kategori kesalahan yang bisa dipastikan.'}
         log.warning('Meta OAuth stage=%s http=%s code=%s subcode=%s category=%s',
                     exc.stage,exc.status,exc.code,exc.subcode,exc.category)
@@ -214,14 +227,26 @@ def _complete_callback(request,app_id,secret,encryption,base,code):
             'client_secret':secret,'fb_exchange_token':short},'long_lived_exchange')
         user_token=exchanged.get('access_token')
         if not user_token:raise HTTPException(502,'Meta token exchange failed')
+        permissions=_get(client,'https://graph.facebook.com/'+CONFIG.ig_version+'/me/permissions',
+            {},'page_permissions',token=user_token).get('data',[])
+        if not isinstance(permissions,list) or not any(
+                isinstance(p,dict) and p.get('permission')=='pages_manage_posts'
+                and p.get('status')=='granted' for p in permissions):
+            raise MetaStageError('page_permissions',403,category='pages_manage_posts')
         accounts=_get(client,'https://graph.facebook.com/'+CONFIG.ig_version+'/me/accounts',{
-            'fields':'id,name,access_token,instagram_business_account',
-            'access_token':user_token,'limit':100},'page_lookup').get('data',[])
+            'fields':'id,name,access_token,instagram_business_account,tasks',
+            'limit':100},'page_lookup',token=user_token).get('data',[])
     if not isinstance(accounts,list):
         raise ValueError('Unexpected Page list response')
-    matches=[p for p in accounts if (p.get('instagram_business_account') or {}).get('id') and p.get('access_token')]
+    linked=[p for p in accounts if isinstance(p,dict) and
+            (p.get('instagram_business_account') or {}).get('id') and p.get('access_token')]
+    matches=[p for p in linked if _page_can_publish(p)]
     if not matches:
-        response=_page('Belum terhubung','<p>Tidak ditemukan Facebook Page dengan akun Instagram Professional tertaut. Hubungkan Instagram ke Page dan coba lagi.</p>')
+        response=_page('Izin Page belum lengkap',
+            '<p>Meta tidak menemukan Facebook Page dengan akun Instagram Professional '
+            'tertaut <strong>dan</strong> hak CREATE_CONTENT.</p>'
+            '<p>Pastikan akun Facebook memiliki akses Content pada Page melalui Meta Business Suite, '
+            'lalu hubungkan ulang. Token lama tidak akan diganti.</p>',status_code=403)
     elif len(matches)>1:
         selection_id=secrets.token_urlsafe(32)
         now=datetime.now(timezone.utc)
@@ -248,7 +273,7 @@ def _complete_callback(request,app_id,secret,encryption,base,code):
         response=_page('Instagram terhubung',
             '<p>Facebook Page: <strong>'+html.escape(str(matches[0].get('name','')))+'</strong></p>'
             '<p>Akun Instagram Professional terdeteksi. Token Page disimpan terenkripsi. '
-            'Posting otomatis masih NONAKTIF sampai pengujian selesai.</p>')
+            'Periksa izin dan koneksi melalui Tes Koneksi sebelum posting berikutnya.</p>')
     response.delete_cookie(COOKIE,path='/api/meta')
     return response
 
@@ -300,7 +325,7 @@ def select_page(request:Request,page_id:str=Form(...)):
     response=_page('Instagram terhubung',
         '<p>Facebook Page: <strong>'+html.escape(chosen['name'])+'</strong></p>'
         '<p>Instagram Professional terhubung. Token disimpan terenkripsi. '
-        'Posting otomatis tetap nonaktif hingga pengujian selesai.</p>')
+        'Jalankan Tes Koneksi sebelum posting berikutnya.</p>')
     response.delete_cookie(CHOICE_COOKIE,path='/api/meta')
     return response
 
