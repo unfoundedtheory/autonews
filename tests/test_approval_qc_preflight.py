@@ -126,8 +126,19 @@ def test_approve_uses_owner_preview_without_second_qc(db,monkeypatch):
     assert draft.scheduled_at is not None
     assert len(all_qc(db,draft))==1
     assert any('Draft versi' in msg for msg in bot.sent)
-    again=web.telegram_webhook(callback(draft),db=db)
-    assert again['approval']=='already_approved'
+    original_messages=list(bot.sent)
+    original_schedule=draft.scheduled_at
+    for index in range(3):
+        repeated=callback(draft)
+        repeated['callback_query']['id']=f'repeated-approve-{index}'
+        repeated['update_id']=80000+index  # Each tap can be a NEW Telegram update.
+        again=web.telegram_webhook(repeated,db=db)
+        assert again['approval']=='already_approved'
+    assert bot.sent==original_messages  # No extra chat notifications or keyboards.
+    assert draft.scheduled_at==original_schedule
+    assert bot.answered[-3:]==[
+        '✅ Sudah dijadwalkan; tidak ada perubahan.']*3
+    assert db.query(Audit).filter_by(draft_id=draft.id,event='approved').count()==1
 
 
 def test_previous_failed_style_does_not_block_explicit_owner_approve(db,monkeypatch):
