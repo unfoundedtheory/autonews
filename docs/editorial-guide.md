@@ -136,6 +136,14 @@ Dirangkum dari koreksi, teori hook, dan diskusi selama proses pembuatan konten. 
 - Hindari blog agregator atau situs SEO yang tidak menyebut nama peneliti, jurnal, atau institusi.
 - Jika sumber awal meragukan, cari sumber aslinya dulu sebelum menulis.
 
+**Prioritas utama: fenomena antariksa dan langit yang terjadi/teramati di Indonesia**
+- Dahulukan kandidat **astronomi, meteor, benda jatuh antariksa, hujan meteor, gerhana, satelit, cuaca antariksa, dan fenomena langit** yang benar-benar terjadi, diteliti, dapat diamati, atau berdampak di wilayah Indonesia, dibanding kandidat global dengan nilai redaksi setara.
+- Pantau rilis primer **BRIN** dan **BMKG** selain NASA/ESA/ESO. Kandidat dari berita luar negeri yang menyebut lokasi Indonesia juga boleh diprioritaskan jika lokasi, waktu, dan peristiwa terverifikasi. Prioritas ini berlaku saat **discovery/pemilihan kandidat**, bukan izin untuk mengarang hubungan Indonesia.
+- **Utamakan peristiwa nyata yang konkret** dibanding siaran kerja sama, rencana, seminar, atau pernyataan umum; rencana satelit tidak boleh ditulis seolah sudah diluncurkan. Penanggalan, area observasi, status konfirmasi otoritas, dan batas ketidakpastian harus eksplisit.
+- **Video viral atau laporan warga bukan bukti verifikasi ilmiah**. Contoh cahaya misterius di Kalimantan: nyatakan belum terverifikasi, dan jangan mengaitkan dentuman/benda temuan dengan meteor atau sampah antariksa tanpa konfirmasi otoritas.
+- Jangan mengklaim semua fenomena astronomi tampak dari Indonesia; jelaskan visibilitas dan kondisi observasi jika ada data resmi. Jangan memberi bonus prioritas pada artikel yang tidak punya relevansi lokal yang ditopang sumber primer.
+- Prioritas Indonesia **tidak mengubah QC, kepemilikan foto, kewajiban bukti, ataupun jadwal posting**, dan tidak mengabaikan berita dunia yang jauh lebih penting secara ilmiah.
+
 **Cerita evergreen, sejarah dan penemuan lama**
 - Artikel dan penemuan boleh berumur puluhan hingga miliaran tahun. Usia publikasi bukan alasan menolak konten.
 - Prioritas: astronomi, asal-usul alam semesta, ilmuwan dan penemuan bersejarah, zaman purba, evolusi dan kehidupan, arkeologi ilmiah, serta dampak/ancaman AI pada manusia.

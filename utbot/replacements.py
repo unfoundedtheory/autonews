@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select, case
 from .models import Story, Draft, Audit
 from .editorial import trusted_source
+from .research import sort_candidates
 from .telegram_ui import clean_text
 from .telegram import with_home_button
 
@@ -40,7 +41,7 @@ def available_replacements(db, rejected_draft, actor, limit=MAX_CHOICES):
         Story.published_at.desc(), Story.created_at.desc()
     ).limit(250)).scalars().all()
     items = []
-    for story in queue:
+    for story in sort_candidates(queue):
         if (story.id == rejected_draft.story_id or story.id in previously_shown
                 or story.id in recent_failures
                 or not trusted_source(story.source_url)

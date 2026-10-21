@@ -20,6 +20,13 @@ SOURCES=[
    "url":"https://science.nasa.gov/wp-json/wp/v2/apod-basic?per_page=10",
    "fallback_urls":["https://science.nasa.gov/feed/apod-basic/"],
    "format":"apod_json","topic":"astronomy"},
+  # BRIN: official Indonesian primary research releases. Only article links
+  # with explicit space/astronomy subjects pass the bounded listing parser.
+  {"name":"BRIN Indonesia Space","url":"https://brin.go.id/news",
+   "format":"brin_listing","topic":"space"},
+  {"name":"BRIN Riset Penerbangan dan Antariksa",
+   "url":"https://brin.go.id/orpa/posts/kabar",
+   "format":"brin_listing","topic":"space"},
   {"name":"NASA Science","url":"https://science.nasa.gov/feed/",
    "fallback_urls":["https://www.nasa.gov/feed/"],"topic":"space"},
   {"name":"NASA News","url":"https://www.nasa.gov/news-release/feed/","topic":"space"},
@@ -29,6 +36,57 @@ SOURCES=[
   {"name":"EMBL News","url":"https://www.embl.org/news/feed/","topic":"biology"},
   {"name":"Google DeepMind","url":"https://deepmind.google/blog/rss.xml","topic":"ai"},
 ]
+
+
+# A relevant Indonesia/space story outranks global stories, but neither an
+# unrelated local press release nor the word "Indonesia" alone qualifies.
+BRIN_SPACE_RE=re.compile(
+    r'\b(?:antariksa|astronom\w*|astrofisika|meteor\w*|komet\w*|'
+    r'asteroid\w*|satelit\w*|orbit\w*|teleskop\w*|'
+    r'observatorium|ionosfer|gerhana|space weather|benda langit|'
+    r'cuaca antariksa|roket\w*|planet\w*|'
+    r'galaksi\w*|bintang\w*|hilal|langit malam)\b', re.IGNORECASE)
+INDONESIA_GEO_RE=re.compile(
+    r'\b(?:indonesia|nusantara|jakarta|jawa|sumatra|sumatera|'
+    r'kalimantan|sulawesi|papua|bali|nusa tenggara|maluku|'
+    r'bandung|bogor|biak|timau|kupang|yogyakarta|'
+    r'lapan|brin|bmkg)\b', re.IGNORECASE)
+
+
+def is_indonesia_space_story(story):
+    """Rank a space headline with explicit local context or BRIN provenance.
+
+    Editorial fact-checking still has to establish when, where and what
+    actually occurred. This signal is NEVER itself evidence of a claim.
+    """
+    title=str(story.title or '')
+    if not BRIN_SPACE_RE.search(title):
+        return False
+    name=str(story.source_name or '')
+    return bool(INDONESIA_GEO_RE.search(title) or
+                'brin' in name.casefold())
+
+
+def candidate_priority(story):
+    """Lower score is first: Indonesian space, worldwide space, then others."""
+    if is_indonesia_space_story(story):
+        return 0
+    if story.topic in ('astronomy','space'):
+        return 1
+    return 2
+
+
+def sort_candidates(stories):
+    """Stable newest-first ranking inside each science priority without AI costs."""
+    def unix(value):
+        if value is None:return float('-inf')
+        if value.tzinfo is None:value=value.replace(tzinfo=timezone.utc)
+        return value.timestamp()
+    return sorted(stories,key=lambda st:(
+        candidate_priority(st),
+        -unix(st.published_at),
+        -unix(st.created_at),
+        st.id or ''))
 
 
 def evergreen_sources(now=None):
@@ -251,7 +309,47 @@ def parse_evergreen_listing(content, *, site):
         raise ValueError('Tidak menemukan artikel arsip yang memenuhi struktur sumber.')
     return results[:45]
 
+def parse_brin_listing(content):
+    """Collect only linked space/astronomy releases from BRIN's official news list.
+
+    When the listing is JavaScript-only, fail visibly rather than invent links.
+    An unprovided publication date is deliberately left unknown.
+    """
+    if isinstance(content,bytes):
+        if len(content)>2_000_000:
+            raise ValueError('Daftar berita BRIN terlalu besar.')
+        content=content.decode('utf-8','replace')
+    soup=BeautifulSoup(content,'html.parser')
+    for tag in soup(['script','style','nav','footer','header','form']):tag.decompose()
+    results=[];seen=set()
+    article_path_re=re.compile(r'/news/[0-9]+/[a-z0-9-]+/?|/orpa/posts/kabar/[a-z0-9-]+/?', re.IGNORECASE)
+    for a in soup.find_all('a',href=True):
+        article=urljoin('https://brin.go.id/news',a['href'])
+        parts=urlsplit(article)
+        if (parts.hostname not in ('brin.go.id','www.brin.go.id')
+                or not article_path_re.fullmatch(parts.path) or not trusted_source(article)):
+            continue
+        title=a.get_text(' ',strip=True)
+        if len(title)<24 or title.casefold() in ('selengkapnya','baca selengkapnya'):
+            parent=a.find_parent(['article','li']) or a.parent
+            heading=parent.find(['h2','h3','h4','h5']) if parent else None
+            title=heading.get_text(' ',strip=True) if heading else ''
+        title=html.unescape(re.sub(r'\s+',' ',title)).strip()
+        if not 24<=len(title)<=220 or not BRIN_SPACE_RE.search(title):
+            continue
+        url=canonicalize(article)
+        if url in seen:continue
+        seen.add(url)
+        results.append({'title':title,'url':url,'pub':None,'summary':''})
+        if len(results)>=40:break
+    if not results:
+        raise ValueError('Listing BRIN tidak memuat tautan artikel antariksa yang dapat diverifikasi.')
+    return results
+
+
 def parse_source_response(source,url,content):
+    if source.get('format')=='brin_listing':
+        return parse_brin_listing(content)
     if source.get('format')=='apod_json' and '/wp-json/' in url:
         return parse_apod_json(content)
     if source.get('format')=='eso_listing' and url==source['url']:
