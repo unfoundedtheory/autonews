@@ -20,6 +20,13 @@ SOURCES=[
    "url":"https://science.nasa.gov/wp-json/wp/v2/apod-basic?per_page=10",
    "fallback_urls":["https://science.nasa.gov/feed/apod-basic/"],
    "format":"apod_json","topic":"astronomy"},
+  # BRIN: official Indonesian primary research releases. Only article links
+  # with explicit space/astronomy subjects pass the bounded listing parser.
+  {"name":"BRIN Indonesia Space","url":"https://brin.go.id/news",
+   "format":"brin_listing","topic":"space"},
+  {"name":"BRIN Riset Penerbangan dan Antariksa",
+   "url":"https://brin.go.id/orpa/posts/kabar",
+   "format":"brin_listing","topic":"space"},
   {"name":"NASA Science","url":"https://science.nasa.gov/feed/",
    "fallback_urls":["https://www.nasa.gov/feed/"],"topic":"space"},
   {"name":"NASA News","url":"https://www.nasa.gov/news-release/feed/","topic":"space"},
@@ -94,13 +101,6 @@ def evergreen_sources(now=None):
         {"name":"NASA APOD Archive",
          "url":f"https://science.nasa.gov/wp-json/wp/v2/apod-basic?per_page=25&page={page}",
          "format":"apod_json","topic":"astronomy"},
-  # BRIN: official Indonesian primary research releases. Only article links
-  # with explicit space/astronomy subjects pass the bounded listing parser.
-  {"name":"BRIN Indonesia Space","url":"https://brin.go.id/news",
-   "format":"brin_listing","topic":"space"},
-  {"name":"BRIN Riset Penerbangan dan Antariksa",
-   "url":"https://brin.go.id/orpa/posts/kabar",
-   "format":"brin_listing","topic":"space"},
         {"name":"NASA History",
          "url":"https://www.nasa.gov/history-news-and-articles/",
          "format":"history_listing","topic":"science"},
