@@ -22,6 +22,9 @@ def keyboard(draft):
         ]
     elif draft.status=='approved':
         rows=[]
+        if getattr(draft, 'post_format','single')=='carousel':
+            rows.append([{'text':'👁 Preview Carousel',
+                          'callback_data':f'carouselpreview:{ref}:{v}'}])
         if draft.publish_state=='unpublished':
             rows.append([{'text':'📸 Post Sekarang','callback_data':f'postnow:{ref}:{v}'}])
         rows.append([{'text':'📋 Detail & Opsi','callback_data':f'more:{ref}:{v}'}])
