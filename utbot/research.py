@@ -19,6 +19,9 @@ SOURCES=[
   # with explicit space/astronomy subjects pass the bounded listing parser.
   {"name":"BRIN Indonesia Space","url":"https://brin.go.id/news",
    "format":"brin_listing","topic":"space"},
+  {"name":"BRIN Riset Penerbangan dan Antariksa",
+   "url":"https://brin.go.id/orpa/posts/kabar",
+   "format":"brin_listing","topic":"space"},
   # The official APOD API replaced the legacy feed; RSS stays as fallback.
   {"name":"NASA Astronomy Picture of the Day",
    "url":"https://science.nasa.gov/wp-json/wp/v2/apod-basic?per_page=10",
@@ -319,12 +322,12 @@ def parse_brin_listing(content):
     soup=BeautifulSoup(content,'html.parser')
     for tag in soup(['script','style','nav','footer','header','form']):tag.decompose()
     results=[];seen=set()
-    path_re=re.compile(r'/news/[0-9]+/[a-z0-9-]+/?', re.IGNORECASE)
+    article_path_re=re.compile(r'/news/[0-9]+/[a-z0-9-]+/?|/orpa/posts/kabar/[a-z0-9-]+/?', re.IGNORECASE)
     for a in soup.find_all('a',href=True):
         article=urljoin('https://brin.go.id/news',a['href'])
         parts=urlsplit(article)
         if (parts.hostname not in ('brin.go.id','www.brin.go.id')
-                or not path_re.fullmatch(parts.path) or not trusted_source(article)):
+                or not article_path_re.fullmatch(parts.path) or not trusted_source(article)):
             continue
         title=a.get_text(' ',strip=True)
         if len(title)<24 or title.casefold() in ('selengkapnya','baca selengkapnya'):
