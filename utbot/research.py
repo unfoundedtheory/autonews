@@ -15,6 +15,10 @@ from .editorial import trusted_source
 
 # Official feeds; verify changes to published feed URLs before going live.
 SOURCES=[
+  # BRIN: official Indonesian primary research releases. Only article links
+  # with explicit space/astronomy subjects pass the bounded listing parser.
+  {"name":"BRIN Indonesia Space","url":"https://brin.go.id/news",
+   "format":"brin_listing","topic":"space"},
   # The official APOD API replaced the legacy feed; RSS stays as fallback.
   {"name":"NASA Astronomy Picture of the Day",
    "url":"https://science.nasa.gov/wp-json/wp/v2/apod-basic?per_page=10",
@@ -29,6 +33,57 @@ SOURCES=[
   {"name":"EMBL News","url":"https://www.embl.org/news/feed/","topic":"biology"},
   {"name":"Google DeepMind","url":"https://deepmind.google/blog/rss.xml","topic":"ai"},
 ]
+
+
+# A relevant Indonesia/space story outranks global stories, but neither an
+# unrelated local press release nor the word "Indonesia" alone qualifies.
+BRIN_SPACE_RE=re.compile(
+    r'\\b(?:antariksa|astronom\\w*|astrofisika|meteor\\w*|komet\\w*|'
+    r'asteroid\\w*|satelit\\w*|orbit\\w*|teleskop\\w*|'
+    r'observatorium|ionosfer|gerhana|space weather|benda langit|'
+    r'cuaca antariksa|roket\\w*|planet\\w*|'
+    r'galaksi\\w*|bintang\\w*|hilal|langit malam)\\b', re.IGNORECASE)
+INDONESIA_GEO_RE=re.compile(
+    r'\\b(?:indonesia|nusantara|jakarta|jawa|sumatra|sumatera|'
+    r'kalimantan|sulawesi|papua|bali|nusa tenggara|maluku|'
+    r'bandung|bogor|biak|timau|kupang|yogyakarta|'
+    r'lapan|brin|bmkg)\\b', re.IGNORECASE)
+
+
+def is_indonesia_space_story(story):
+    """Rank a space headline with explicit local context or BRIN provenance.
+
+    Editorial fact-checking still has to establish when, where and what
+    actually occurred. This signal is NEVER itself evidence of a claim.
+    """
+    title=str(story.title or '')
+    if not BRIN_SPACE_RE.search(title):
+        return False
+    name=str(story.source_name or '')
+    return bool(INDONESIA_GEO_RE.search(title) or
+                'brin' in name.casefold())
+
+
+def candidate_priority(story):
+    """Lower score is first: Indonesian space, worldwide space, then others."""
+    if is_indonesia_space_story(story):
+        return 0
+    if story.topic in ('astronomy','space'):
+        return 1
+    return 2
+
+
+def sort_candidates(stories):
+    """Stable newest-first ranking inside each science priority without AI costs."""
+    def unix(value):
+        if value is None:return float('-inf')
+        if value.tzinfo is None:value=value.replace(tzinfo=timezone.utc)
+        return value.timestamp()
+    return sorted(stories,key=lambda st:(
+        candidate_priority(st),
+        -unix(st.published_at),
+        -unix(st.created_at),
+        st.id or ''))
 
 
 def evergreen_sources(now=None):
@@ -251,7 +306,116 @@ def parse_evergreen_listing(content, *, site):
         raise ValueError('Tidak menemukan artikel arsip yang memenuhi struktur sumber.')
     return results[:45]
 
+def parse_brin_listing(content):
+    """Extract only official BRIN /news/<id>/<slug> space releases.
+
+    The public listing can be JS-rendered; missing server-rendered links means
+    no candidates rather than fabricated stories or arbitrary web scraping.
+    Dates absent from the official listing remain unknown.
+    """
+    if isinstance(content,bytes):
+        if len(content)>2_000_000:
+            raise ValueError('Daftar berita BRIN terlalu besar.')
+        content=content.decode('utf-8','replace')
+    soup=BeautifulSoup(content,'html.parser')
+    for tag in soup(['script','style','nav','footer','header','form']):tag.decompose()
+    results=[];seen=set()
+    path_re=re.compile(r'^/news/\\d+/[a-z0-9-]+/?
+    if source.get('format')=='apod_json' and '/wp-json/' in url:
+        return parse_apod_json(content)
+    if source.get('format')=='eso_listing' and url==source['url']:
+        return parse_eso_listing(content)
+    if source.get('format') in ('history_listing','archaeology_listing'):
+        return parse_evergreen_listing(content,site=url)
+    return parse_items(content)
+
+def discover(db, sources=None, fetcher=None, now=None):
+    """Collect unverified stories. Broken sources may use vetted official fallbacks."""
+    now=now or datetime.now(timezone.utc)
+    feeds=sources if sources is not None else SOURCES
+    with httpx.Client(timeout=15,follow_redirects=False,
+                      headers={'User-Agent':'UnfoundedTheoryNewsroom/0.7 (science news discovery)'}) as client:
+        for source in feeds:
+            inserted=0;duplicates=0;seen=0;excluded=0
+            errors=[];used_url=None
+            entries=None
+            for url in [source['url']]+list(source.get('fallback_urls') or []):
+                try:
+                    if not trusted_source(url):
+                        raise ValueError('Sumber feed bukan domain primer tepercaya.')
+                    if fetcher:
+                        raw=fetcher(url)
+                    else:
+                        response=client.get(url)
+                        response.raise_for_status()
+                        raw=response.content
+                    entries=parse_source_response(source,url,raw)
+                    used_url=url
+                    break
+                except (httpx.HTTPError,ValueError,TypeError) as exc:
+                    errors.append(str(exc)[:180])
+            if entries is None:
+                yield {'feed':source['name'],'error':'; '.join(errors)[:240],
+                       'inserted':0}
+                continue
+            try:
+                seen=len(entries)
+                for entry in entries:
+                    pub=entry['pub']
+                    # Evergreen science: original publication can be many years old.
+                    # Future dates remain invalid; a verified article is not a breaking alert.
+                    if pub and pub > now+timedelta(days=1):
+                        excluded+=1
+                        continue
+                    if not trusted_source(entry['url']):
+                        excluded+=1
+                        continue
+                    ident=fingerprint(entry['url'])
+                    if db.query(Story).filter_by(fingerprint=ident).first():
+                        duplicates+=1
+                        continue
+                    story=Story(fingerprint=ident,title=entry['title'],source_url=entry['url'],
+                                source_name=source['name'],published_at=pub,topic=source['topic'],
+                                verification_status='needs_fact_check',evidence=[])
+                    db.add(story)
+                    inserted+=1
+                db.flush()
+            except Exception as exc:
+                db.rollback()
+                yield {'feed':source['name'],'error':str(exc)[:200],'inserted':0}
+                continue
+            yield {'feed':source['name'],'inserted':inserted,'seen':seen,
+                   'duplicates':duplicates,'excluded':excluded,
+                   'fallback_used':bool(used_url and used_url!=source['url'])}
+,re.IGNORECASE)
+    for a in soup.find_all('a',href=True):
+        article=urljoin('https://brin.go.id/news',a['href'])
+        parts=urlsplit(article)
+        if not (parts.hostname in ('brin.go.id','www.brin.go.id') and
+                path_re.fullmatch(parts.path) and trusted_source(article)):
+            continue
+        title=a.get_text(' ',strip=True)
+        if len(title)<24 or title.casefold() in ('selengkapnya','baca selengkapnya'):
+            # Some official cards put the heading beside their More link.
+            parent=a.find_parent(['article','li']) or a.parent
+            heading=parent.find(['h2','h3','h4','h5']) if parent else None
+            title=heading.get_text(' ',strip=True) if heading else ''
+        title=html.unescape(re.sub(r'\\s+',' ',title)).strip()
+        if not 24<=len(title)<=220 or not BRIN_SPACE_RE.search(title):
+            continue
+        url=canonicalize(article)
+        if url in seen:continue
+        seen.add(url)
+        results.append({'title':title,'url':url,'pub':None,'summary':''})
+        if len(results)>=40:break
+    if not results:
+        raise ValueError('Halaman BRIN tidak menyediakan artikel antariksa dengan tautan yang dapat diverifikasi.')
+    return results
+
+
 def parse_source_response(source,url,content):
+    if source.get('format')=='brin_listing':
+        return parse_brin_listing(content)
     if source.get('format')=='apod_json' and '/wp-json/' in url:
         return parse_apod_json(content)
     if source.get('format')=='eso_listing' and url==source['url']:
