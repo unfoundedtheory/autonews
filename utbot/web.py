@@ -821,10 +821,15 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     if d.status!='pending_approval' or d.publish_state!='unpublished':
                         raise ValueError("Ubah carousel hanya sebelum approval.")
                     if action=='carsingle':
-                        d.post_format='single';d.carousel_slides=[]
+                        if d.post_format=='carousel':
+                            d.post_format='single';d.carousel_slides=[]
+                            render_draft(d)
                     else:
                         d.carousel_slides=build_carousel(db,d,st)
                         d.post_format='carousel'
+                        # The preview and Facebook photo must show the same
+                        # newly rendered carousel cover as Instagram slide 1.
+                        d.image_url=d.carousel_slides[0]['image_url']
                     d.version+=1;d.approved_version=None
                     d.ig_container_id=None;d.scheduled_at=None
                     db.add(Audit(draft_id=d.id,event='carousel_format_changed',
