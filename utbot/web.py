@@ -1011,13 +1011,13 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     send('ℹ️ Foto utama artikel belum bisa dipakai: '+str(hero_error)[:150]+
                          '. Mencari alternatif Wikimedia yang berlisensi.')
                 from .photo_relevance import search_queries,photo_subject_match
-                from .media import find_photos
+                from . import media as _media
                 choices=[]
                 visited=set()
                 errors=[]
                 for term in search_queries(st.title,story_title=st.title):
                     try:
-                        candidates=find_photos(term,limit=6)
+                        candidates=_media.find_photos(term,limit=6)
                     except (httpx.HTTPError,ValueError) as exc:
                         errors.append(type(exc).__name__)
                         continue
@@ -1198,7 +1198,62 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 # Legacy inline buttons may remain in old Telegram messages.
                 send('ℹ️ Verifikasi foto terpisah sudah tidak diperlukan. '
                      'Periksa cover dan sumber, lalu langsung klik Approve.')
-            elif action in ('highlight','caption','photo','manualhook','green'):
+            elif action=='photo':
+                # Offer real alternatives immediately, plus an explicit upload route.
+                if d.status in ('published','rejected','removed_by_owner') or d.publish_state!='unpublished':
+                    raise ValueError('Foto hanya dapat diganti sebelum proses publikasi.')
+                from .photo_relevance import photo_subject_match
+                existing=db.get(TelegramSession,str(uid))
+                if existing:db.delete(existing);db.flush()
+                # Direct photo messages still work after opening candidate choices.
+                db.add(TelegramSession(user_id=str(uid),draft_id=d.id,mode='photo',version=d.version))
+                # Keep already discovered, relevant images; otherwise search
+                # Wikimedia using the actual article topic, not a generic NASA term.
+                opts=[item for item in (d.photo_candidates or [])
+                      if photo_subject_match(st.title,item,st.title)
+                      and item.get('page_url') and item.get('credit')]
+                if len(opts)<3:
+                    from .photo_relevance import search_queries
+                    seen={x.get('page_url') or x.get('image_url') for x in opts}
+                    for query in search_queries(st.title,story_title=st.title)[:3]:
+                        try:
+                            choices=find_photos(query,limit=6)
+                        except (ValueError,httpx.HTTPError,OSError):
+                            continue
+                        for item in choices:
+                            key=item.get('page_url') or item.get('image_url')
+                            if (key and key not in seen and
+                                    photo_subject_match(query,item,st.title) and
+                                    item.get('page_url') and item.get('credit')):
+                                opts.append(item);seen.add(key)
+                            if len(opts)>=6:break
+                        if len(opts)>=6:break
+                d.photo_candidates=opts[:6]
+                db.commit()
+                if opts and bot:
+                    bot.message(chat_id,photo_candidate_message(d),
+                                with_home_button(photo_keyboard(d)))
+                elif not opts:
+                    send('Tidak ada kandidat foto yang benar-benar relevan dan memiliki metadata kredit. '
+                         'Silakan unggah sendiri atau cari memakai kata kunci yang lebih spesifik.')
+                    if bot:bot.message(chat_id,'Pilih cara mengganti foto:',
+                                       with_home_button(photo_keyboard(d)))
+                return {'ok':True,'photo_options':len(opts)}
+            elif action in ('photoupload','photosearch'):
+                if d.status in ('published','rejected','removed_by_owner') or d.publish_state!='unpublished':
+                    raise ValueError('Foto hanya dapat diganti sebelum proses publikasi.')
+                sess=db.get(TelegramSession,str(uid))
+                if sess:db.delete(sess);db.flush()
+                db.add(TelegramSession(user_id=str(uid),draft_id=d.id,mode='photo',version=d.version))
+                db.commit()
+                if action=='photoupload':
+                    send('📤 Kirim foto langsung melalui Telegram (gunakan resolusi tinggi) '
+                         'atau URL HTTPS foto milik Anda. Setelah itu isi kredit dan lisensi. /cancel untuk batal.')
+                else:
+                    send('🔎 Kirim kata kunci foto yang spesifik sesuai subjek berita. '
+                         'Saya akan tampilkan opsi yang memiliki sumber dan lisensi. /cancel untuk batal.')
+                return {'ok':True,'photo_entry':action}
+            elif action in ('highlight','caption','manualhook','green'):
                 if d.status in ('published','rejected') or d.publish_state in ('publishing','published','uncertain'):
                     raise ValueError('Draf ini tidak dapat diedit.')
                 sess=db.get(TelegramSession,str(uid))
