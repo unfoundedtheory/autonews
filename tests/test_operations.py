@@ -26,7 +26,7 @@ class BotStub:
         Image.new('RGB',(1600,1400),(8,25,39)).save(path)
         return str(path)
 
-def test_telegram_direct_photo_requires_attribution_and_new_approval(db,tmp_path,monkeypatch):
+def test_telegram_direct_photo_immediate_preview_without_metadata_form(db,tmp_path,monkeypatch):
     source='https://science.nasa.gov/example-news/'
     st=Story(fingerprint=fingerprint(source),title='Astronomy report',source_url=source,source_name='NASA',topic='astronomy',
              verification_status='verified',evidence=[{'claim':'observed','url':source,'evidence_checked':True}])
@@ -43,19 +43,14 @@ def test_telegram_direct_photo_requires_attribution_and_new_approval(db,tmp_path
     assert web.telegram_webhook(cb,db=db)['ok']
     msg={'message':{'from':{'id':42},'chat':{'id':100},'photo':[{'file_id':'photo','width':1600,'height':1400}]}}
     response=web.telegram_webhook(msg,db=db)
-    assert response['awaiting']=='photo_credit'
+    assert response['photo_replaced']==dr.id
     assert dr.version==2 and dr.photo_license is None and not dr.rights_reviewed
     assert Path(dr.image_local_path).exists()
-    bad={'message':{'from':{'id':42},'chat':{'id':100},'text':'bukan format'}}
-    web.telegram_webhook(bad,db=db)
-    assert dr.photo_license is None
-    details={'message':{'from':{'id':42},'chat':{'id':100},'text':'Kredit: NASA Chandra\nLisensi: Public domain\nSumber: https://science.nasa.gov/example-news/'}}
-    web.telegram_webhook(details,db=db)
-    assert dr.photo_license == 'Public domain' and not dr.rights_reviewed
-    cb['callback_query']['data']=f'rights:{dr.id}:{dr.version}'
-    web.telegram_webhook(cb,db=db)
-    assert not dr.rights_reviewed  # old callback must not claim license verification
+    from utbot.models import TelegramSession
+    assert db.get(TelegramSession,'42') is None
+    assert not any('Balas dua baris' in content for kind,content in bot.out if kind=='msg')
     assert dr.approved_version is None
+
 
 def test_worker_loop_repeats_once_per_window(monkeypatch):
     invoked=[]
