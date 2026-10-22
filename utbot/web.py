@@ -1248,7 +1248,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 db.commit()
                 if action=='photoupload':
                     send('📤 Kirim foto langsung melalui Telegram (gunakan resolusi tinggi) '
-                         'atau URL HTTPS foto milik Anda. Setelah itu isi kredit dan lisensi. /cancel untuk batal.')
+                         'atau URL HTTPS foto milik Anda. Preview baru langsung dikirim tanpa formulir tambahan. /cancel untuk batal.')
                 else:
                     send('🔎 Kirim kata kunci foto yang spesifik sesuai subjek berita. '
                          'Saya akan tampilkan opsi yang memiliki sumber dan lisensi. /cancel untuk batal.')
@@ -1338,12 +1338,15 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         if not bot:raise ValueError('Bot Telegram belum dikonfigurasi')
                         best=max(msg['photo'],key=lambda x:x.get('width',0)*x.get('height',0))
                         _replace_telegram_photo(db,d,best['file_id'],uid,bot)
-                        sess.mode='photo_credit'
-                        sess.version=d.version
+                        # Replacing the photo completes the editor action. Do not
+                        # leave the user trapped in a second photo_credit session:
+                        # the optional metadata editor remains under Lainnya.
+                        db.delete(sess)
                         db.commit()
                         send_editor_preview(db,bot,chat_id,d,st)
-                        send('Foto diterima. Balas dua baris seperti ini:\nKredit: NASA/Chandra\nLisensi: Public domain\nTambahkan URL sumber jika ada. /cancel untuk batal.')
-                        return {'ok':True,'awaiting':'photo_credit'}
+                        send('✅ Foto berhasil diganti. Periksa preview dan kesesuaian '
+                             'gambar dengan berita sebelum Approve.',finished=True)
+                        return {'ok':True,'photo_replaced':d.id,'version':d.version}
                     if sess.mode=='manual_post_link':
                         from .automation_mode import manual_post_ready
                         if not manual_post_ready(db,d) or d.publish_state!='unpublished':
