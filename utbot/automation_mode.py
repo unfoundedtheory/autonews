@@ -57,6 +57,11 @@ def auto_approve_ready(db,limit=15):
         if not photo_auto_safe(d):
             blocked.append({'draft_id':d.id,'reason':'photo_rights_or_cover_not_verified'})
             continue
+        from .publication_guard import auto_visual_safe
+        visual_ok,visual_reason=auto_visual_safe(db,d,story)
+        if not visual_ok:
+            blocked.append({'draft_id':d.id,'reason':visual_reason})
+            continue
         qc=report_for_draft(db,d,story)
         if not qc.get('passed') or qc.get('style_review')!='passed':
             blocked.append({'draft_id':d.id,'reason':'editorial_qc_not_passed'})
