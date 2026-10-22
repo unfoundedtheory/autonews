@@ -101,6 +101,11 @@ def auto_approve_overdue(db, *, now=None, config=CONFIG, limit=5):
         # For auto approval, the latest *version-specific* QC must be real,
         # passed, and current. The normal one-click human legacy waiver is
         # deliberately not available here.
+        from .publication_guard import auto_visual_safe
+        visual_ok, _ = auto_visual_safe(db, d, story)
+        if not visual_ok:
+            blocked.append(d.id)
+            continue
         qc = report_for_draft(db, d, story)
         if not qc['passed'] or qc.get('style_review') != 'passed':
             blocked.append(d.id)
