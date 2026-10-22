@@ -1011,7 +1011,6 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     send('ℹ️ Foto utama artikel belum bisa dipakai: '+str(hero_error)[:150]+
                          '. Mencari alternatif Wikimedia yang berlisensi.')
                 from .photo_relevance import search_queries,photo_subject_match
-                from .media import find_photos
                 choices=[]
                 visited=set()
                 errors=[]
