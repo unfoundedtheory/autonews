@@ -68,6 +68,8 @@ def test_full_auto_never_approves_old_or_unverified_drafts(monkeypatch):
 
 
 def test_full_auto_approves_only_new_qc_passed_rights_safe_draft(monkeypatch):
+    # This test isolates the scheduling/rights gate; visual identity has separate regression coverage.
+    monkeypatch.setattr('utbot.publication_guard.auto_visual_safe',lambda db,d,st:(True,'ok'))
     db=session()
     monkeypatch.setattr('utbot.automation_mode.CONFIG',
         replace(web.CONFIG,live_publish=True,photo_music_mode='off'))

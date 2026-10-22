@@ -92,7 +92,8 @@ def test_draft_stock_fills_gradually_without_unbounded_calls(db):
     assert stock_to_prepare(db,opts)==1
 
 
-def test_timeout_requires_elapsed_24h_qc_and_photo_rights(db,tmp_path):
+def test_timeout_requires_elapsed_24h_qc_and_photo_rights(db,monkeypatch,tmp_path):
+    monkeypatch.setattr('utbot.publication_guard.auto_visual_safe',lambda db,d,st:(True,'ok'))
     now=datetime.now(timezone.utc)
     _,d=seed(db)
     d.updated_at=now-timedelta(hours=23);db.commit()
@@ -106,7 +107,8 @@ def test_timeout_requires_elapsed_24h_qc_and_photo_rights(db,tmp_path):
     assert auto_approve_overdue(db,now=now,config=settings)['approved']==[]
 
 
-def test_timeout_rejects_missing_qc_and_unclear_or_attribution_licenses(db,tmp_path):
+def test_timeout_rejects_missing_qc_and_unclear_or_attribution_licenses(db,monkeypatch,tmp_path):
+    monkeypatch.setattr('utbot.publication_guard.auto_visual_safe',lambda db,d,st:(True,'ok'))
     now=datetime.now(timezone.utc)
     settings=config(tmp_path)
     _,d=seed(db,license='CC BY 4.0')
@@ -178,6 +180,7 @@ def test_legacy_approved_draft_gets_stock_kit_without_second_approval(db):
 
 
 def test_auto_approved_photo_uses_graph_api_only_without_manual_handoff(db,monkeypatch,tmp_path):
+    monkeypatch.setattr('utbot.publication_guard.auto_visual_safe',lambda db,d,st:(True,'ok'))
     st,d=seed(db)
     settings=config(tmp_path)
     now=datetime.now(timezone.utc)
