@@ -123,3 +123,16 @@ def test_headline_never_uses_an_orphan_final_word():
     _,lines,_=_headline_layout(draw,'Inilah Tangan Tuhan, Struktur Sinar-X Raksasa Yang Masih Membingungkan NASA')
     assert len(lines[-1].split()) > 1
     assert len(lines[-1].split())>1
+
+
+def test_cover_balances_multiple_lines_without_changing_brand_leading():
+    from utbot.renderer import _headline_layout, _line_width, WIDTH, MARGIN, LINE_SPACING
+    draw=ImageDraw.Draw(Image.new('RGB',(1080,1350)))
+    hook='Bilah Rotor Baru Ini Bisa Bawa Helikopter Mars Terbang Sejauh 18 Kilometer Dalam Sekali Jalan'
+    font,lines,_=_headline_layout(draw,hook)
+    widths=[_line_width(draw,line,font) for line in lines]
+    assert 2<=len(lines)<=5
+    assert max(widths)<=WIDTH-2*MARGIN
+    assert min(widths)>0
+    assert ' '.join(lines)==hook.upper()
+    assert LINE_SPACING==1.08

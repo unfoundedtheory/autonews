@@ -17,7 +17,7 @@ WHITE = "#FFFFFF"
 SIDE_MARGIN = 56
 BOTTOM_MARGIN = 56
 MARGIN = SIDE_MARGIN              # backward-compatible horizontal safe area
-LAYOUT_STYLE = "fixed_reference_logo_edge_safe_max_font_before_lines_v11"
+LAYOUT_STYLE = "fixed_reference_logo_balanced_edge_coverage_v12"
 # Owner's 1080×1350 reference: logo is locked at (402,900)-(678,948).
 # Headline ALWAYS begins beneath it, at y=981. Only font size and
 # inter-line pitch may adapt to the available space. Safe edge gap: 56px.
@@ -197,13 +197,14 @@ def _headline_layout(draw, highlight, font_path=None, max_width=WIDTH-2*MARGIN):
             if len(words)>3 and len(lines[-1].split())==1:
                 continue
             # All options at this font size satisfy the non-negotiable margins.
-            # Prefer a nearly edge-filled line, then balanced line widths;
-            # four lines is a tiebreaker, NOT a reason to reduce font size.
-            edge=max(widths)/max_width
-            mean=sum(widths)/(count*max_width)
-            weak=min(widths)/max_width
-            balance=-sum((w/max_width-mean)**2 for w in widths)/count
-            feasible.append(((edge, mean, weak, balance, -abs(count-4)),
+            # Prefer consistent edge coverage across all lines. A single
+            # extra-wide line must not conceal weak, narrow neighboring lines.
+            ratios=[w/max_width for w in widths]
+            mean=sum(ratios)/count
+            weak=min(ratios)
+            balance=-sum((ratio-mean)**2 for ratio in ratios)/count
+            edge=max(ratios)
+            feasible.append(((mean, weak, balance, edge, -abs(count-4)),
                              lines))
         if feasible:
             _,lines=max(feasible,key=lambda pair:pair[0])
