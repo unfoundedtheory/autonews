@@ -811,6 +811,35 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 db.commit()
                 send('Kirim tautan posting Instagram https://www.instagram.com/p/... setelah Anda menerbitkannya.')
                 return {'ok':True,'manual_post':'awaiting_link'}
+            elif action in ('carousel','carousel20','carouselpreview','carsingle'):
+                from .carousel import build_carousel,send_carousel_preview,slides_for
+                if action == 'carouselpreview':
+                    if not slides_for(d):
+                        raise ValueError("Carousel belum dibuat. Klik Buat Carousel.")
+                    send_carousel_preview(bot,chat_id,d)
+                else:
+                    if d.status!='pending_approval' or d.publish_state!='unpublished':
+                        raise ValueError("Ubah carousel hanya sebelum approval.")
+                    if action=='carsingle':
+                        if d.post_format=='carousel':
+                            d.post_format='single';d.carousel_slides=[]
+                            render_draft(d)
+                    else:
+                        d.carousel_slides=build_carousel(db,d,st,limit=20 if action=='carousel20' else 10)
+                        d.post_format='carousel'
+                        # The preview and Facebook photo must show the same
+                        # newly rendered carousel cover as Instagram slide 1.
+                        d.image_url=d.carousel_slides[0]['image_url']
+                    d.version+=1;d.approved_version=None
+                    d.ig_container_id=None;d.scheduled_at=None
+                    db.add(Audit(draft_id=d.id,event='carousel_format_changed',
+                                 actor=str(uid),detail={'version':d.version,
+                                    'format':d.post_format,'slides':len(d.carousel_slides or [])}))
+                    db.commit()
+                    send_editor_preview(db,bot,chat_id,d,st)
+                    send(('📚 Carousel '+str(len(d.carousel_slides or []))+' slide disiapkan. '
+                          'Lihat Preview Slide lalu Approve.' if action in ('carousel','carousel20')
+                          else '✅ Kembali ke single post.'),finished=True)
             elif action=='more':
                 if bot:bot.message(chat_id,'⋯ Opsi lanjutan untuk draf ini:',with_home_button(advanced_keyboard(d)))
             elif action=='actions':
@@ -831,6 +860,10 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 if not any((entry or {}).get('version')==d.version for entry in approvals):
                     raise ValueError('Draft ini disetujui dalam mode lama. '
                                      'Jangan posting otomatis tanpa approval foto baru.')
+                if d.post_format=='carousel':
+                    from .carousel import require_slide_set,validate_daily_limit
+                    require_slide_set(d,for_api=True)
+                    validate_daily_limit(db,d,datetime.now(timezone.utc))
                 d.rights_reviewed=True
                 # An explicit Post Sekarang request overrides a future posting slot.
                 # The publisher still enforces approved version and unpublished state.
@@ -1103,6 +1136,9 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     db.add(Audit(draft_id=d.id,event='photo_reviewed_by_owner',
                                  actor=str(uid),detail={'version':d.version,
                                                         'source':'telegram_final_approve'}))
+                if d.post_format=='carousel':
+                    from .carousel import require_slide_set
+                    require_slide_set(d)
                 schedule_approved(db,daily_limit=CONFIG.daily_limit)
                 db.commit()
                 at=d.scheduled_at.astimezone(WIB).strftime('%d %b %Y %H:%M WIB') if d.scheduled_at else 'belum tersedia'
@@ -1539,6 +1575,14 @@ def publish_job(db=Depends(session), target_draft_id=None):
             from .stock_flow import photo_auto_safe, is_auto_approved
             if not (manual_mode and is_auto_approved(db,d) and photo_auto_safe(d)):
                 return {'blocked':d.id,'error':'Hak foto belum dikonfirmasi'}
+    if d.post_format=='carousel':
+        from .carousel import require_slide_set,validate_daily_limit
+        try:
+            require_slide_set(d,for_api=True)
+            validate_daily_limit(db,d,d.scheduled_at)
+        except ValueError as exc:
+            d.last_error=str(exc);db.commit()
+            return {'blocked':d.id,'error':str(exc)}
     # Lock claim before ANY external request. Stuck publishing requires manual reconciliation.
     d.publish_state='publishing';db.commit()
     bot=_bot()
@@ -1552,7 +1596,20 @@ def publish_job(db=Depends(session), target_draft_id=None):
             d.image_url=upload_public_jpeg(d.image_local_path,f'{d.id}/v{d.version}.jpg')
             db.commit()
         if not d.ig_container_id:
-            d.ig_container_id=publisher.create_container(d.image_url,caption_text(d,allow_missing_credit=True))
+            if d.post_format=='carousel':
+                from .carousel import require_slide_set,compose_api_caption
+                slides=require_slide_set(d,for_api=True)
+                # Persist each child ID before continuing to avoid blind retries.
+                # A partial failure is reconciled as uncertain, never auto-republished.
+                child_ids=[]
+                for slide in slides:
+                    cid=publisher.create_carousel_child(slide['image_url'])
+                    child_ids.append(cid)
+                d.ig_container_id=publisher.create_carousel_container(
+                    child_ids,compose_api_caption(d))
+            else:
+                d.ig_container_id=publisher.create_container(
+                    d.image_url,caption_text(d,allow_missing_credit=True))
             db.commit()
         status=publisher.container_status(d.ig_container_id)
         if status not in ('FINISHED','ERROR','EXPIRED'):

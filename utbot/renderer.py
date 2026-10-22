@@ -377,3 +377,65 @@ def render(input_image, highlight, outpath, accent_words=None, logo_path=None,
     outpath.parent.mkdir(parents=True, exist_ok=True)
     img.save(outpath, "JPEG", quality=95, optimize=True, subsampling=0)
     return str(outpath)
+
+
+def render_carousel_cover(input_image, highlight, outpath, logo_path=None, font_path=None):
+    """Distinct carousel cover: small logo top-left, headline above bottom menu-safe area.
+
+    Existing single-photo fixed logo and typography remain unchanged.
+    """
+    image = Image.open(input_image)
+    if min(image.size) < 600:
+        raise ValueError("Foto carousel di bawah 600 piksel")
+    if not highlight or len(highlight.strip()) > 245:
+        raise ValueError("Highlight carousel tidak valid")
+    image = _place_photo(image, (0.5, 0.43))
+    # Only the lower third is shaded; preserve the subject and sky above.
+    overlay = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
+    from PIL import Image as PILImage
+    shade = PILImage.new("L", (1, HEIGHT))
+    for y in range(HEIGHT):
+        alpha = max(0, min(205, int(205 * (y - 680) / 450)))
+        shade.putpixel((0, y), alpha)
+    shade = shade.resize((WIDTH, HEIGHT))
+    overlay.paste(PILImage.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 255)), (0, 0), shade)
+    image = PILImage.alpha_composite(image.convert("RGBA"), overlay).convert("RGB")
+    logo = Path(logo_path) if logo_path else DEFAULT_BADGE
+    if logo.is_file():
+        badge = Image.open(logo).convert("RGBA")
+        badge.thumbnail((260, 90), Image.Resampling.LANCZOS)
+        image.paste(badge, (SIDE_MARGIN, SIDE_MARGIN), badge)
+    draw = ImageDraw.Draw(image)
+    words = highlight.strip().split()
+    fitted = None
+    # "Above menu": headline occupies lower-middle; no headline under Instagram controls.
+    for size in range(102, 39, -2):
+        face = _font(size, font_path)
+        max_width = WIDTH - SIDE_MARGIN * 2
+        lines = []
+        line = ""
+        for word in words:
+            proposal = (line + " " + word).strip()
+            if draw.textbbox((0, 0), proposal, font=face)[2] <= max_width:
+                line = proposal
+            else:
+                if line:
+                    lines.append(line)
+                line = word
+        if line:
+            lines.append(line)
+        pitch = int(size * 1.08)
+        if len(lines) <= 6 and len(lines) * pitch <= 380:
+            fitted = (face, lines, pitch)
+            break
+    if fitted is None:
+        raise ValueError("Highlight carousel terlalu panjang untuk margin aman")
+    face, lines, pitch = fitted
+    top = 1050 - pitch * len(lines)
+    for index, line in enumerate(lines):
+        draw.text((SIDE_MARGIN, top + index * pitch), line,
+                  font=face, fill=WHITE, stroke_width=1)
+    target = Path(outpath)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    image.save(target, "JPEG", quality=94, optimize=True)
+    return str(target)

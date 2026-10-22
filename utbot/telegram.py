@@ -18,6 +18,9 @@ def keyboard(draft):
         ]
     elif draft.status=='approved':
         rows=[]
+        if getattr(draft, 'post_format','single')=='carousel':
+            rows.append([{'text':'👁 Preview Carousel',
+                          'callback_data':f'carouselpreview:{ref}:{v}'}])
         if draft.publish_state=='unpublished':
             rows.append([{'text':'📸 Post Sekarang','callback_data':f'postnow:{ref}:{v}'}])
         rows.append([{'text':'📋 Detail & Opsi','callback_data':f'more:{ref}:{v}'}])
@@ -60,6 +63,14 @@ def advanced_keyboard(draft):
     rows=[]
     editable=(draft.status in ('pending_approval','approved')
               and draft.publish_state not in ('publishing','published','uncertain','awaiting_container'))
+    if draft.status=='pending_approval' and draft.publish_state=='unpublished':
+        rows.append([{'text':'📚 Buat Carousel','callback_data':f'carousel:{ref}:{v}'},
+                     {'text':'↩️ Single Post','callback_data':f'carsingle:{ref}:{v}'}])
+        if getattr(draft,'post_format','single')=='carousel':
+            rows.append([{'text':'👁 Preview Carousel','callback_data':f'carouselpreview:{ref}:{v}'}])
+    if editable and draft.status=='pending_approval':
+        rows.append([{'text':'📚 Carousel manual sampai 20 slide',
+                      'callback_data':f'carousel20:{ref}:{v}'}])
     if editable:
         rows.append([
             {'text':'✨ Alternatif Hook','callback_data':f'hookideas:{ref}:{v}'},
