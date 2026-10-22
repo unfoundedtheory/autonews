@@ -1011,12 +1011,13 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     send('ℹ️ Foto utama artikel belum bisa dipakai: '+str(hero_error)[:150]+
                          '. Mencari alternatif Wikimedia yang berlisensi.')
                 from .photo_relevance import search_queries,photo_subject_match
+                from . import media as _media
                 choices=[]
                 visited=set()
                 errors=[]
                 for term in search_queries(st.title,story_title=st.title):
                     try:
-                        candidates=find_photos(term,limit=6)
+                        candidates=_media.find_photos(term,limit=6)
                     except (httpx.HTTPError,ValueError) as exc:
                         errors.append(type(exc).__name__)
                         continue
@@ -1204,6 +1205,8 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 from .photo_relevance import photo_subject_match
                 existing=db.get(TelegramSession,str(uid))
                 if existing:db.delete(existing);db.flush()
+                # Direct photo messages still work after opening candidate choices.
+                db.add(TelegramSession(user_id=str(uid),draft_id=d.id,mode='photo',version=d.version))
                 # Keep already discovered, relevant images; otherwise search
                 # Wikimedia using the actual article topic, not a generic NASA term.
                 opts=[item for item in (d.photo_candidates or [])
