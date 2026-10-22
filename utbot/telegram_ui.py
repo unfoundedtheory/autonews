@@ -54,6 +54,10 @@ def photo_keyboard(draft):
         buttons.append({'text':f'✅ Pilih {index}',
                         'callback_data':f'pick{index-1}:{draft.id}:{draft.version}'})
         rows.append(buttons)
+    rows.append([{'text':'📤 Upload Foto Sendiri',
+                  'callback_data':f'photoupload:{draft.id}:{draft.version}'},
+                 {'text':'🔎 Cari Foto Lain',
+                  'callback_data':f'photosearch:{draft.id}:{draft.version}'}])
     rows.append([{'text':'↩️ Kembali ke Draf',
                   'callback_data':f'open:{draft.id}:{draft.version}'}])
     return {'inline_keyboard':rows}
