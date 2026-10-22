@@ -119,6 +119,8 @@ def test_content_studio_uses_actual_cover_not_html_overlay():
 
 
 def test_full_auto_generates_real_schedule_without_owner_data_entry(monkeypatch):
+    # This test isolates the scheduling/rights gate; visual identity has separate regression coverage.
+    monkeypatch.setattr('utbot.publication_guard.auto_visual_safe',lambda db,d,st:(True,'ok'))
     """New rights-safe content after activation is scheduled and shown on calendar."""
     from utbot import automation_mode
     monkeypatch.setattr(automation_mode,'CONFIG',
