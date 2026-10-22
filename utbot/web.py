@@ -1203,7 +1203,6 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 if d.status in ('published','rejected','removed_by_owner') or d.publish_state!='unpublished':
                     raise ValueError('Foto hanya dapat diganti sebelum proses publikasi.')
                 from .photo_relevance import photo_subject_match
-                from .telegram_ui import photo_candidate_message
                 existing=db.get(TelegramSession,str(uid))
                 if existing:db.delete(existing);db.flush()
                 # Keep already discovered, relevant images; otherwise search
