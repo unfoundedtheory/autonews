@@ -24,6 +24,15 @@ Dirangkum dari koreksi, teori hook, dan diskusi selama proses pembuatan konten. 
 - Untuk tragedi/bencana, jangan memancing perdebatan atau komentar dengan mengeksploitasi korban. Tetap faktual dan empatik.
 - **Kelayakan berita**: prioritaskan kandidat dengan nilai rasa penasaran, kekuatan bukti, relevansi dan sudut diskusi. Jika unsur diskusi tidak ada, berita edukatif tetap boleh dipakai **hanya** bila mempunyai keunikan ilmiah yang menonjol dan didukung sumber.
 
+## Prinsip Pemilihan Angle: Rasa Penasaran dan Diskusi
+
+- Utamakan fakta dengan paradoks, misteri terverifikasi, kesalahpahaman umum, dampak sehari-hari, atau konsekuensi nyata yang pantas dibicarakan.
+- Jangan hanya mengulang pengumuman lembaga atau daftar kegiatan. Pilih pertanyaan yang relevan, bukan sensasi.
+- AI mengevaluasi tiga angle: fakta paling mengejutkan, asumsi umum yang ditantang data, dan implikasi terhadap pembaca. Pilih yang memiliki dasar bukti terkuat.
+- Caption menjelaskan konteks dan data secara lengkap. Pertanyaan penutup harus spesifik dan mampu menghasilkan diskusi substantif; bukan pertanyaan generik.
+- Dilarang mengarang perdebatan, menyesatkan dengan kepastian palsu, atau mengeksploitasi tragedi untuk komentar.
+- Konten edukasi tetap boleh bila keunikan ilmiahnya tinggi meskipun tanpa pro-kontra.
+
 ## 2. Aturan Highlight
 
 **Format penulisan**
