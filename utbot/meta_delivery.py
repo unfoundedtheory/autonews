@@ -12,9 +12,9 @@ from .config import CONFIG
 from .meta import MetaGraph
 from .instagram import caption_text
 
-def publish_facebook_once(db,draft,*,actor="worker",poster=None,config=None):
+def publish_facebook_once(db,draft,*,actor="worker",poster=None,config=None,facebook_first=False):
     config=config or CONFIG
-    if not (config.facebook_crosspost and config.live_publish):
+    if not (config.live_publish and (facebook_first or config.facebook_crosspost)):
         return {'facebook':'disabled'}
     # OAuth already stores a Page token encrypted at rest. Prefer the owner-
     # authorized Page rather than requiring a second independent token setup.
@@ -48,10 +48,12 @@ def publish_facebook_once(db,draft,*,actor="worker",poster=None,config=None):
         Audit.event.in_(['facebook_publish_started','facebook_published','facebook_uncertain','facebook_rejected'])
     ).first()
     if previous:
+        if previous.event=='facebook_published':
+            return {'facebook':'published','facebook_post_id':(previous.detail or {}).get('post_id'),'already_attempted':True}
         return {'facebook':'already_attempted', 'requires_reconciliation':True}
     # Publication already requires current-version approval. Do not block a
     # confirmed Instagram post solely because an older review flag was false.
-    if draft.status!='published' or draft.approved_version!=draft.version:
+    if draft.status not in (('approved','published') if facebook_first else ('published',)) or draft.approved_version!=draft.version:
         return {'facebook':'blocked','reason':'Confirmed Instagram post with current-version approval required'}
     if not draft.image_url or not draft.image_url.startswith('https://'):
         return {'facebook':'blocked','reason':'No publicly hosted JPEG'}
@@ -62,8 +64,13 @@ def publish_facebook_once(db,draft,*,actor="worker",poster=None,config=None):
     db.commit()
     try:
         adapter=poster or MetaGraph(page_token,config.facebook_graph_version)
-        result=adapter.publish_page_photo(page_id,draft.image_url,
-                                          caption_text(draft,allow_missing_credit=True))
+        if getattr(draft,'post_format','single')=='carousel':
+            from .carousel import require_slide_set,compose_api_caption
+            images=[slide['image_url'] for slide in require_slide_set(draft)]
+            result=adapter.publish_page_album(page_id,images,compose_api_caption(draft) if len(images)<=10 else caption_text(draft,allow_missing_credit=True))
+        else:
+            result=adapter.publish_page_photo(page_id,draft.image_url,
+                                              caption_text(draft,allow_missing_credit=True))
         db.add(Audit(draft_id=draft.id,event='facebook_published',actor=str(actor),
                      detail={'page_id':page_id,
                              'photo_id':result['photo_id'],'post_id':result['id']}))
