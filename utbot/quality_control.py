@@ -7,7 +7,7 @@ from .config import CONFIG
 from .editorial import read_editorial_guide, editorial_instructions, editorial_guide_sha256
 from .ai_provider import generate_json
 
-QC_RUBRIC_VERSION='curiosity-gap-v2'
+QC_RUBRIC_VERSION='curiosity-gap-v3-engagement'
 
 FILLERS=('di sinilah ceritanya jadi penting','menariknya lagi,','tentu saja,','tak bisa dimungkiri','ini bukan clickbait')
 SENSATIONAL=('anda tidak akan percaya','fakta mengejutkan','dijamin viral','bikin geger')
@@ -56,7 +56,7 @@ def assess(highlight, caption, hashtags, evidence, *, tragedy=False, image=None,
 
 def _validated_checks(result):
     checks=result.get('checks')
-    needed=('curiosity_gap','reader_relevance','caption_story','fact_integrity')
+    needed=('curiosity_gap','reader_relevance','discussion_value','caption_story','fact_integrity')
     if not isinstance(checks,dict) or any(key not in checks for key in needed):
         raise ValueError('AI QC tidak menyertakan rubrik curiosity gap dan SOP lengkap.')
     verified={}
@@ -88,7 +88,7 @@ def review_style(highlight, caption, evidence, *, tragedy=False, llm=None):
         'hasil. Contoh buruk: "Mengapa Satu Tahun Penuh di Planet Merah '
         'Berlangsung Selama Hampir Dua Kali Lipat Waktu Bumi" karena sudah '
         'menjelaskan hasil, terasa seperti materi pelajaran. '
-        'reader_relevance: ada kaitan manusiawi, fakta mencolok atau kontras '
+        'discussion_value: harus ada pertanyaan spesifik dari bukti yang membuat pembaca ingin membahas fakta, paradoks, ketidakpastian atau implikasi nyata; ringkasan pengumuman dan pertanyaan generik harus gagal. '\n        'reader_relevance: ada kaitan manusiawi, fakta mencolok atau kontras '
         'terbukti, bukan info administratif. Contoh arah hook yang lebih kuat: '
         '"Kalau Kamu Tinggal di Mars Kapan Ulang Tahunmu Akan Datang Lagi", '
         'tetapi jangan membuat klaim sehari di Mars 48 jam: itu tidak benar. '
@@ -98,7 +98,7 @@ def review_style(highlight, caption, evidence, *, tragedy=False, llm=None):
         'didukung kutipan; bedakan hari dan tahun planet, prediksi vs temuan. '
         'Kembalikan JSON object dengan passed(boolean), issues(array kode '
         'masalah), note(string), dan checks(object). '
-        'checks wajib berisi curiosity_gap, reader_relevance, caption_story, '
+        'checks wajib berisi curiosity_gap, reader_relevance, discussion_value, caption_story, '
         'fact_integrity. Tiap check punya passed(boolean), reason(string, '
         'minimum 15 karakter dengan alasan SPESIFIK). curiosity_gap wajib '
         'punya unanswered_question(string minimal 12 karakter). '
