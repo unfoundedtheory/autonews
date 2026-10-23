@@ -231,8 +231,8 @@ def test_facebook_failure_requires_reconciliation():
         db.close()
 
 
-@pytest.mark.parametrize('facebook_outcome', ['published','disabled','not_configured','uncertain','exception'])
-def test_facebook_first_halts_instagram_when_page_fails(monkeypatch,facebook_outcome):
+@pytest.mark.parametrize('facebook_outcome', ['published','disabled','not_configured','uncertain','rejected','exception'])
+def test_instagram_publishes_first_regardless_of_facebook_outcome(monkeypatch,facebook_outcome):
     db=make_db()
     try:
         _,d=approved_draft(db)
@@ -244,30 +244,97 @@ def test_facebook_first_halts_instagram_when_page_fails(monkeypatch,facebook_out
                          facebook_crosspost=True)
         monkeypatch.setattr(web,'CONFIG',settings)
         monkeypatch.setattr(web,'_bot',lambda:None)
-        ig_calls=[]
+        sequence=[]
         class FakeInstagram:
-            def create_container(self,*args):ig_calls.append('container');return 'container-1'
+            def create_container(self,*args):
+                sequence.append('ig_container')
+                return 'container-1'
             def container_status(self,*args):return 'FINISHED'
-            def publish(self,*args):ig_calls.append('publish');return 'ig-media-1'
+            def publish(self,*args):
+                sequence.append('ig_publish')
+                return 'ig-media-1'
         monkeypatch.setattr(web,'InstagramPublisher',lambda *a:FakeInstagram())
-        calls=[]
         def facebook(db,draft,**kwargs):
-            assert draft.status=='approved' and draft.ig_media_id is None
-            assert kwargs['facebook_first'] is True
-            calls.append(draft.id)
-            if facebook_outcome=='exception':raise RuntimeError('Facebook unavailable')
+            assert draft.status=='published'
+            assert draft.publish_state=='published'
+            assert draft.ig_media_id=='ig-media-1'
+            assert db.query(Audit).filter_by(draft_id=d.id,event='published').count()==1
+            assert kwargs['facebook_first'] is False
+            sequence.append('fb_attempt')
+            if facebook_outcome=='exception':
+                raise RuntimeError('Facebook unavailable')
             return {'facebook':facebook_outcome}
         monkeypatch.setattr(web,'publish_facebook_once',facebook)
         out=web.publish_job(db=db)
-        if facebook_outcome=='published':
-            assert out['instagram_media_id']=='ig-media-1'
-            assert ig_calls==['container','publish']
-            assert db.get(Draft,d.id).publish_state=='published'
-        else:
-            assert out['facebook']==('uncertain' if facebook_outcome=='exception' else facebook_outcome)
-            assert ig_calls==[]
-            assert db.get(Draft,d.id).publish_state!='published'
-        assert calls==[d.id]
+        assert out['instagram_media_id']=='ig-media-1'
+        assert out['published']==[d.id]
+        assert out['facebook']==('error' if facebook_outcome=='exception' else facebook_outcome)
+        assert sequence==['ig_container','ig_publish','fb_attempt']
+        assert db.get(Draft,d.id).publish_state=='published'
+        assert db.get(Draft,d.id).status=='published'
+        assert web.publish_job(db=db)['due']==0
+        assert sequence==['ig_container','ig_publish','fb_attempt']
+    finally:
+        db.close()
+
+
+def test_facebook_403_after_instagram_records_failure_without_reposting(monkeypatch):
+    db=make_db()
+    try:
+        _,d=approved_draft(db)
+        db.add(Audit(draft_id=d.id,event='photo_only_approved',actor='42',
+                     detail={'version':d.version}))
+        db.commit()
+        settings=replace(CONFIG,photo_music_mode='off',live_publish=True,
+                         ig_user_id='456',ig_token='test-token',
+                         facebook_crosspost=True,
+                         facebook_page_id='123',facebook_page_token='secret')
+        monkeypatch.setattr(web,'CONFIG',settings)
+        monkeypatch.setattr(web,'_bot',lambda:None)
+        sequence=[]
+        class FakeInstagram:
+            def create_container(self,*args):return 'container-1'
+            def container_status(self,*args):return 'FINISHED'
+            def publish(self,*args):
+                sequence.append('instagram')
+                return 'ig-media-1'
+        monkeypatch.setattr(web,'InstagramPublisher',lambda *a:FakeInstagram())
+        def rejected(*args):
+            sequence.append('facebook')
+            raise ValueError('Meta Graph HTTP 403 (details withheld)')
+        poster=SimpleNamespace(publish_page_photo=rejected)
+        monkeypatch.setattr(web,'publish_facebook_once',
+            lambda db,draft,**kwargs: publish_facebook_once(
+                db,draft,poster=poster,config=settings,actor=kwargs['actor']))
+        out=web.publish_job(db=db)
+        assert out['published']==[d.id]
+        assert out['facebook']=='rejected'
+        assert out['reason']=='graph_http_403'
+        assert sequence==['instagram','facebook']
+        assert db.get(Draft,d.id).publish_state=='published'
+        assert db.query(Audit).filter_by(draft_id=d.id,event='facebook_rejected').count()==1
+        assert web.publish_job(db=db)['due']==0
+        assert sequence==['instagram','facebook']
+    finally:
+        db.close()
+
+
+def test_manual_music_handoff_is_not_blocked_by_facebook(monkeypatch):
+    db=make_db()
+    try:
+        _,d=approved_draft(db)
+        sent=[]
+        bot=SimpleNamespace(message=lambda *args,**kwargs:sent.append(args))
+        monkeypatch.setattr(web,'TelegramClient',lambda *args:bot)
+        monkeypatch.setattr(web,'CONFIG',replace(CONFIG,photo_music_mode='manual',
+                             telegram_token='test-token',chat_id='123',
+                             live_publish=True,facebook_crosspost=True))
+        monkeypatch.setattr(web,'publish_facebook_once',
+            lambda *args,**kwargs: pytest.fail('Facebook must wait for Instagram confirmation'))
+        out=web.publish_job(db=db)
+        assert out['manual_music']=='awaiting_editor'
+        assert db.get(Draft,d.id).publish_state=='manual_music_pending'
+        assert sent
     finally:
         db.close()
 
