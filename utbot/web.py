@@ -1638,6 +1638,15 @@ def publish_job(db=Depends(session), target_draft_id=None):
         except ValueError as exc:
             d.last_error=str(exc);db.commit()
             return {'blocked':d.id,'error':str(exc)}
+    # Facebook needs a public, immutable JPEG, not a short-lived Vercel /tmp file.
+    if not d.image_url and d.image_local_path:
+        try:
+            d.image_url=upload_public_jpeg(d.image_local_path,f'{d.id}/v{d.version}.jpg')
+            db.commit()
+        except (ValueError,RuntimeError,OSError,httpx.HTTPError) as exc:
+            d.last_error='Cover Facebook belum tersedia: '+type(exc).__name__
+            db.commit()
+            return {'blocked':d.id,'error':d.last_error}
     # Facebook Page must succeed before any Instagram container is created.
     # A 403, timeout or ambiguous Page response MUST NOT degrade to Instagram-only.
     try:
