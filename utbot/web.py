@@ -1409,12 +1409,14 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                         _replace_photo(db,d,txt,uid)
                     elif sess.mode in ('photo','photo_search'):
                         opts=find_photos(txt,limit=3)
-                            if not opts:raise ValueError('Tidak ada foto dengan metadata lisensi yang memenuhi syarat.')
-                            d.photo_candidates=opts;db.commit()
-                            send('Pilihan foto Commons ditemukan. Tinjau tautan dan lisensi sebelum memilih:\n'+
-                                 '\n'.join(f'{i+1}. {opt["title"]}: {opt["page_url"]}' for i,opt in enumerate(opts)))
-                            if bot:bot.message(chat_id,'Pilih foto:',photo_keyboard(d))
-                            return {'ok':True,'photo_options':len(opts)}
+                        if not opts:
+                            raise ValueError('Tidak ada foto dengan metadata lisensi yang memenuhi syarat.')
+                        d.photo_candidates=opts
+                        db.commit()
+                        send('Pilihan foto Commons ditemukan. Tinjau sumber sebelum memilih:\n'+
+                             '\n'.join(f'{i+1}. {opt["title"]}: {opt["page_url"]}' for i,opt in enumerate(opts)))
+                        if bot:bot.message(chat_id,'Pilih foto:',photo_keyboard(d))
+                        return {'ok':True,'photo_options':len(opts)}
                     manual=(sess.mode=='manual_hook')
                     db.delete(sess);db.commit()
                     send_editor_preview(db,bot,chat_id,d,st)
