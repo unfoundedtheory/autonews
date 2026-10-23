@@ -1478,6 +1478,17 @@ def _manual_photo_music_handoff(db):
     try:
         if not d.image_url and d.image_local_path:
             d.image_url=upload_public_jpeg(d.image_local_path,f'{d.id}/v{d.version}.jpg')
+        if CONFIG.live_publish:
+            page=publish_facebook_once(db,d,actor='worker',config=CONFIG,facebook_first=True)
+            if page.get('facebook')!='published':
+                d.last_error='Facebook wajib terbit sebelum paket Instagram: '+str(page.get('reason') or page.get('facebook'))
+                if page.get('facebook') in ('uncertain','already_attempted'):
+                    d.publish_state='uncertain'
+                elif page.get('facebook')=='rejected':
+                    d.publish_state='facebook_blocked'
+                db.commit()
+                return {'manual_music':'blocked_by_facebook','facebook':page.get('facebook'),
+                        'reason':d.last_error}
         bot=TelegramClient(CONFIG.telegram_token)
         if not music_kit_sent(db,d):
             send_music_kit(db,d,db.get(Story,d.story_id),bot,CONFIG.chat_id)
