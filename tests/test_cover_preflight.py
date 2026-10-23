@@ -130,7 +130,8 @@ def test_official_markdown_reaches_author_and_ai_style_qc(monkeypatch):
         captured['system']=system
         return {'passed':True,'issues':[],'note':'Lolos SOP lengkap','checks':{
         'curiosity_gap':{'passed':True,'reason':'Sumber sinyal aneh tetap belum dijawab oleh headline','unanswered_question':'Dari manakah sinyal aneh itu benar-benar berasal?'},
-        'reader_relevance':{'passed':True,'reason':'Sinyal aneh membuka pertanyaan penelitian sains baru'},
+        'discussion_value':{'passed':True,'reason':'Sinyal aneh membuka diskusi ilmiah berbasis data tentang sumbernya'},
+            'reader_relevance':{'passed':True,'reason':'Sinyal aneh membuka pertanyaan penelitian sains baru'},
         'caption_story':{'passed':True,'reason':'Caption memiliki alur pengamatan, pivot dan penutup yang relevan'},
         'fact_integrity':{'passed':True,'reason':'Tidak ada angka atau temuan pasti di luar kutipan'}}}
     result=review_style(GOOD,CAPTION,[{'claim':'satu','quote':'a quote'},
