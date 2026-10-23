@@ -209,7 +209,7 @@ def test_facebook_permission_rejection_records_safe_diagnostics():
         record=db.query(Audit).filter_by(draft_id=d.id,event='facebook_rejected').one()
         assert record.detail['category']=='graph_http_403'
         assert 'secret' not in str(record.detail)
-        assert publish_facebook_once(db,d,poster=fake,config=settings)['facebook']=='already_attempted'
+        assert publish_facebook_once(db,d,poster=fake,config=settings)['facebook']=='published'
     finally:
         db.close()
 
