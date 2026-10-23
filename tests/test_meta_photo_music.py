@@ -170,7 +170,7 @@ def test_facebook_opt_in_idempotent_and_no_blind_retry():
         first=publish_facebook_once(db,d,poster=fake,config=settings,actor='42')
         second=publish_facebook_once(db,d,poster=fake,config=settings,actor='42')
         assert first['facebook']=='published'
-        assert second['facebook']=='already_attempted'
+        assert second['facebook']=='published' and second['already_attempted']
         assert len(calls)==1
         assert db.query(Audit).filter_by(draft_id=d.id,event='facebook_publish_started').count()==1
     finally:
@@ -231,8 +231,8 @@ def test_facebook_failure_requires_reconciliation():
         db.close()
 
 
-@pytest.mark.parametrize('facebook_outcome', ['published', 'disabled', 'not_configured', 'uncertain', 'exception'])
-def test_api_instagram_success_delivers_facebook_separately(monkeypatch, facebook_outcome):
+@pytest.mark.parametrize('facebook_outcome', ['published','disabled','not_configured','uncertain','exception'])
+def test_facebook_first_halts_instagram_when_page_fails(monkeypatch,facebook_outcome):
     db=make_db()
     try:
         _,d=approved_draft(db)
@@ -246,28 +246,28 @@ def test_api_instagram_success_delivers_facebook_separately(monkeypatch, faceboo
         monkeypatch.setattr(web,'_bot',lambda:None)
         ig_calls=[]
         class FakeInstagram:
-            def create_container(self,*args):return 'container-1'
+            def create_container(self,*args):ig_calls.append('container');return 'container-1'
             def container_status(self,*args):return 'FINISHED'
-            def publish(self,*args):
-                ig_calls.append(args)
-                return 'ig-media-1'
+            def publish(self,*args):ig_calls.append('publish');return 'ig-media-1'
         monkeypatch.setattr(web,'InstagramPublisher',lambda *a:FakeInstagram())
-        fb_calls=[]
-        def facebook(session,draft,**kwargs):
-            assert draft.status==draft.publish_state=='published'
-            assert draft.ig_media_id=='ig-media-1'
-            assert kwargs['config'] is settings
-            fb_calls.append(draft.id)
+        calls=[]
+        def facebook(db,draft,**kwargs):
+            assert draft.status=='approved' and draft.ig_media_id is None
+            assert kwargs['facebook_first'] is True
+            calls.append(draft.id)
             if facebook_outcome=='exception':raise RuntimeError('Facebook unavailable')
             return {'facebook':facebook_outcome}
         monkeypatch.setattr(web,'publish_facebook_once',facebook)
         out=web.publish_job(db=db)
-        assert out['instagram_media_id']=='ig-media-1'
-        assert out['facebook']==('error' if facebook_outcome=='exception' else facebook_outcome)
-        assert db.get(Draft,d.id).publish_state=='published'
-        assert fb_calls==[d.id] and len(ig_calls)==1
-        assert web.publish_job(db=db)=={'due':0}
-        assert len(fb_calls)==len(ig_calls)==1
+        if facebook_outcome=='published':
+            assert out['instagram_media_id']=='ig-media-1'
+            assert ig_calls==['container','publish']
+            assert db.get(Draft,d.id).publish_state=='published'
+        else:
+            assert out['facebook']==('uncertain' if facebook_outcome=='exception' else facebook_outcome)
+            assert ig_calls==[]
+            assert db.get(Draft,d.id).publish_state!='published'
+        assert calls==[d.id]
     finally:
         db.close()
 
