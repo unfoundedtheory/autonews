@@ -51,7 +51,12 @@ def publish_facebook_once(db,draft,*,actor="worker",poster=None,config=None,face
         published=next((event for event in attempts if event.event=='facebook_published'),None)
         if published:
             return {'facebook':'published','facebook_post_id':(published.detail or {}).get('post_id'),'already_attempted':True}
-        return {'facebook':'already_attempted', 'requires_reconciliation':True}
+        # A 4xx is a definitive rejection. Only a fresh explicit owner retry
+        # may retry it; a timeout or unknown result remains non-retryable.
+        if not (facebook_first and actor.startswith('owner_retry:') and
+                attempts[0].event=='facebook_rejected' and
+                not any(a.event=='facebook_uncertain' for a in attempts)):
+            return {'facebook':'already_attempted', 'requires_reconciliation':True}
     # Publication already requires current-version approval. Do not block a
     # confirmed Instagram post solely because an older review flag was false.
     if draft.status not in (('approved','published') if facebook_first else ('published',)) or draft.approved_version!=draft.version:

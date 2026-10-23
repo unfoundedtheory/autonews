@@ -852,7 +852,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 # from being silently republished after switching modes.
                 if (CONFIG.photo_music_mode!='off' or not CONFIG.live_publish or
                     d.status!='approved' or d.approved_version!=d.version or
-                    d.publish_state!='unpublished'):
+                    d.publish_state not in ('unpublished','facebook_blocked')):
                     raise ValueError('Posting langsung hanya tersedia untuk draft foto '
                                      'yang disetujui dan belum diproses.')
                 approvals=db.execute(select(Audit.detail).where(
@@ -864,6 +864,9 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                     from .carousel import require_slide_set,validate_daily_limit
                     require_slide_set(d,for_api=True)
                     validate_daily_limit(db,d,datetime.now(timezone.utc))
+                retry_facebook=d.publish_state=='facebook_blocked'
+                if retry_facebook:
+                    d.publish_state='unpublished'
                 d.rights_reviewed=True
                 # An explicit Post Sekarang request overrides a future posting slot.
                 # The publisher still enforces approved version and unpublished state.
@@ -874,7 +877,7 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 if bot:bot.answer(cb_id,'Mencoba publikasi foto')
                 send('📸 Memeriksa kembali publikasi foto yang sudah disetujui…')
                 try:
-                    outcome=publish_job(db=db,target_draft_id=d.id)
+                    outcome=publish_job(db=db,target_draft_id=d.id,owner_facebook_retry=retry_facebook)
                 except HTTPException as err:
                     send('⚠️ Belum berhasil: '+str(err.detail)[:250],finished=True)
                 else:
@@ -1551,7 +1554,7 @@ def format_editorial_qc(draft, report):
 
 
 @app.post('/jobs/publish',dependencies=[Depends(worker_auth)])
-def publish_job(db=Depends(session), target_draft_id=None):
+def publish_job(db=Depends(session), target_draft_id=None, owner_facebook_retry=False):
     from .automation_mode import current_mode, MANUAL_POST
     from .planner_scheduling import explicitly_auto_photo
     # An explicitly scheduled, version-consented photo-only website post can
@@ -1650,7 +1653,7 @@ def publish_job(db=Depends(session), target_draft_id=None):
     # Facebook Page must succeed before any Instagram container is created.
     # A 403, timeout or ambiguous Page response MUST NOT degrade to Instagram-only.
     try:
-        fb=publish_facebook_once(db,d,actor='worker',config=CONFIG,facebook_first=True)
+        fb=publish_facebook_once(db,d,actor='owner_retry:telegram' if owner_facebook_retry else 'worker',config=CONFIG,facebook_first=True)
     except Exception:
         db.rollback()
         d=db.get(Draft,d.id)

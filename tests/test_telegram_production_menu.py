@@ -222,7 +222,7 @@ def test_queue_post_now_overrides_future_slot_and_targets_single_draft(monkeypat
         web.telegram_webhook(update('queue'),db=db)
         assert f'postnow:{draft.id}:1' in str(bot.messages[-1][1])
         calls=[]
-        monkeypatch.setattr(web,'publish_job',lambda *,db,target_draft_id:
+        monkeypatch.setattr(web,'publish_job',lambda *,db,target_draft_id,owner_facebook_retry=False:
                             (calls.append(target_draft_id) or {'waiting':target_draft_id}))
         payload={'callback_query':{'id':'cb','from':{'id':42},
                  'message':{'chat':{'id':123}},'data':f'postnow:{draft.id}:1'}}

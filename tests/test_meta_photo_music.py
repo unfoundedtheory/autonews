@@ -343,3 +343,38 @@ def test_facebook_uses_encrypted_oauth_page_connection(monkeypatch):
         assert len(calls)==1
     finally:
         db.close()
+
+
+def test_owner_can_retry_definite_facebook_403_once_but_not_uncertain():
+    db=make_db()
+    try:
+        _,d=approved_draft(db)
+        settings=replace(CONFIG,live_publish=True,facebook_crosspost=True,
+                         facebook_page_id='123',facebook_page_token='secret')
+        calls=[]
+        def reject(*args):
+            calls.append(1)
+            raise ValueError('Meta Graph HTTP 403 (details withheld)')
+        failed=SimpleNamespace(publish_page_photo=reject)
+        assert publish_facebook_once(db,d,poster=failed,config=settings,facebook_first=True)['facebook']=='rejected'
+        assert publish_facebook_once(db,d,poster=failed,config=settings,facebook_first=True)['facebook']=='already_attempted'
+        assert len(calls)==1
+        good=SimpleNamespace(publish_page_photo=lambda *args: {'id':'123_2','photo_id':'2'})
+        out=publish_facebook_once(db,d,poster=good,config=settings,facebook_first=True,actor='owner_retry:telegram')
+        assert out['facebook']=='published'
+        assert publish_facebook_once(db,d,poster=failed,config=settings,facebook_first=True)['facebook']=='published'
+    finally:
+        db.close()
+
+
+def test_retry_never_reposts_after_uncertain_facebook_result():
+    db=make_db()
+    try:
+        _,d=approved_draft(db)
+        settings=replace(CONFIG,live_publish=True,facebook_crosspost=True,
+                         facebook_page_id='123',facebook_page_token='secret')
+        fake=SimpleNamespace(publish_page_photo=lambda *args: (_ for _ in ()).throw(httpx.ReadTimeout('timed out')))
+        assert publish_facebook_once(db,d,poster=fake,config=settings,facebook_first=True)['facebook']=='uncertain'
+        assert publish_facebook_once(db,d,poster=fake,config=settings,facebook_first=True,actor='owner_retry:telegram')['facebook']=='already_attempted'
+    finally:
+        db.close()
