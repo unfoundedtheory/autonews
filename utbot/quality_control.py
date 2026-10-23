@@ -88,7 +88,7 @@ def review_style(highlight, caption, evidence, *, tragedy=False, llm=None):
         'hasil. Contoh buruk: "Mengapa Satu Tahun Penuh di Planet Merah '
         'Berlangsung Selama Hampir Dua Kali Lipat Waktu Bumi" karena sudah '
         'menjelaskan hasil, terasa seperti materi pelajaran. '
-        'discussion_value: harus ada pertanyaan spesifik dari bukti yang membuat pembaca ingin membahas fakta, paradoks, ketidakpastian atau implikasi nyata; ringkasan pengumuman dan pertanyaan generik harus gagal. '\n        'reader_relevance: ada kaitan manusiawi, fakta mencolok atau kontras '
+        'discussion_value: harus ada pertanyaan spesifik dari bukti yang membuat pembaca ingin membahas fakta, paradoks, ketidakpastian atau implikasi nyata; ringkasan pengumuman dan pertanyaan generik harus gagal. '        'reader_relevance: ada kaitan manusiawi, fakta mencolok atau kontras '
         'terbukti, bukan info administratif. Contoh arah hook yang lebih kuat: '
         '"Kalau Kamu Tinggal di Mars Kapan Ulang Tahunmu Akan Datang Lagi", '
         'tetapi jangan membuat klaim sehari di Mars 48 jam: itu tidak benar. '
