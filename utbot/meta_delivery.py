@@ -43,13 +43,14 @@ def publish_facebook_once(db,draft,*,actor="worker",poster=None,config=None,face
         import hashlib
         key=int.from_bytes(hashlib.sha256(draft.id.encode()).digest()[:8],'big',signed=True)
         db.execute(text('SELECT pg_advisory_xact_lock(:key)'),{'key':key})
-    previous=db.query(Audit).filter(
+    attempts=db.query(Audit).filter(
         Audit.draft_id==draft.id,
         Audit.event.in_(['facebook_publish_started','facebook_published','facebook_uncertain','facebook_rejected'])
-    ).first()
-    if previous:
-        if previous.event=='facebook_published':
-            return {'facebook':'published','facebook_post_id':(previous.detail or {}).get('post_id'),'already_attempted':True}
+    ).order_by(Audit.id.desc()).all()
+    if attempts:
+        published=next((event for event in attempts if event.event=='facebook_published'),None)
+        if published:
+            return {'facebook':'published','facebook_post_id':(published.detail or {}).get('post_id'),'already_attempted':True}
         return {'facebook':'already_attempted', 'requires_reconciliation':True}
     # Publication already requires current-version approval. Do not block a
     # confirmed Instagram post solely because an older review flag was false.
