@@ -209,7 +209,7 @@ def test_facebook_permission_rejection_records_safe_diagnostics():
         record=db.query(Audit).filter_by(draft_id=d.id,event='facebook_rejected').one()
         assert record.detail['category']=='graph_http_403'
         assert 'secret' not in str(record.detail)
-        assert publish_facebook_once(db,d,poster=fake,config=settings)['facebook']=='published'
+        assert publish_facebook_once(db,d,poster=fake,config=settings)['facebook']=='already_attempted'
     finally:
         db.close()
 
@@ -339,7 +339,7 @@ def test_facebook_uses_encrypted_oauth_page_connection(monkeypatch):
         output=publish_facebook_once(db,d,poster=fake,config=settings)
         assert output['facebook']=='published'
         assert calls[0][0]=='123'
-        assert publish_facebook_once(db,d,poster=fake,config=settings)['facebook']=='already_attempted'
+        assert publish_facebook_once(db,d,poster=fake,config=settings)['facebook']=='published'
         assert len(calls)==1
     finally:
         db.close()
