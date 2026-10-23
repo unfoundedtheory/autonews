@@ -58,6 +58,7 @@ def test_instagram_container_waits_then_publishes_once(db,monkeypatch,tmp_path):
     cfg=replace(web.CONFIG,photo_music_mode='off',live_publish=True,brand_logo=str(logo),ig_user_id='123',ig_token='token')
     monkeypatch.setattr(web,'CONFIG',cfg)
     monkeypatch.setattr(web,'_bot',lambda:None)
+    monkeypatch.setattr(web,'publish_facebook_once',lambda *a,**k:{'facebook':'published','facebook_post_id':'fb-1'})
     class FakeIG:
         published_calls=0
         def __init__(self,*args):pass
@@ -81,6 +82,7 @@ def test_uncertain_publish_never_retries(db,monkeypatch,tmp_path):
     logo=tmp_path/'logo.png';logo.write_bytes(b'placeholder')
     monkeypatch.setattr(web,'CONFIG',replace(web.CONFIG,photo_music_mode='off',live_publish=True,brand_logo=str(logo),ig_user_id='123',ig_token='token'))
     monkeypatch.setattr(web,'_bot',lambda:None)
+    monkeypatch.setattr(web,'publish_facebook_once',lambda *a,**k:{'facebook':'published','facebook_post_id':'fb-1'})
     class BadIG:
         def __init__(self,*args):pass
         def create_container(self,*args):return 'container-2'
@@ -109,6 +111,7 @@ def test_telegram_approved_final_image_and_caption_reach_instagram_unchanged(db,
     monkeypatch.setattr(web,'CONFIG',cfg)
     bot=FakeBot()
     monkeypatch.setattr(web,'_bot',lambda:bot)
+    monkeypatch.setattr(web,'publish_facebook_once',lambda *a,**k:{'facebook':'published','facebook_post_id':'fb-1'})
     capture=[]
     class FakeIG:
         def __init__(self,*args):
