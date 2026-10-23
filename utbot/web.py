@@ -151,8 +151,7 @@ def readiness(db=Depends(session)):
               'telegram_destination','ai_key_available','media_storage','worker_secret']
     if CONFIG.photo_music_mode=='off':
         required.append('instagram_credentials')
-    if CONFIG.facebook_crosspost:
-        required.append('facebook_page_configured')
+    # Facebook is an optional second destination, not an Instagram blocker.
     blockers=[key for key in required if not checks[key]]
     return {'ready_for_live':len(blockers)==0 and CONFIG.photo_music_mode=='off' and CONFIG.live_publish,
             'ready_for_manual_handoff':len(blockers)==0 and CONFIG.photo_music_mode=='manual',
@@ -883,7 +882,8 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 else:
                     if outcome.get('published'):
                         send('✅ Foto berhasil terbit di Instagram. Media ID: '+
-                             str(outcome.get('instagram_media_id')),finished=True)
+                             str(outcome.get('instagram_media_id'))+
+                             '\nFacebook: '+str(outcome.get('facebook','unknown')),finished=True)
                     elif outcome.get('waiting'):
                         send('⏳ Instagram masih memproses foto. Cron akan melanjutkan.',finished=True)
                     else:
