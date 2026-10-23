@@ -15,6 +15,8 @@ from .config import CONFIG
 from .photo_relevance import likely_same_subject, photo_subject_match
 
 COMMONS_API='https://commons.wikimedia.org/w/api.php'
+COMMONS_USER_AGENT='UnfoundedTheoryEditorialBot/1.0 (https://github.com/unfoundedtheory/autonews; unfoundedtheory@gmail.com)'
+
 # Editorial redistribution is permitted by these licenses when attribution/other terms are satisfied.
 LICENSE_ALLOW={'CC0','CC BY 4.0','CC BY 3.0','CC BY 2.0','CC BY-SA 4.0','CC BY-SA 3.0','CC BY-SA 3.0 IGO','CC BY-SA 2.0','Public domain','PD-old','PD-USGov','PDM 1.0'}
 
@@ -91,7 +93,7 @@ def find_photos(query, limit=3, transport=None):
     params={'action':'query','generator':'search','gsrsearch':f'filetype:bitmap {query[:100]}',
             'gsrnamespace':6,'gsrlimit':max(3,min(limit*4,30)),'prop':'imageinfo',
             'iiprop':'url|extmetadata|size|mime','iiurlwidth':1800,'format':'json'}
-    with httpx.Client(timeout=25,follow_redirects=True,transport=transport,headers={'User-Agent':'UnfoundedTheoryEditorialBot/0.1 (media research)'}) as client:
+    with httpx.Client(timeout=25,follow_redirects=True,transport=transport,headers={'User-Agent':COMMONS_USER_AGENT,'Accept':'application/json'}) as client:
         response=client.get(COMMONS_API,params=params)
         response.raise_for_status()
         pages=response.json().get('query',{}).get('pages',{})
