@@ -67,10 +67,51 @@ def deliver_pending_previews(db, bot, chat_id, limit=12):
     return {'sent':sent,'failed':failed}
 
 
+def recover_missing_covers(db, *, limit=3):
+    """Retry official-article covers for pending drafts after transient image outages.
+
+    Do not approve photo rights or silently substitute unrelated images. A
+    six-hour backoff prevents provider hammering on genuinely unsuitable pages.
+    """
+    from .cover_recovery import recover_article_cover
+    candidates=db.execute(select(Draft).where(
+        Draft.status=='pending_approval',
+        Draft.publish_state=='unpublished',
+        Draft.image_url.is_(None),
+        Draft.source_image_url.is_(None),
+    ).order_by(Draft.created_at.desc()).limit(24)).scalars().all()
+    recovered=[]
+    cutoff=datetime.now(timezone.utc)-timedelta(hours=6)
+    for draft in candidates:
+        previous=db.execute(select(Audit.id).where(
+            Audit.draft_id==draft.id,
+            Audit.event=='cover_recovery_attempted',
+            Audit.created_at>=cutoff).limit(1)).first()
+        if previous:
+            continue
+        story=db.get(Story,draft.story_id)
+        if not story:
+            continue
+        db.add(Audit(draft_id=draft.id,event='cover_recovery_attempted',
+                     actor='worker',detail={'version':draft.version}))
+        db.commit()
+        try:
+            recover_article_cover(db,draft,story,actor='worker:cover_recovery')
+            db.commit()
+            recovered.append(draft.id)
+        except Exception as exc:
+            db.rollback()
+            log.warning('Cover recovery failed %s: %s',draft.id,type(exc).__name__)
+        if len(recovered)>=limit:
+            break
+    return recovered
+
+
 def do_prepare():
     bot = TelegramClient(CONFIG.telegram_token) if CONFIG.telegram_token and CONFIG.chat_id else None
     with Session() as db:
         from .automation_mode import auto_approve_ready
+        recovered_covers=recover_missing_covers(db)
         # Send already-prepared drafts first: generating new AI text does not
         # help if the editor never received the existing pending news.
         delivery=deliver_pending_previews(db,bot,CONFIG.chat_id)
@@ -82,7 +123,7 @@ def do_prepare():
                 schedule_approved(db,daily_limit=CONFIG.daily_limit)
                 db.commit()
             log.info('draft stock target reached; recovery=%s',delivery)
-            return {'prepared':[], 'delivery':delivery,'automatic':automatic}
+            return {'prepared':[], 'delivery':delivery,'automatic':automatic,'recovered_covers':recovered_covers}
         # prepare_batch commits new drafts before notifying. The recovery pass
         # owns Telegram delivery and writes a durable delivery marker.
         result=prepare_batch(db, limit=quota, notifier=None)
@@ -94,7 +135,7 @@ def do_prepare():
         log.info('prepared=%s delivery=%s', result,latest)
         return {'prepared':result, 'delivery':{
             'sent':delivery['sent']+latest['sent'],
-            'failed':delivery['failed']+latest['failed']},'automatic':automatic}
+            'failed':delivery['failed']+latest['failed']},'automatic':automatic,'recovered_covers':recovered_covers}
 
 def do_reschedule():
     with Session() as db:
