@@ -1406,11 +1406,9 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                             if sess.mode=='highlight' and (d.source_image_url or d.source_image_path):
                                 render_draft(d)
                     elif sess.mode=='photo' and txt.startswith('https://'):
-                        if True:
-                            _replace_photo(db,d,txt,uid)
+                        _replace_photo(db,d,txt,uid)
                     elif sess.mode in ('photo','photo_search'):
-                        if True:
-                            opts=find_photos(txt,limit=3)
+                        opts=find_photos(txt,limit=3)
                             if not opts:raise ValueError('Tidak ada foto dengan metadata lisensi yang memenuhi syarat.')
                             d.photo_candidates=opts;db.commit()
                             send('Pilihan foto Commons ditemukan. Tinjau tautan dan lisensi sebelum memilih:\n'+
@@ -1617,7 +1615,16 @@ def publish_job(db=Depends(session), target_draft_id=None):
             return {'blocked':d.id,'error':str(exc)}
     # Facebook Page must succeed before any Instagram container is created.
     # A 403, timeout or ambiguous Page response MUST NOT degrade to Instagram-only.
-    fb=publish_facebook_once(db,d,actor='worker',config=CONFIG,facebook_first=True)
+    try:
+        fb=publish_facebook_once(db,d,actor='worker',config=CONFIG,facebook_first=True)
+    except Exception:
+        db.rollback()
+        d=db.get(Draft,d.id)
+        d.publish_state='uncertain'
+        d.last_error='Publikasi Facebook tidak terkonfirmasi; periksa Page sebelum percobaan baru.'
+        db.commit()
+        return {'blocked':d.id,'facebook':'uncertain',
+                'error':d.last_error,'requires_reconciliation':True}
     if fb.get('facebook')!='published':
         d.last_error='Facebook wajib terbit lebih dulu: '+str(fb.get('reason') or fb.get('facebook'))
         if fb.get('facebook') in ('uncertain','already_attempted'):
