@@ -151,8 +151,7 @@ def readiness(db=Depends(session)):
               'telegram_destination','ai_key_available','media_storage','worker_secret']
     if CONFIG.photo_music_mode=='off':
         required.append('instagram_credentials')
-    if CONFIG.facebook_crosspost:
-        required.append('facebook_page_configured')
+    # Facebook is an optional second destination, not an Instagram blocker.
     blockers=[key for key in required if not checks[key]]
     return {'ready_for_live':len(blockers)==0 and CONFIG.photo_music_mode=='off' and CONFIG.live_publish,
             'ready_for_manual_handoff':len(blockers)==0 and CONFIG.photo_music_mode=='manual',
@@ -883,7 +882,8 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 else:
                     if outcome.get('published'):
                         send('✅ Foto berhasil terbit di Instagram. Media ID: '+
-                             str(outcome.get('instagram_media_id')),finished=True)
+                             str(outcome.get('instagram_media_id'))+
+                             '\nFacebook: '+str(outcome.get('facebook','unknown')),finished=True)
                     elif outcome.get('waiting'):
                         send('⏳ Instagram masih memproses foto. Cron akan melanjutkan.',finished=True)
                     else:
@@ -1481,17 +1481,6 @@ def _manual_photo_music_handoff(db):
     try:
         if not d.image_url and d.image_local_path:
             d.image_url=upload_public_jpeg(d.image_local_path,f'{d.id}/v{d.version}.jpg')
-        if CONFIG.live_publish:
-            page=publish_facebook_once(db,d,actor='worker',config=CONFIG,facebook_first=True)
-            if page.get('facebook')!='published':
-                d.last_error='Facebook wajib terbit sebelum paket Instagram: '+str(page.get('reason') or page.get('facebook'))
-                if page.get('facebook') in ('uncertain','already_attempted'):
-                    d.publish_state='uncertain'
-                elif page.get('facebook')=='rejected':
-                    d.publish_state='facebook_blocked'
-                db.commit()
-                return {'manual_music':'blocked_by_facebook','facebook':page.get('facebook'),
-                        'reason':d.last_error}
         bot=TelegramClient(CONFIG.telegram_token)
         if not music_kit_sent(db,d):
             send_music_kit(db,d,db.get(Story,d.story_id),bot,CONFIG.chat_id)
@@ -1641,36 +1630,23 @@ def publish_job(db=Depends(session), target_draft_id=None, owner_facebook_retry=
         except ValueError as exc:
             d.last_error=str(exc);db.commit()
             return {'blocked':d.id,'error':str(exc)}
-    # Facebook needs a public, immutable JPEG, not a short-lived Vercel /tmp file.
+    # Upload the public JPEG before attempting Instagram publication.
     if not d.image_url and d.image_local_path:
         try:
             d.image_url=upload_public_jpeg(d.image_local_path,f'{d.id}/v{d.version}.jpg')
             db.commit()
         except (ValueError,RuntimeError,OSError,httpx.HTTPError) as exc:
-            d.last_error='Cover Facebook belum tersedia: '+type(exc).__name__
+            d.last_error='Cover Instagram belum tersedia: '+type(exc).__name__
             db.commit()
             return {'blocked':d.id,'error':d.last_error}
-    # Facebook Page must succeed before any Instagram container is created.
-    # A 403, timeout or ambiguous Page response MUST NOT degrade to Instagram-only.
+    # Facebook is not a prerequisite: permission errors must never block IG.
+    from .instagram_credentials import resolve_instagram_credentials
     try:
-        fb=publish_facebook_once(db,d,actor='owner_retry:telegram' if owner_facebook_retry else 'worker',config=CONFIG,facebook_first=True)
-    except Exception:
-        db.rollback()
-        d=db.get(Draft,d.id)
-        d.publish_state='uncertain'
-        d.last_error='Publikasi Facebook tidak terkonfirmasi; periksa Page sebelum percobaan baru.'
+        ig_user_id,ig_token=resolve_instagram_credentials(db, CONFIG)
+    except ValueError:
+        d.last_error='Koneksi Instagram belum siap.'
         db.commit()
-        return {'blocked':d.id,'facebook':'uncertain',
-                'error':d.last_error,'requires_reconciliation':True}
-    if fb.get('facebook')!='published':
-        d.last_error='Facebook wajib terbit lebih dulu: '+str(fb.get('reason') or fb.get('facebook'))
-        if fb.get('facebook') in ('uncertain','already_attempted'):
-            d.publish_state='uncertain'
-        elif fb.get('facebook')=='rejected':
-            d.publish_state='facebook_blocked'
-        db.commit()
-        return {'blocked':d.id,'facebook':fb.get('facebook'),
-                'error':d.last_error,'requires_reconciliation':True}
+        return {'blocked':d.id,'error':d.last_error}
     # Lock claim before ANY external request. Stuck publishing requires manual reconciliation.
     d.publish_state='publishing';db.commit()
     bot=_bot()
@@ -1678,14 +1654,6 @@ def publish_job(db=Depends(session), target_draft_id=None, owner_facebook_retry=
         if bot and CONFIG.chat_id:
             try:bot.message(CONFIG.chat_id,msg)
             except Exception:log.exception('Telegram publication alert failed')
-    from .instagram_credentials import resolve_instagram_credentials
-    try:
-        ig_user_id,ig_token=resolve_instagram_credentials(db, CONFIG)
-    except ValueError:
-        d.publish_state='facebook_published_ig_blocked'
-        d.last_error='Facebook terbit, tetapi koneksi Instagram belum siap.'
-        db.commit()
-        return {'facebook':'published','blocked':d.id,'error':d.last_error}
     publisher=InstagramPublisher(CONFIG.ig_base,CONFIG.ig_version,ig_user_id,ig_token)
     try:
         if not d.image_url:
@@ -1726,6 +1694,16 @@ def publish_job(db=Depends(session), target_draft_id=None, owner_facebook_retry=
         alert('⚠️ Publikasi belum dapat dikonfirmasi. Jangan retry manual sebelum memeriksa Instagram. Draf '+d.id[:8])
         return {'status':'uncertain','draft_id':d.id,'note':'Reconcile on Instagram before retry'}
 
-    # Facebook was durably confirmed before Instagram. Never post Page twice.
-    alert('✅ Facebook dan Instagram berhasil terbit. Instagram Media ID: '+media_id)
+    # IG confirmation is committed first. Page delivery is independent:
+    # a 403 or unknown outcome must not change IG state or repeat media_publish.
+    try:
+        fb=publish_facebook_once(
+            db,d,actor='owner_retry:telegram' if owner_facebook_retry else 'worker',
+            config=CONFIG,facebook_first=owner_facebook_retry)
+    except Exception:
+        db.rollback()
+        log.exception('Facebook delivery failed after confirmed Instagram publication')
+        fb={'facebook':'error','requires_reconciliation':True}
+    facebook_status=str(fb.get('facebook','error'))
+    alert('✅ Instagram berhasil terbit. Media ID: '+media_id+'\nFacebook: '+facebook_status)
     return {'published':[d.id],'instagram_media_id':media_id,**fb}
