@@ -12,6 +12,18 @@ Dirangkum dari koreksi, teori hook, dan diskusi selama proses pembuatan konten. 
 
 ---
 
+## Prinsip Redaksi: Nilai Diskusi Sebelum Informasi
+
+- AutoNews bukan mesin ringkasan rilis pers. Pilih bahan yang mempunyai **konflik fakta, paradoks, misteri ilmiah, dampak personal, salah kaprah publik, atau pilihan dengan konsekuensi nyata** yang dapat dibuktikan dari sumber primer.
+- Untuk setiap calon berita, AI harus mempertimbangkan tiga sudut sebelum menulis: (1) rasa penasaran spesifik, (2) asumsi umum versus bukti, (3) konsekuensi/pertanyaan yang relevan bagi kehidupan pembaca. Pilih satu sudut paling kuat dan tetap sesuai bukti; jangan mencampur semua sudut.
+- **Tidak semua berita harus kontroversial.** Jika datanya tidak menyediakan benturan perspektif yang sungguh ada, jangan mengarang perdebatan, memaksa pembaca berpihak, atau mengadu kelompok.
+- Berita yang hanya menyebut “NASA mengumumkan”, “peneliti merilis”, “wahana akan melakukan”, atau daftar fitur tanpa taruhan/keanehan/implikasi kuat adalah kandidat **nilai diskusi rendah**. Cari sudut yang nyata atau pilih kandidat berbeda.
+- Highlight memancing **pertanyaan penting yang belum dijawab**, caption memberi jawaban berbasis data dan konteks, lalu penutup mengundang pandangan/pengalaman pembaca yang spesifik.
+- Hindari penutup generik seperti “Bagaimana menurut kalian?”, “Setuju atau tidak?”, “Siapa yang penasaran?”, atau pertanyaan kosong yang tidak berkaitan dengan fakta. Pertanyaan harus dapat memicu komentar yang substantif tanpa mengharuskan pembaca sepakat.
+- Jangan membuat engagement bait: provokasi palsu, ketakutan berlebihan, klaim bahwa ilmuwan “bertengkar” tanpa bukti, framing konspirasi, atau janji rahasia yang tidak ada.
+- Untuk tragedi/bencana, jangan memancing perdebatan atau komentar dengan mengeksploitasi korban. Tetap faktual dan empatik.
+- **Kelayakan berita**: prioritaskan kandidat dengan nilai rasa penasaran, kekuatan bukti, relevansi dan sudut diskusi. Jika unsur diskusi tidak ada, berita edukatif tetap boleh dipakai **hanya** bila mempunyai keunikan ilmiah yang menonjol dan didukung sumber.
+
 ## 2. Aturan Highlight
 
 **Format penulisan**
