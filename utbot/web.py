@@ -1199,59 +1199,49 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 send('ℹ️ Verifikasi foto terpisah sudah tidak diperlukan. '
                      'Periksa cover dan sumber, lalu langsung klik Approve.')
             elif action=='photo':
-                # Offer real alternatives immediately, plus an explicit upload route.
                 if d.status in ('published','rejected','removed_by_owner') or d.publish_state!='unpublished':
-                    raise ValueError('Foto hanya dapat diganti sebelum proses publikasi.')
-                from .photo_relevance import photo_subject_match
-                existing=db.get(TelegramSession,str(uid))
-                if existing:db.delete(existing);db.flush()
-                # Direct photo messages still work after opening candidate choices.
+                    raise ValueError('Foto hanya bisa diganti sebelum publikasi.')
+                previous=db.get(TelegramSession,str(uid))
+                if previous:db.delete(previous);db.flush()
                 db.add(TelegramSession(user_id=str(uid),draft_id=d.id,mode='photo',version=d.version))
-                # Keep already discovered, relevant images; otherwise search
-                # Wikimedia using the actual article topic, not a generic NASA term.
-                opts=[item for item in (d.photo_candidates or [])
-                      if photo_subject_match(st.title,item,st.title)
-                      and item.get('page_url') and item.get('credit')]
-                if len(opts)<3:
-                    from .photo_relevance import search_queries
-                    seen={x.get('page_url') or x.get('image_url') for x in opts}
-                    for query in search_queries(st.title,story_title=st.title)[:3]:
-                        try:
-                            choices=find_photos(query,limit=6)
-                        except (ValueError,httpx.HTTPError,OSError):
-                            continue
-                        for item in choices:
-                            key=item.get('page_url') or item.get('image_url')
-                            if (key and key not in seen and
-                                    photo_subject_match(query,item,st.title) and
-                                    item.get('page_url') and item.get('credit')):
-                                opts.append(item);seen.add(key)
-                            if len(opts)>=6:break
-                        if len(opts)>=6:break
-                d.photo_candidates=opts[:6]
                 db.commit()
-                if opts and bot:
-                    bot.message(chat_id,photo_candidate_message(d),
-                                with_home_button(photo_keyboard(d)))
-                elif not opts:
-                    send('Tidak ada kandidat foto yang benar-benar relevan dan memiliki metadata kredit. '
-                         'Silakan unggah sendiri atau cari memakai kata kunci yang lebih spesifik.')
-                    if bot:bot.message(chat_id,'Pilih cara mengganti foto:',
-                                       with_home_button(photo_keyboard(d)))
-                return {'ok':True,'photo_options':len(opts)}
+                send('🖼 Kirim foto sekarang, atau tempel URL HTTPS gambar langsung. '
+                     'Foto akan langsung menjadi cover dan preview diperbarui. '
+                     'Untuk dipilihkan gambar lain, tekan tombol berikut:',finished=False)
+                if bot:bot.message(chat_id,'Alternatif otomatis:',
+                    with_home_button({'inline_keyboard':[[
+                        {'text':'✨ Pilihkan Foto Lain','callback_data':f'photosearch:{d.id}:{d.version}'}]]}))
+                return {'ok':True,'awaiting':'photo_or_url'}
             elif action in ('photoupload','photosearch'):
                 if d.status in ('published','rejected','removed_by_owner') or d.publish_state!='unpublished':
                     raise ValueError('Foto hanya dapat diganti sebelum proses publikasi.')
                 sess=db.get(TelegramSession,str(uid))
                 if sess:db.delete(sess);db.flush()
-                db.add(TelegramSession(user_id=str(uid),draft_id=d.id,mode='photo',version=d.version))
-                db.commit()
                 if action=='photoupload':
-                    send('📤 Kirim foto langsung melalui Telegram (gunakan resolusi tinggi) '
-                         'atau URL HTTPS foto milik Anda. Preview baru langsung dikirim tanpa formulir tambahan. /cancel untuk batal.')
+                    db.add(TelegramSession(user_id=str(uid),draft_id=d.id,mode='photo',version=d.version))
+                    db.commit()
+                    send('📤 Kirim foto langsung atau URL HTTPS gambar. Preview diperbarui otomatis. /cancel untuk batal.')
                 else:
-                    send('🔎 Kirim kata kunci foto yang spesifik sesuai subjek berita. '
-                         'Saya akan tampilkan opsi yang memiliki sumber dan lisensi. /cancel untuk batal.')
+                    from .photo_relevance import photo_subject_match,search_queries
+                    original=list(d.photo_candidates or [])
+                    opts=[]
+                    used=set()
+                    for term in search_queries(st.title,story_title=st.title)[:3]:
+                        for item in (original if term==search_queries(st.title,story_title=st.title)[0] else []) + find_photos(term,limit=5):
+                            key=item.get('page_url') or item.get('image_url')
+                            if (key and key not in used and item.get('credit') and
+                                item.get('license') and item.get('page_url') and
+                                photo_subject_match(term,item,st.title)):
+                                opts.append(item);used.add(key)
+                        if len(opts)>=5:break
+                    d.photo_candidates=opts[:6]
+                    db.commit()
+                    if not opts:
+                        send('⚠️ Belum ditemukan foto alternatif yang relevan dan berkredit. '
+                             'Kirim foto atau URL HTTPS secara langsung.')
+                    elif bot:
+                        bot.message(chat_id,photo_candidate_message(d),
+                                    with_home_button(photo_keyboard(d)))
                 return {'ok':True,'photo_entry':action}
             elif action in ('highlight','caption','manualhook','green'):
                 if d.status in ('published','rejected') or d.publish_state in ('publishing','published','uncertain'):
@@ -1432,17 +1422,18 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                             revise(db,d,sess.mode,value,uid)
                             if sess.mode=='highlight' and (d.source_image_url or d.source_image_path):
                                 render_draft(d)
-                    elif sess.mode=='photo':
-                        if txt.startswith('https://'):
-                            _replace_photo(db,d,txt,uid)
-                        else:
-                            opts=find_photos(txt,limit=3)
-                            if not opts:raise ValueError('Tidak ada foto dengan metadata lisensi yang memenuhi syarat.')
-                            d.photo_candidates=opts;db.commit()
-                            send('Pilihan foto Commons ditemukan. Tinjau tautan dan lisensi sebelum memilih:\n'+
-                                 '\n'.join(f'{i+1}. {opt["title"]}: {opt["page_url"]}' for i,opt in enumerate(opts)))
-                            if bot:bot.message(chat_id,'Pilih foto:',photo_keyboard(d))
-                            return {'ok':True,'photo_options':len(opts)}
+                    elif sess.mode=='photo' and txt.startswith('https://'):
+                        _replace_photo(db,d,txt,uid)
+                    elif sess.mode in ('photo','photo_search'):
+                        opts=find_photos(txt,limit=3)
+                        if not opts:
+                            raise ValueError('Tidak ada foto dengan metadata lisensi yang memenuhi syarat.')
+                        d.photo_candidates=opts
+                        db.commit()
+                        send('Pilihan foto Commons ditemukan. Tinjau sumber sebelum memilih:\n'+
+                             '\n'.join(f'{i+1}. {opt["title"]}: {opt["page_url"]}' for i,opt in enumerate(opts)))
+                        if bot:bot.message(chat_id,'Pilih foto:',photo_keyboard(d))
+                        return {'ok':True,'photo_options':len(opts)}
                     manual=(sess.mode=='manual_hook')
                     db.delete(sess);db.commit()
                     send_editor_preview(db,bot,chat_id,d,st)
@@ -1487,6 +1478,17 @@ def _manual_photo_music_handoff(db):
     try:
         if not d.image_url and d.image_local_path:
             d.image_url=upload_public_jpeg(d.image_local_path,f'{d.id}/v{d.version}.jpg')
+        if CONFIG.live_publish:
+            page=publish_facebook_once(db,d,actor='worker',config=CONFIG,facebook_first=True)
+            if page.get('facebook')!='published':
+                d.last_error='Facebook wajib terbit sebelum paket Instagram: '+str(page.get('reason') or page.get('facebook'))
+                if page.get('facebook') in ('uncertain','already_attempted'):
+                    d.publish_state='uncertain'
+                elif page.get('facebook')=='rejected':
+                    d.publish_state='facebook_blocked'
+                db.commit()
+                return {'manual_music':'blocked_by_facebook','facebook':page.get('facebook'),
+                        'reason':d.last_error}
         bot=TelegramClient(CONFIG.telegram_token)
         if not music_kit_sent(db,d):
             send_music_kit(db,d,db.get(Story,d.story_id),bot,CONFIG.chat_id)
@@ -1580,11 +1582,6 @@ def publish_job(db=Depends(session), target_draft_id=None):
                 'note':'DRY RUN: tidak ada permintaan dikirim ke Instagram'}
     if not CONFIG.brand_logo or not Path(CONFIG.brand_logo).is_file():
         raise HTTPException(503,'Logo resmi belum dikonfigurasi; tidak boleh live memakai placeholder')
-    from .instagram_credentials import resolve_instagram_credentials
-    try:
-        ig_user_id,ig_token=resolve_instagram_credentials(db, CONFIG)
-    except ValueError:
-        raise HTTPException(503,'Instagram credential connection is not ready') from None
     # Single-worker deployment is mandatory with SQLite; Postgres supports skip_locked.
     q=select(Draft).where(Draft.status=='approved',Draft.approved_version==Draft.version,
           Draft.publish_state.in_(['unpublished','awaiting_container']),
@@ -1641,6 +1638,36 @@ def publish_job(db=Depends(session), target_draft_id=None):
         except ValueError as exc:
             d.last_error=str(exc);db.commit()
             return {'blocked':d.id,'error':str(exc)}
+    # Facebook needs a public, immutable JPEG, not a short-lived Vercel /tmp file.
+    if not d.image_url and d.image_local_path:
+        try:
+            d.image_url=upload_public_jpeg(d.image_local_path,f'{d.id}/v{d.version}.jpg')
+            db.commit()
+        except (ValueError,RuntimeError,OSError,httpx.HTTPError) as exc:
+            d.last_error='Cover Facebook belum tersedia: '+type(exc).__name__
+            db.commit()
+            return {'blocked':d.id,'error':d.last_error}
+    # Facebook Page must succeed before any Instagram container is created.
+    # A 403, timeout or ambiguous Page response MUST NOT degrade to Instagram-only.
+    try:
+        fb=publish_facebook_once(db,d,actor='worker',config=CONFIG,facebook_first=True)
+    except Exception:
+        db.rollback()
+        d=db.get(Draft,d.id)
+        d.publish_state='uncertain'
+        d.last_error='Publikasi Facebook tidak terkonfirmasi; periksa Page sebelum percobaan baru.'
+        db.commit()
+        return {'blocked':d.id,'facebook':'uncertain',
+                'error':d.last_error,'requires_reconciliation':True}
+    if fb.get('facebook')!='published':
+        d.last_error='Facebook wajib terbit lebih dulu: '+str(fb.get('reason') or fb.get('facebook'))
+        if fb.get('facebook') in ('uncertain','already_attempted'):
+            d.publish_state='uncertain'
+        elif fb.get('facebook')=='rejected':
+            d.publish_state='facebook_blocked'
+        db.commit()
+        return {'blocked':d.id,'facebook':fb.get('facebook'),
+                'error':d.last_error,'requires_reconciliation':True}
     # Lock claim before ANY external request. Stuck publishing requires manual reconciliation.
     d.publish_state='publishing';db.commit()
     bot=_bot()
@@ -1648,6 +1675,14 @@ def publish_job(db=Depends(session), target_draft_id=None):
         if bot and CONFIG.chat_id:
             try:bot.message(CONFIG.chat_id,msg)
             except Exception:log.exception('Telegram publication alert failed')
+    from .instagram_credentials import resolve_instagram_credentials
+    try:
+        ig_user_id,ig_token=resolve_instagram_credentials(db, CONFIG)
+    except ValueError:
+        d.publish_state='facebook_published_ig_blocked'
+        d.last_error='Facebook terbit, tetapi koneksi Instagram belum siap.'
+        db.commit()
+        return {'facebook':'published','blocked':d.id,'error':d.last_error}
     publisher=InstagramPublisher(CONFIG.ig_base,CONFIG.ig_version,ig_user_id,ig_token)
     try:
         if not d.image_url:
@@ -1688,15 +1723,6 @@ def publish_job(db=Depends(session), target_draft_id=None):
         alert('⚠️ Publikasi belum dapat dikonfirmasi. Jangan retry manual sebelum memeriksa Instagram. Draf '+d.id[:8])
         return {'status':'uncertain','draft_id':d.id,'note':'Reconcile on Instagram before retry'}
 
-    # Instagram is durably confirmed before the independent Facebook action.
-    # A Facebook error must never turn a successful IG post into an uncertain
-    # one or cause media_publish to be repeated.
-    try:
-        fb=publish_facebook_once(db,d,actor='worker',config=CONFIG)
-    except Exception:
-        db.rollback()
-        log.exception('Facebook delivery failed after confirmed Instagram publication')
-        fb={'facebook':'error','requires_reconciliation':True}
-    fb_status=str(fb.get('facebook','error'))
-    alert('✅ Instagram berhasil terbit. Media ID: '+media_id+'\nFacebook: '+fb_status)
+    # Facebook was durably confirmed before Instagram. Never post Page twice.
+    alert('✅ Facebook dan Instagram berhasil terbit. Instagram Media ID: '+media_id)
     return {'published':[d.id],'instagram_media_id':media_id,**fb}

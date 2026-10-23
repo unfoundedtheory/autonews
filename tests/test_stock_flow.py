@@ -196,6 +196,7 @@ def test_auto_approved_photo_uses_graph_api_only_without_manual_handoff(db,monke
         def publish(self,container):
             called.append(('publish',container));return 'post123'
     monkeypatch.setattr(web,'InstagramPublisher',Publisher)
+    monkeypatch.setattr(web,'publish_facebook_once',lambda *a,**k:{'facebook':'published','facebook_post_id':'fb123'})
     monkeypatch.setattr(web,'CONFIG',replace(settings,telegram_token='test',
                                            chat_id='123'))
     monkeypatch.setattr(web,'TelegramClient',lambda *args:FakeBot())
