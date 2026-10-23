@@ -4,6 +4,7 @@ Instagram API requires its own media container / publish flow; a Facebook
 Page photo is a separate post. Never infer a photo was cross-posted.
 """
 from urllib.parse import urlparse
+import json
 import httpx
 
 
@@ -63,3 +64,28 @@ class MetaGraph:
         if not media_id:
             raise ValueError("Meta did not return Facebook photo/post ID; reconcile manually")
         return {'id':str(media_id),'photo_id':str(result.get('id',''))}
+
+    def publish_page_album(self,page_id,images,caption):
+        """Publish a multi-photo Page feed post (separate from Instagram carousel).
+
+        Every photo is first uploaded unpublished, then a single /feed post
+        attaches those photo IDs. Caller must pre-record the attempt and never
+        retry after an ambiguous network/Graph failure.
+        """
+        if not str(page_id).isdigit() or not 2 <= len(images) <= 20:
+            raise ValueError("Facebook album requires 2-20 photos")
+        if not caption.strip() or any(not _public_https(url) for url in images):
+            raise ValueError("Facebook album requires HTTPS images and a caption")
+        attached={}
+        for index,url in enumerate(images):
+            asset=self.request("POST",f"{page_id}/photos",
+                               data={"url":url,"published":"false"})
+            media_id=asset.get("id")
+            if not media_id:raise ValueError("Facebook image upload ID missing")
+            attached[f"attached_media[{index}]"]=json.dumps(
+                {"media_fbid":str(media_id)})
+        response=self.request("POST",f"{page_id}/feed",
+                              data={"message":caption,**attached})
+        post_id=response.get("id")
+        if not post_id:raise ValueError("Facebook feed post ID missing")
+        return {"id":str(post_id),"photo_id":""}
