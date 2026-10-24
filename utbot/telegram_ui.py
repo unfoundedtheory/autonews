@@ -49,7 +49,7 @@ def photo_keyboard(draft):
     for index,photo in enumerate((draft.photo_candidates or [])[:6],1):
         buttons=[]
         url=str(photo.get('page_url') or '')
-        if url.startswith('https://commons.wikimedia.org/'):
+        if url.startswith('https://'):
             buttons.append({'text':f'🔎 Lihat {index}','url':url})
         buttons.append({'text':f'✅ Pilih {index}',
                         'callback_data':f'pick{index-1}:{draft.id}:{draft.version}'})
