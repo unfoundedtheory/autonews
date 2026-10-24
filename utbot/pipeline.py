@@ -308,7 +308,12 @@ def prepare_story(db,story,*,reader=fetch_primary,writer=author_from_source,
                 try:
                     discovered=image_search(variant,limit=8)
                 except (httpx.HTTPError,ValueError,OSError) as exc:
-                    search_errors.append(type(exc).__name__)
+                    # HTTP status is safe to record; raw responses may contain
+                    # third-party data and must not enter editor-facing errors.
+                    category=(f'http_{exc.response.status_code}'
+                              if isinstance(exc,httpx.HTTPStatusError)
+                              else type(exc).__name__)
+                    search_errors.append(category)
                     continue
                 for item in discovered:
                     key=item.get('page_url') or item.get('image_url')
