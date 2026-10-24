@@ -337,7 +337,7 @@ def _fade_gradient():
 
 
 def render(input_image, highlight, outpath, accent_words=None, logo_path=None,
-           font_path=None, photo_focus=(0.5, 0.43), source_type="documentary"):
+           font_path=None, photo_focus=(0.5, 0.58), source_type="documentary"):
     """Render an approved cover, without changing the underlying scientific photo.
 
     ``source_type='illustration'`` adds an explicit disclosure label.
@@ -390,7 +390,7 @@ def render_carousel_cover(input_image, highlight, outpath, logo_path=None, font_
         raise ValueError("Foto carousel di bawah 600 piksel")
     if not highlight or len(highlight.strip()) > 245:
         raise ValueError("Highlight carousel tidak valid")
-    image = _place_photo(image, (0.5, 0.43))
+    image = _place_photo(image, (0.5, 0.58))
     # Only the lower third is shaded; preserve the subject and sky above.
     overlay = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
     from PIL import Image as PILImage
