@@ -197,7 +197,7 @@ def render_draft(draft,source_path=None):
     records=draft._sa_instance_state.session.execute(select(Audit.detail).where(
         Audit.draft_id==draft.id,Audit.event=='cover_focus_changed'
     ).order_by(Audit.id.desc()).limit(1)).scalar_one_or_none() if draft._sa_instance_state.session else None
-    focus=(records or {}).get('focus') or [0.5,0.43]
+    focus=(records or {}).get('focus') or [0.5,0.58]
     draft.image_local_path=render(src,draft.highlight,out,accent_words=draft.accent_words or [],
                       logo_path=CONFIG.brand_logo,font_path=CONFIG.font_path,
                       photo_focus=tuple(focus))
