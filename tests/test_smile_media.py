@@ -71,6 +71,9 @@ def test_retry_cover_button_requires_editor_selection(monkeypatch):
            'page_url':'https://commons.wikimedia.org/wiki/File:Smile.jpg','credit':'ESA',
            'license':'CC BY-SA 3.0 IGO','license_url':'https://creativecommons.org/licenses/by-sa/3.0/igo/'}
     monkeypatch.setattr(media,'find_photos',lambda query,limit=6:[photo])
+    # Isolate candidate selection: automatic recovery is tested separately.
+    monkeypatch.setattr('utbot.cover_recovery.recover_article_cover',
+                        lambda *args,**kwargs: (_ for _ in ()).throw(ValueError('No hero available')))
     monkeypatch.setattr(web,'_bot',lambda:bot)
     monkeypatch.setattr(web,'CONFIG',replace(web.CONFIG,admin_ids=frozenset({42})))
     cb={'callback_query':{'id':'cb','from':{'id':42},'message':{'chat':{'id':9}},
