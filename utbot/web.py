@@ -1205,46 +1205,56 @@ def telegram_webhook(payload:dict,db=Depends(session)):
                 if d.status in ('published','rejected','removed_by_owner') or d.publish_state!='unpublished':
                     raise ValueError('Foto hanya bisa diganti sebelum publikasi.')
                 previous=db.get(TelegramSession,str(uid))
+                if (previous and previous.mode=='photo' and previous.draft_id==d.id
+                        and previous.version==d.version):
+                    if bot:bot.answer(cb_id,'Menunggu foto atau pilihan Anda')
+                    return {'ok':True,'awaiting':'photo_or_url','unchanged':True}
                 if previous:db.delete(previous);db.flush()
                 db.add(TelegramSession(user_id=str(uid),draft_id=d.id,mode='photo',version=d.version))
                 db.commit()
-                send('🖼 Kirim foto sekarang, atau tempel URL HTTPS gambar langsung. '
-                     'Foto akan langsung menjadi cover dan preview diperbarui. '
-                     'Untuk dipilihkan gambar lain, tekan tombol berikut:',finished=False)
-                if bot:bot.message(chat_id,'Alternatif otomatis:',
+                if bot:bot.answer(cb_id,'Silakan pilih foto')
+                if bot:bot.message(chat_id,
+                    '🖼 Kirim foto/URL HTTPS, atau pilih pencarian alternatif:',
                     with_home_button({'inline_keyboard':[[
-                        {'text':'✨ Pilihkan Foto Lain','callback_data':f'photosearch:{d.id}:{d.version}'}]]}))
+                        {'text':'✨ Pilihkan Foto Lain',
+                         'callback_data':f'photosearch:{d.id}:{d.version}'}]]}))
                 return {'ok':True,'awaiting':'photo_or_url'}
             elif action in ('photoupload','photosearch'):
                 if d.status in ('published','rejected','removed_by_owner') or d.publish_state!='unpublished':
                     raise ValueError('Foto hanya dapat diganti sebelum proses publikasi.')
-                sess=db.get(TelegramSession,str(uid))
-                if sess:db.delete(sess);db.flush()
                 if action=='photoupload':
+                    previous=db.get(TelegramSession,str(uid))
+                    if previous and previous.mode=='photo' and previous.draft_id==d.id and previous.version==d.version:
+                        if bot:bot.answer(cb_id,'Menunggu foto')
+                        return {'ok':True,'photo_entry':action,'unchanged':True}
+                    if previous:db.delete(previous);db.flush()
                     db.add(TelegramSession(user_id=str(uid),draft_id=d.id,mode='photo',version=d.version))
                     db.commit()
-                    send('📤 Kirim foto langsung atau URL HTTPS gambar. Preview diperbarui otomatis. /cancel untuk batal.')
+                    send('📤 Kirim foto langsung atau URL HTTPS gambar. /cancel untuk batal.')
                 else:
-                    from .photo_relevance import photo_subject_match,search_queries
-                    original=list(d.photo_candidates or [])
-                    opts=[]
-                    used=set()
-                    for term in search_queries(st.title,story_title=st.title)[:3]:
-                        for item in (original if term==search_queries(st.title,story_title=st.title)[0] else []) + find_photos(term,limit=5):
-                            key=item.get('page_url') or item.get('image_url')
-                            if (key and key not in used and item.get('credit') and
-                                item.get('license') and item.get('page_url') and
-                                photo_subject_match(term,item,st.title)):
-                                opts.append(item);used.add(key)
-                        if len(opts)>=5:break
-                    d.photo_candidates=opts[:6]
-                    db.commit()
-                    if not opts:
-                        send('⚠️ Belum ditemukan foto alternatif yang relevan dan berkredit. '
-                             'Kirim foto atau URL HTTPS secara langsung.')
-                    elif bot:
-                        bot.message(chat_id,photo_candidate_message(d),
-                                    with_home_button(photo_keyboard(d)))
+                    from .photo_sources import discover_cover_candidates
+                    from .publication_guard import image_identity
+                    if bot:bot.answer(cb_id,'Mencari gambar alternatif')
+                    existing=list(d.photo_candidates or [])
+                    candidates,errors=discover_cover_candidates(st)
+                    used={image_identity(d.source_image_url)}
+                    choices=[]
+                    for candidate in existing+candidates:
+                        key=image_identity(candidate.get('image_url'))
+                        if key and key not in used:
+                            choices.append(candidate)
+                            used.add(key)
+                        if len(choices)>=6:break
+                    if choices:
+                        d.photo_candidates=choices
+                        db.commit()
+                        if bot:bot.message(chat_id,photo_candidate_message(d),
+                                           with_home_button(photo_keyboard(d)))
+                    else:
+                        send('⚠️ Belum ditemukan foto yang cocok. Sumber dicoba: artikel, NASA, Wikimedia, Openverse. '
+                             +'Coba ulang nanti atau kirim URL foto sendiri.')
+                    return {'ok':True,'photo_entry':action,'count':len(choices),
+                            'search_errors':errors[:6]}
                 return {'ok':True,'photo_entry':action}
             elif action in ('highlight','caption','manualhook','green'):
                 if d.status in ('published','rejected') or d.publish_state in ('publishing','published','uncertain'):
