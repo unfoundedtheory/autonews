@@ -24,7 +24,7 @@ def test_source_search_tries_nasa_and_openverse_if_article_and_commons_fail():
                  "description":"JPL innovation and exploration laboratory",
                  "credit":"Example author","license":None}]
     found,errors=discover_cover_candidates(
-        story, source_finder=lambda *a,**k: None,
+        story, query='JPL innovation exploration', source_finder=lambda *a,**k: None,
         nasa_search=nasa, commons_search=unavailable,
         openverse_search=openverse, max_variants=2)
     assert found and found[0]["source"]=="openverse"
