@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timezone, timedelta
 from .models import Session, init_db, Story, Draft, Audit, TelegramUpdateReceipt
 from .research import discover
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, func
 from .pipeline import prepare_batch
 from .telegram import TelegramClient, send_preview
 from .scheduler import schedule_approved, WIB
@@ -116,14 +116,26 @@ def do_prepare():
         # help if the editor never received the existing pending news.
         delivery=deliver_pending_previews(db,bot,CONFIG.chat_id)
         from .stock_flow import stock_to_prepare
-        quota = stock_to_prepare(db)
+        # Four creation slots are a daily goal, not a cap on old approvals.
+        # A full backlog must never silently stop all future news production.
+        # Count all drafts created today, regardless of approval/posting state,
+        # so repeated cron invocations cannot exceed the daily target.
+        now_wib=datetime.now(timezone.utc).astimezone(WIB)
+        day_start=now_wib.replace(hour=0,minute=0,second=0,microsecond=0)
+        next_day=day_start+timedelta(days=1)
+        already=db.execute(select(func.count(Draft.id)).where(
+            Draft.created_at>=day_start.astimezone(timezone.utc),
+            Draft.created_at<next_day.astimezone(timezone.utc)
+        )).scalar_one()
+        remaining=max(0,4-already)
+        quota=min(1,remaining)
         if quota <= 0:
             automatic=auto_approve_ready(db)
             if automatic['approved']:
                 schedule_approved(db,daily_limit=CONFIG.daily_limit)
                 db.commit()
             log.info('draft stock target reached; recovery=%s',delivery)
-            return {'prepared':[], 'delivery':delivery,'automatic':automatic,'recovered_covers':recovered_covers}
+            return {'prepared':[], 'delivery':delivery,'automatic':automatic,'recovered_covers':recovered_covers,'daily_created':already,'daily_target':4,'skip_reason':'daily_target_met'}
         # prepare_batch commits new drafts before notifying. The recovery pass
         # owns Telegram delivery and writes a durable delivery marker.
         result=prepare_batch(db, limit=quota, notifier=None)
@@ -135,7 +147,7 @@ def do_prepare():
         log.info('prepared=%s delivery=%s', result,latest)
         return {'prepared':result, 'delivery':{
             'sent':delivery['sent']+latest['sent'],
-            'failed':delivery['failed']+latest['failed']},'automatic':automatic,'recovered_covers':recovered_covers}
+            'failed':delivery['failed']+latest['failed']},'automatic':automatic,'recovered_covers':recovered_covers,'daily_created':already+sum(1 for row in result if row.get('status')=='prepared'),'daily_target':4}
 
 def do_reschedule():
     with Session() as db:
